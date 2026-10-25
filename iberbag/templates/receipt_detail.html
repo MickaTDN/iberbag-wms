@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block crumb %}Entradas / {{ receipt.code }}{% endblock %}
+{% block content %}
+<h1>{{ 'Rever entrada' if receipt.status == 'draft' else 'Entrada confirmada' }}: {{ receipt.code }}</h1>
+<p>Data de entrada: {{ receipt.received_on.strftime('%d/%m/%Y') }}. Responsável pela receção: {{ receipt.receiver or user.username }}.</p>
+{% if receipt.confirmed_at %}<p>Confirmada em {{ receipt.confirmed_at.strftime('%d/%m/%Y %H:%M:%S') }} UTC. Registo #{{ receipt.id }}.</p>{% endif %}
+<section class="panel"><table><thead><tr><th>Artigo</th><th>Lote</th><th>Recebidas</th><th>Por arrumar</th></tr></thead><tbody>{% for line in lines %}<tr><td>{{ line.artigo }}</td><td>{{ line.lote }}</td><td>{{ line.quantidade }}</td><td>{{ pending[line.id] }}</td></tr>{% endfor %}</tbody></table></section>
+{% if receipt.status == 'draft' %}
+<p>Confirma a carga, a data e todas as quantidades. A receção confirmada fica no histórico e não pode ser alterada.</p>
+<a class="btn btn-light" href="/receipts/{{ receipt.id }}/edit">Corrigir</a>
+<form method="post" action="/receipts/{{ receipt.id }}/confirm"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="version" value="{{ receipt.version }}"><button class="btn" type="submit">Confirmar receção</button></form>
+{% else %}<a class="btn" href="/putaway">Arrumar paletes pendentes</a>{% endif %}
+<h2>Histórico de arrumação</h2>
+<section class="panel"><table><thead><tr><th>Operação</th><th>Localização</th><th>Paletes</th><th>Quem arrumou</th><th>Data/hora UTC</th></tr></thead><tbody>
+{% for event in events %}<tr><td><a href="/putaway/{{ event.id }}">#{{ event.id }}</a></td><td>{{ event.local }}</td><td>{{ event.quantidade }}</td><td>{{ event.arranger }}</td><td>{{ event.confirmed_at.strftime('%d/%m/%Y %H:%M:%S') }}</td></tr>{% else %}<tr><td colspan="5">Sem arrumações confirmadas.</td></tr>{% endfor %}
+</tbody></table></section>
+{% endblock %}

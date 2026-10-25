@@ -1,3 +1,5 @@
+> Atualização Etapa 3: consultar [Entradas e arrumação](ENTRADAS_E_ARRUMACAO.md). Esta branch usa a revisão 0002 e permite entradas/arrumação em ensaio PostgreSQL. As referências a ausência de movimentos abaixo descrevem as etapas anteriores.
+
 # Ferramentas de ensaio e recuperação — referência técnica
 
 ## Âmbito e garantias

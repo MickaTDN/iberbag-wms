@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block crumb %}Arrumação / #{{ operation.id }}{% endblock %}
+{% block content %}
+<h1>{{ 'Rever arrumação' if operation.status == 'draft' else 'Arrumação confirmada' }}</h1>
+<section class="panel"><dl class="detail-grid">
+<div><dt>Carga</dt><dd><a href="/receipts/{{ receipt.id }}">{{ receipt.code }}</a></dd></div>
+<div><dt>Artigo / lote</dt><dd>{{ line.artigo }} / {{ line.lote }}</dd></div>
+<div><dt>Localização</dt><dd>{{ operation.local }}</dd></div><div><dt>Paletes</dt><dd>{{ operation.quantidade }}</dd></div>
+<div><dt>Quem arrumou</dt><dd>{{ operation.arranger or user.username }}</dd></div>
+{% if operation.confirmed_at %}<div><dt>Data/hora UTC</dt><dd>{{ operation.confirmed_at.strftime('%d/%m/%Y %H:%M:%S') }}</dd></div>{% endif %}
+</dl></section>
+{% if operation.status == 'draft' %}<p>A revisão não reserva a posição. Só a confirmação atualiza o stock; pode falhar se outro operador ocupar a posição entretanto.</p>
+<form method="post" action="/putaway/{{ operation.id }}/confirm"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn" type="submit">Confirmar arrumação</button></form>
+{% else %}<p><a href="/stock/{{ operation.stock_id }}">Consultar stock e rastreabilidade</a></p>{% endif %}
+<p><a href="/putaway">Voltar às paletes pendentes</a></p>
+{% endblock %}

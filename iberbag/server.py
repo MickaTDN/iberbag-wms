@@ -24,10 +24,22 @@ def configure():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['prepare', 'admin', 'serve'], default='serve', nargs='?')
+    parser.add_argument('action', choices=['prepare', 'admin', 'serve', 'upgrade-preview', 'upgrade-apply'], default='serve', nargs='?')
+    parser.add_argument('--backup-folder')
     args = parser.parse_args()
     configure()
-    if args.action == 'prepare':
+    if args.action.startswith('upgrade-'):
+        import json
+        from .database import engine
+        from .schema_upgrade import preview, apply_upgrade
+        if args.action == 'upgrade-apply' and not args.backup_folder:
+            parser.error('--backup-folder é obrigatório')
+        try:
+            result = preview(engine) if args.action == 'upgrade-preview' else apply_upgrade(engine, args.backup_folder)
+        except Exception:
+            raise SystemExit('Atualização recusada. Rever versão, ligação e backup/restauro verificado com servidor parado.')
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.action == 'prepare':
         from .migrations import prepare_database
         prepare_database()
         print('Base preparada.')

@@ -32,7 +32,7 @@
 - Registos sem data de entrada: não inventar prioridade; definir estratégia controlada antes de ativar saída.
 - Desenhar reservas/confirmações seguras sob concorrência.
 
-## Entradas e arrumação (planeado)
+## Entradas e arrumação (Etapa 3, em ensaio)
 - Reproduzir fluxos distintos de receção, arrumação de cargas e paletes incompletas a partir das macros exportadas pelo utilizador (consultar localmente; não publicar os ficheiros sem revisão de confidencialidade).
 - Registar o operador responsável, data e hora; associar carga e localização.
 - Impedir exceder 1 palete em posição normal; Chão sem limite.
@@ -50,3 +50,5 @@ Em importações históricas foram identificadas posições acima da capacidade 
 - Autenticação, controlo de acessos, proteção CSRF e sessões seguras, verificadas.
 - Auditoria completa e validação de entrada, saída, transferências e FIFO.
 - Plano de instalação Windows e verificação de restauro; testes de aceitação com dados fictícios.
+
+A Etapa 3 implementa receção confirmada, pendentes e arrumação transacional em PostgreSQL, preservando a v2.3. Ver [ENTRADAS_E_ARRUMACAO.md](ENTRADAS_E_ARRUMACAO.md). Paletes incompletas e comportamentos VBA não documentados continuam por confirmar.

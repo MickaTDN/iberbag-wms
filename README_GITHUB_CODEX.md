@@ -1,5 +1,7 @@
 # Desenvolvimento em rede local
 
+Para o ensaio Windows 11, começar pelo [guia passo a passo](docs/INSTALACAO_WINDOWS.md) e pelo `ASSISTENTE_WINDOWS.bat`. A [referência de migração e backups](docs/MIGRACAO_E_BACKUPS.md) descreve proteções e limitações. Apenas dados fictícios nesta etapa.
+
 Consultar [instalação Windows](docs/INSTALACAO_WINDOWS.md) e [auditoria técnica](docs/AUDITORIA_V2_3.md) para a preparação PostgreSQL da v2.3.
 
 # Iberbag WMS — Preparado para GitHub e Codex

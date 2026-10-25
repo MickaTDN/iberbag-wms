@@ -3,10 +3,9 @@ import os
 from datetime import datetime
 from pathlib import Path
 import tempfile
+import secrets
 
-_testdb = Path(tempfile.mkdtemp()) / 'iberbag-tests.db'
-os.environ['WMS_DATABASE_URL'] = 'sqlite:///' + str(_testdb)
-os.environ['WMS_COOKIE_SECURE'] = '0'
+PASSWORD = secrets.token_urlsafe(24)
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select, func, delete
@@ -18,7 +17,7 @@ from iberbag.location_rules import capacity_for, is_floor
 
 def create_user(db, name, role):
     u = User(username=name, display_name=name, role=role, active=True)
-    set_password(u, 'exemplo_super_seguro_2026')
+    set_password(u, PASSWORD)
     db.add(u)
     db.commit()
     return u
@@ -41,7 +40,7 @@ def setup_module():
 
 
 def login(client, name):
-    response=client.post('/login',data={'username':name,'password':'exemplo_super_seguro_2026'},follow_redirects=False)
+    response=client.post('/login',data={'username':name,'password':PASSWORD},follow_redirects=False)
     assert response.status_code == 303
 
 
@@ -124,7 +123,9 @@ def test_migrate_previously_configured_location_preserves_stock():
         a=db.scalar(select(Location).where(Location.codigo=='A101'))
         a.capacidade=19
         db.commit()
-    init_db()
+    from iberbag.database import sync_location_policy
+    with SessionLocal() as db:
+        sync_location_policy(db)
     with SessionLocal() as db:
         assert db.scalar(select(Location.capacidade).where(Location.codigo=='A101'))==1
         assert db.scalar(select(Stock.quantidade).where(Stock.carga=='CARGA-20'))==1
@@ -183,13 +184,13 @@ def test_zz_permissions_and_rate_limit():
     with TestClient(app) as client:
         login(client,'admin')
         payload={'csrf':csrf(client),'username':'newop','display_name':'Novo Operador',
-                 'role':'operador','password':'password_segura_abc_123'}
+                 'role':'operador','password':secrets.token_urlsafe(24)}
         assert client.post('/users',data=payload,follow_redirects=False).status_code==303
         assert 'newop' in client.get('/users').text
     with TestClient(app) as client:
         for _ in range(8):
-            assert client.post('/login',data={'username':'none','password':'notright'}).status_code==401
-        assert client.post('/login',data={'username':'none','password':'notright'}).status_code==429
+            assert client.post('/login',data={'username':'none','password':secrets.token_urlsafe(24)}).status_code==401
+        assert client.post('/login',data={'username':'none','password':secrets.token_urlsafe(24)}).status_code==429
     # Keep subsequent tests independent of the intentional rate-limit test.
     from iberbag.database import FailedLogin
     with SessionLocal() as db:

@@ -10,6 +10,7 @@ from .capacities import export_csv
 def main():
     parser = argparse.ArgumentParser(description='Iberbag WMS — ferramentas do servidor')
     commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('prepare-db', help='preparar base NOVA com migrações versionadas')
     commands.add_parser('init-db', help='criar as tabelas')
     commands.add_parser('create-admin', help='criar o primeiro administrador')
     imp = commands.add_parser('import-excel', help='validar/importar o ficheiro XLSM (nunca executa VBA)')
@@ -21,6 +22,10 @@ def main():
     capim.add_argument('ficheiro')
     capim.add_argument('--apply', action='store_true', help='confirmar gravação')
     args = parser.parse_args()
+    if args.command == 'prepare-db':
+        from .migrations import prepare_database
+        prepare_database()
+        print('Base preparada e versão verificada.'); return
     init_db()
     if args.command == 'init-db':
         print('Tabelas criadas.'); return

@@ -155,6 +155,11 @@ def seed_warehouse_layout(db):
 
 
 def init_db():
+    """Legacy SQLite development only; PostgreSQL is prepared explicitly."""
+    if engine.dialect.name == "postgresql":
+        from .migrations import check_database
+        check_database()
+        return
     from sqlalchemy import select
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:

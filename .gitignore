@@ -1,0 +1,13 @@
+__pycache__/
+.pytest_cache/
+.venv/
+*.db
+*.db-*
+*.sqlite*
+*.xls*
+*.zip
+.env
+.env.*
+*.log
+*.dump
+backups/

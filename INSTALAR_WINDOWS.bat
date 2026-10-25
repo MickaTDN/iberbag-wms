@@ -1,12 +1,11 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-echo [IBERBAG WMS] Instalar dependencias Python no ambiente atual
-py -m pip install -r requirements.txt
-if errorlevel 1 (
- echo ERRO: Falha ao instalar dependencias. Verificar Python e Internet.
- pause
- exit /b 1
-)
-echo Instalacao das dependencias concluida.
+py -3.12 -m venv .venv
+if errorlevel 1 exit /b 1
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+if errorlevel 1 exit /b 1
+.venv\Scripts\python.exe -m pip check
+if errorlevel 1 exit /b 1
+echo Instalacao concluida. Leia docs\INSTALACAO_WINDOWS.md.
 pause

@@ -1,3 +1,7 @@
+# Desenvolvimento em rede local
+
+Consultar [instalação Windows](docs/INSTALACAO_WINDOWS.md) e [auditoria técnica](docs/AUDITORIA_V2_3.md) para a preparação PostgreSQL da v2.3.
+
 # Iberbag WMS — Preparado para GitHub e Codex
 
 Este pacote contém o **código da v2.3** e a documentação de passagem para desenvolvimento com Codex. Não contém a base de dados do teu computador nem os dados reais do Excel.

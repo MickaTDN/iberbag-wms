@@ -7,11 +7,11 @@ import hmac, os, re
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from urllib.parse import parse_qs
-from fastapi import FastAPI, Request, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select, func, desc, or_, delete
+from sqlalchemy import select, func, desc, or_, delete, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from pathlib import Path
@@ -40,6 +40,10 @@ def database():
         yield db
 
 def identity(request: Request, db: Session):
+    # Serialize administrative writes across workers before reading permissions/state.
+    # Transaction-scoped lock is released by commit/rollback/session close.
+    if request.method == 'POST' and db.bind.dialect.name == 'postgresql':
+        db.execute(text('SELECT pg_advisory_xact_lock(72834001)'))
     session = get_session(db, request.cookies.get('wms_session'))
     return (session.user, session) if session else (None, None)
 
@@ -61,11 +65,11 @@ def context(request, user, sess, **kwargs):
 async def form_body(request: Request):
     if request.headers.get('content-type', '').split(';')[0] != 'application/x-www-form-urlencoded':
         return {}
-    if int(request.headers.get('content-length') or 0) > 8192:
-        return {}
-    body = await request.body()
-    if len(body) > 8192:
-        return {}
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > 8192:
+            raise HTTPException(status_code=413, detail='Formulário demasiado grande.')
     return {k: vals[0] for k, vals in parse_qs(body.decode('utf-8', 'replace'), keep_blank_values=True).items()}
 
 def valid_csrf(form, sess):
@@ -403,5 +407,10 @@ def audit_page(request: Request, db: Session=Depends(database)):
     return render(request,'audit.html',context(request,user,sess,events=events))
 
 @app.get('/health')
-def health():
+def health(db: Session = Depends(database)):
+    from sqlalchemy.exc import SQLAlchemyError
+    try:
+        db.execute(select(User.id).limit(1))
+    except SQLAlchemyError:
+        return JSONResponse({'status': 'unavailable'}, status_code=503)
     return {'status': 'ok', 'application': 'Iberbag WMS', 'version':'2.3-prototipo'}

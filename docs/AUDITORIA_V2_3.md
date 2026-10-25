@@ -42,9 +42,11 @@ existentes continuam visíveis. Nenhum módulo de movimentos foi acrescentado.
 - O importador Excel não tem um protocolo concorrente nem relatório persistido de
   reconciliação. Não o executar com o serviço ativo nem usar para migrar produção
   nesta etapa. A validação SQLite antiga ainda inicializa/normaliza o catálogo.
-- Não existe migração automática dos dados SQLite para PostgreSQL. Preparar uma cópia,
-  comparar todos os grupos e metadados, documentar diferenças e obter autorização
-  antes de qualquer passagem dos dados reais. Não fazer `alembic stamp` à cegas.
+- A etapa seguinte acrescenta `iberbag.transfer` para migração exclusivamente de
+  dados fictícios, com cópia read-only, pré-visualização, transação e reconciliação
+  completa. `iberbag.backup` verifica backup/restauro numa base de teste nova. Ver
+  [MIGRACAO_E_BACKUPS.md](MIGRACAO_E_BACKUPS.md). Dados reais continuam a exigir
+  ensaio separado, relatório de diferenças e autorização; não fazer `stamp` à cegas.
 - Rate limiting por IP/utilizador pode afetar postos que partilhem um IP. A contagem
   de falhas de login não está serializada; rever em testes de carga e autenticação.
 - Datas são UTC sem timezone na base, por compatibilidade; futura migração deve
@@ -71,3 +73,20 @@ utilizadores. Não constitui validação de restauro de dados históricos reais.
 A execução disponível é Linux. Os ficheiros BAT, confiança da CA, firewall, serviços
 Windows e acesso dos dois PCs precisam do ensaio de aceitação descrito em
 [INSTALACAO_WINDOWS.md](INSTALACAO_WINDOWS.md). Não foi feito deploy Windows.
+
+## Atualização: ensaio Windows 11
+
+O assistente por menus permite gerar dados fictícios, rever/aplicar/reconciliar a
+migração e testar backup/restauro. A validação de dois clientes HTTP sobre a base
+migrada complementa os testes de permissões; não substitui dois postos físicos.
+`VERIFICAR_POSTO.ps1` verifica HTTPS e ausência de exposição das portas 5432/8000
+sem alterar a configuração do posto. As restrições e riscos anteriores de movimentos,
+rate limiting e organização dos handlers permanecem; esta etapa não os certifica.
+
+Validação desta etapa no ambiente Linux: **30 testes passaram com PostgreSQL 17**;
+**22 passaram e 8 foram omitidos em SQLite** (os omitidos exigem PostgreSQL/Docker).
+Inclui migração, backup e restauro com contas PostgreSQL sem superuser, fonte WAL
+inalterada, rollback de carga inválida, arquivo truncado, snapshot consistente sob
+escrita concorrente e permissões nos dois clientes HTTP. Permanece um aviso de
+depreciação Starlette/httpx. Foi configurado um job Windows no GitHub Actions; a sua
+execução e os testes físicos de aceitação Windows não foram confirmados localmente.

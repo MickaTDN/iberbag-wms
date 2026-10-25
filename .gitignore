@@ -11,3 +11,9 @@ __pycache__/
 *.log
 *.dump
 backups/
+# Local installation and sensitive reconciliation bundles
+caddy.exe
+Caddyfile
+ensaios/
+backup-*/
+migration-*/

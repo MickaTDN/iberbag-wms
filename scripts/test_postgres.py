@@ -26,7 +26,8 @@ def main():
         port = int(info['NetworkSettings']['Ports']['5432/tcp'][0]['HostPort'])
         url = URL.create('postgresql+psycopg', username='postgres', password=password,
                          host='127.0.0.1', port=port, database='iberbag_test')
-        env = dict(os.environ, WMS_TEST_POSTGRES_URL=url.render_as_string(hide_password=False))
+        env = dict(os.environ, WMS_TEST_POSTGRES_URL=url.render_as_string(hide_password=False),
+                   WMS_TEST_PG_CONTAINER=name)
         result = subprocess.run([sys.executable, '-m', 'pytest', '-q'], env=env,
                                 cwd=Path(__file__).resolve().parent.parent)
     finally:

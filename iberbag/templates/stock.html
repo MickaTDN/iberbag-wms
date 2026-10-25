@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Consulta de stock | Iberbag WMS{% endblock %}
+{% block crumb %}Consulta de stock{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="overline">INVENTÁRIO</div><h1>Consulta de stock</h1><p>Pesquisa por artigo, lote ou localização. Seleciona uma palete para conhecer a sua origem e arrumação.</p></div><span class="pill outline">Apenas consulta</span></div>
+<section class="panel filters-panel"><form method="get" action="/stock"><div class="filter-grid">
+  <label>Artigo<input type="search" name="artigo" maxlength="100" value="{{ filters.artigo }}" placeholder="Número ou referência"></label>
+  <label>Lote<input type="search" name="lote" maxlength="100" value="{{ filters.lote }}" placeholder="Número do lote"></label>
+  <label>Localização<input type="search" name="local" maxlength="100" value="{{ filters.local }}" placeholder="Corredor ou Chão"></label>
+  <button class="btn btn-primary" type="submit">Pesquisar</button><a class="btn btn-light" href="/stock">Limpar</a>
+</div></form></section>
+<section class="panel table-panel"><div class="panel-head"><div><h2>Resultados <span class="pill soft">{{ count }} registos</span></h2><p>{{ pallet_count }} paletes nas condições pesquisadas</p></div><span class="label-muted">{{ page }} / {{ total_pages }} páginas</span></div>
+  <div class="table-wrap"><table><thead><tr><th>Artigo</th><th>Lote</th><th>Localização</th><th class="numeric">Paletes</th><th>Informações</th></tr></thead><tbody>
+    {% for item in rows %}<tr><td class="code strong"><a class="table-link" href="/stock/{{ item.id }}">{{ item.artigo }}</a></td><td class="code">{{ item.lote }}</td><td><span class="loc-tag">{{ item.local }}</span></td><td class="numeric strong">{{ item.quantidade }}</td><td><a class="btn btn-small btn-light" href="/stock/{{ item.id }}" aria-label="Ver detalhes do artigo {{ item.artigo }}, lote {{ item.lote }}, localização {{ item.local }}">Ver detalhes →</a></td></tr>
+    {% else %}<tr><td colspan="5" class="empty">Sem registos para esta pesquisa.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <div class="pagination"><span>50 registos por página</span><div>
+  {% if page > 1 %}<a class="btn btn-light" href="/stock?artigo={{ filters.artigo|urlencode }}&lote={{ filters.lote|urlencode }}&local={{ filters.local|urlencode }}&page={{ page-1 }}">← Anterior</a>{% endif %}
+  {% if page < total_pages %}<a class="btn btn-light" href="/stock?artigo={{ filters.artigo|urlencode }}&lote={{ filters.lote|urlencode }}&local={{ filters.local|urlencode }}&page={{ page+1 }}">Seguinte →</a>{% endif %}
+  </div></div>
+</section>
+{% endblock %}

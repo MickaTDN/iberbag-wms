@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{% block title %}Iberbag WMS{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+{% if user %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">I</div><div><strong>IBERBAG</strong><span>WMS · Gestão de Armazém</span></div></div>
+    <div class="side-label">MENU PRINCIPAL</div>
+    <nav aria-label="Principal">
+      <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">◫ &nbsp; Visão geral</a>
+      <a href="/stock" class="{% if request.url.path.startswith('/stock') %}active{% endif %}">▤ &nbsp; Consulta de stock</a>
+      <a href="/map" class="{% if request.url.path == '/map' %}active{% endif %}">▦ &nbsp; Mapa do armazém</a>
+    </nav>
+    {% if user.role == 'admin' %}
+    <div class="side-label">ADMINISTRAÇÃO</div>
+    <nav aria-label="Administração">
+      <a href="/settings" class="{% if request.url.path.startswith('/settings') or request.url.path in ['/users','/audit'] %}active{% endif %}">⚙ &nbsp; Definições</a>
+      {% if request.url.path.startswith('/settings') or request.url.path in ['/users','/audit'] %}
+      <div class="side-subnav" aria-label="Submenus de Definições">
+        <a href="/settings/locations" class="{% if request.url.path.startswith('/settings/locations') or request.url.path.startswith('/settings/corridors') %}active{% endif %}">Localizações</a>
+        <a href="/users" class="{% if request.url.path == '/users' %}active{% endif %}">Utilizadores</a>
+        <a href="/audit" class="{% if request.url.path == '/audit' %}active{% endif %}">Registo de atividade</a>
+      </div>
+      {% endif %}
+    </nav>
+    {% endif %}
+    <div class="sidebar-bottom"><span class="status-dot"></span> Protótipo de consulta<br><small>Movimentos não ativados</small></div>
+  </aside>
+  <div class="workarea">
+    <header class="topbar">
+      <div><span class="crumb">ARMAZÉM / </span><span>{% block crumb %}Painel{% endblock %}</span></div>
+      <div class="top-right"><div class="profile"><div class="avatar">{{ user.display_name[:1]|upper }}</div><div><strong>{{ user.display_name }}</strong><small>{{ 'Administrador' if user.role == 'admin' else 'Operador' }}</small></div></div>
+      <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="logout" type="submit">Sair</button></form></div>
+    </header>
+    <main>{% block content %}{% endblock %}</main>
+    <footer>IBERBAG WMS · Versão 2.3 de desenvolvimento · Dados centralizados · Para testes antes de utilização operacional</footer>
+  </div>
+</div>
+{% else %}
+{% block login %}{% endblock %}
+{% endif %}
+</body></html>

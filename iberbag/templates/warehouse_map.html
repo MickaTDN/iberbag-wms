@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Mapa do armazém | Iberbag WMS{% endblock %}
+{% block crumb %}Mapa do armazém{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="overline">OCUPAÇÃO · CONSULTA</div><h1>Mapa do armazém</h1><p>Escolhe um corredor e um andar. Seleciona uma posição ocupada para consultar as paletes.</p></div><span class="pill outline">Apenas consulta</span></div>
+{% if current %}
+<section class="panel map-panel">
+ <div class="panel-head"><div><h2>Corredores</h2><p>Mapa teórico configurado nas Definições.</p></div>{% if user.role == 'admin' %}<a class="btn btn-light btn-small" href="/settings/locations">Gerir localizações →</a>{% endif %}</div>
+ <div class="corridor-selector" aria-label="Escolher corredor">
+ {% for item in corridors %}<a href="/map?corredor={{ item.codigo }}&andar=1" class="corridor-chip {% if current.codigo == item.codigo %}selected{% endif %}" {% if current.codigo == item.codigo %}aria-current="page"{% endif %}>{{ item.codigo }}</a>{% endfor %}
+ </div>
+</section>
+<section class="panel map-panel">
+ <div class="panel-head"><div><h2>Corredor {{ current.codigo }}</h2><p>{{ current.andares }} andares · posições 01 a {{ '%02d'|format(current.posicoes) }}</p></div><span class="pill soft">Andar {{ selected_floor }}</span></div>
+ <div class="floor-selector" aria-label="Escolher andar">
+  {% for floor in range(1,current.andares+1) %}<a href="/map?corredor={{ current.codigo }}&andar={{ floor }}" class="floor-chip {% if selected_floor == floor %}selected{% endif %}" {% if selected_floor == floor %}aria-current="page"{% endif %}>Andar {{ floor }}</a>{% endfor %}
+ </div>
+ <div class="map-metrics">
+  <div><strong>{{ used }}</strong><span>ocupadas</span></div>
+  <div><strong>{{ free }}</strong><span>livres</span></div>
+  <div><strong>{{ anomalies }}</strong><span>a verificar</span></div>
+  <div><strong>{{ removed }}</strong><span>não configuradas</span></div>
+ </div>
+ <div class="map-legend" aria-label="Legenda"><span><i class="legend-dot used"></i> Ocupada (1)</span><span><i class="legend-dot free"></i> Livre</span><span><i class="legend-dot anomaly"></i> Verificar</span><span><i class="legend-dot removed"></i> Não configurada</span></div>
+ <div class="map-shelf" role="group" aria-label="Posições do corredor {{ current.codigo }}, andar {{ selected_floor }}">
+ {% for slot in slots %}
+   {% if slot.status in ['used','anomaly'] %}
+    <a class="map-slot {{ slot.status }}" href="/stock?local={{ slot.code|urlencode }}" title="{{ slot.code }}: {{ slot.qty }} palete(s){% if not slot.configured %} · posição fora do catálogo{% endif %}">
+      <b>{{ slot.code }}</b><small>{{ slot.qty }} {% if slot.qty == 1 %}palete{% else %}paletes{% endif %}</small>
+    </a>
+   {% else %}
+    <div class="map-slot {{ slot.status }}" title="{{ slot.code }}: {{ 'Livre' if slot.status == 'free' else 'Posição não configurada' }}"><b>{{ slot.code }}</b><small>{{ 'Livre' if slot.status == 'free' else 'Indisponível' }}</small></div>
+   {% endif %}
+ {% endfor %}
+ </div>
+ <p class="map-note">O mapa mostra apenas as posições do andar escolhido. <strong>Verificar</strong> indica mais de 1 palete numa posição ou stock numa localização fora do catálogo. Nenhum dado foi corrigido automaticamente.</p>
+</section>
+{% else %}<div class="alert warning">Ainda não existem corredores configurados. Um administrador deverá criar as localizações nas Definições.</div>{% endif %}
+<section class="panel">
+ <div class="panel-head"><h2>Outras situações de stock</h2><span class="pill outline">Fora das posições dos corredores</span></div>
+ <div class="map-exceptions">
+   <a href="/stock?local=Ch%C3%A3o"><b>Chão</b><strong>{{ floor_pallets }}</strong><small>paletes · capacidade ilimitada</small></a>
+   <div><b>Sem localização atribuída</b><strong>{{ unassigned }}</strong><small>paletes · exige conferência</small></div>
+ </div>
+</section>
+{% endblock %}

@@ -1,0 +1,7 @@
+# EXEMPLO APENAS. Configurar DNS/hosts e CA com a equipa de informatica.
+# Este nome e um exemplo para a rede interna.
+wms.iberbag.home.arpa {
+    tls internal
+    encode gzip
+    reverse_proxy 127.0.0.1:8000
+}

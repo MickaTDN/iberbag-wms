@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Localizações | Iberbag WMS{% endblock %}
+{% block crumb %}Localizações{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="overline">OCUPAÇÃO DO ARMAZÉM</div><h1>Localizações</h1><p>Capacidade fixa: uma palete por posição. O <strong>Chão</strong> não tem limite de paletes.</p></div></div>
+<div class="alert warning">Os registos importados do Excel são preservados, mesmo que tenham posições duplicadas ou sem localização. Estes casos são assinalados para conferência; o sistema não os desloca automaticamente.</div>
+<section class="panel filters-panel"><form method="get" action="/locations" class="location-filter"><label>Localização<input name="search" maxlength="100" value="{{ search }}" placeholder="Ex.: A101, Chão"></label><button class="btn btn-primary">Pesquisar</button><a class="btn btn-light" href="/locations">Limpar</a></form></section>
+<section class="panel table-panel"><div class="panel-head"><h2>Mapa de ocupação <span class="pill soft">{{ matches }} localizações</span></h2></div><div class="table-wrap"><table><thead><tr><th>Localização</th><th class="numeric">Paletes atuais</th><th class="numeric">Capacidade</th><th>Estado</th><th>Consulta</th></tr></thead><tbody>
+{% for row in locations %}<tr><td class="code strong">{{ row.codigo }}</td><td class="numeric strong">{{ row.used }}</td><td class="numeric">{{ 'Sem limite' if is_floor(row.codigo) else ('Por identificar' if is_unassigned(row.codigo) else '1') }}</td><td>
+  {% if is_unassigned(row.codigo) %}<span class="pill warn">Localização em falta</span>
+  {% elif is_floor(row.codigo) %}<span class="pill success">Chão · livre colocação</span>
+  {% elif row.used > 1 %}<span class="pill warn">Excesso: {{ row.used }} paletes</span>
+  {% elif row.used == 1 %}<span class="pill success">Ocupada</span>
+  {% else %}<span class="pill outline">Livre</span>{% endif %}</td><td><a class="btn btn-small btn-light" href="/stock?local={{ row.codigo|urlencode }}">Ver paletes →</a></td></tr>
+{% else %}<tr><td class="empty" colspan="5">Sem localizações.</td></tr>{% endfor %}
+</tbody></table></div><div class="pagination"><span>Página {{ page }} de {{ total_pages }} · 100 localizações por página</span><div>{% if page > 1 %}<a class="btn btn-light" href="/locations?search={{ search|urlencode }}&page={{ page-1 }}">← Anterior</a>{% endif %}{% if page < total_pages %}<a class="btn btn-light" href="/locations?search={{ search|urlencode }}&page={{ page+1 }}">Seguinte →</a>{% endif %}</div></div></section>
+{% endblock %}

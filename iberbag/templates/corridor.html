@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Corredor {{ corridor.codigo }} | Iberbag WMS{% endblock %}
+{% block crumb %}Definições / Localizações / Corredor {{ corridor.codigo }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="overline"><a class="table-link" href="/settings/locations">← Voltar às Localizações</a></div><h1>Corredor {{ corridor.codigo }}</h1><p>{{ corridor.andares }} andares · posições 01 a {{ '%02d'|format(corridor.posicoes) }} · 1 palete por localização.</p></div></div>
+<div class="alert warning">As alterações aos códigos e a eliminação de posições ocupadas ficam bloqueadas. Para reduzir o número de andares ou posições, é necessário que todas as posições que serão removidas estejam vazias. Alterar a geometria repõe automaticamente posições ausentes dentro do novo intervalo.</div>
+<div class="two-cols settings-layout">
+<section class="panel"><div class="panel-head"><h2>Alterar corredor {{ corridor.codigo }}</h2></div>
+<form method="post" action="/settings/corridors/{{ corridor.codigo }}/update" class="stack-form"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label>Andares<input type="number" name="andares" min="1" max="9" value="{{ corridor.andares }}" required></label>
+<label>Posições por andar<input type="number" name="posicoes" min="1" max="99" value="{{ corridor.posicoes }}" required></label>
+<button class="btn btn-primary">Guardar alterações</button>
+</form></section>
+<section class="panel"><div class="panel-head"><h2>Remover corredor</h2></div><p>O corredor e as respetivas posições só podem ser removidos se não existir qualquer palete associada.</p>
+<form method="post" action="/settings/corridors/{{ corridor.codigo }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-danger">Remover corredor {{ corridor.codigo }}</button></form>
+<div class="info-note">Para alterar a letra, remove o corredor vazio e cria outro com o novo código. Não são transferidas paletes automaticamente.</div>
+</section></div>
+{% for floor in floor_range %}
+<section class="panel table-panel"><div class="panel-head"><h2>Andar {{ floor }}</h2><span class="label-muted">{{ corridor.posicoes }} posições previstas</span></div>
+<div class="table-wrap"><table><thead><tr><th>Localização</th><th>Estado no catálogo</th><th>Ocupação</th><th>Alterar código (posição vazia)</th><th>Remover</th></tr></thead><tbody>
+{% for item in entries if item.floor == floor %}<tr><td class="code strong">{{ item.code }}</td><td>{% if item.present %}<span class="pill success">Configurada</span>{% else %}<span class="pill warn">Removida</span>{% endif %}</td><td>{% if item.occupied > 0 %}<a class="table-link" href="/stock?local={{ item.code|urlencode }}">{{ item.occupied }} palete(s) → consultar</a>{% else %}<span class="pill outline">Livre</span>{% endif %}</td>
+<td>{% if item.present and item.occupied == 0 %}<form method="post" class="inline-form" action="/settings/locations/{{ item.code }}/rename"><input type="hidden" name="csrf" value="{{ csrf }}"><input name="novo_codigo" aria-label="Novo código para {{ item.code }}" maxlength="4" pattern="[A-Za-z][1-9][0-9]{2}" placeholder="Novo código" required><button class="btn btn-small btn-light">Alterar</button></form>{% else %}—{% endif %}</td>
+<td>{% if item.present and item.occupied == 0 %}<form method="post" action="/settings/locations/{{ item.code }}/delete"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn btn-small btn-light">Remover</button></form>{% elif not item.present %}<form method="post" action="/settings/locations"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="codigo" value="{{ item.code }}"><button class="btn btn-small btn-light">Repor</button></form>{% else %}Em utilização{% endif %}</td></tr>
+{% endfor %}
+</tbody></table></div></section>
+{% endfor %}
+{% endblock %}

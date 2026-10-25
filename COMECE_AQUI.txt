@@ -1,0 +1,22 @@
+IBERBAG WMS — v2.3
+==================
+
+ATUALIZAR A V2.2 SEM PERDER OS DADOS:
+1. Encerra a v2.2 (CTRL+C na janela do servidor).
+2. Faz uma cópia de segurança da pasta e do ficheiro iberbag-dev.db.
+3. Extrai todo o ZIP numa pasta NOVA, por exemplo C:\IBERBAG_WMS_V2_3.
+4. Copia iberbag-dev.db da v2.2 para essa pasta nova (junto ao .bat).
+5. Abre ABRIR_IBERBAG_WMS.bat e escolhe 5 para iniciar.
+6. Abre http://127.0.0.1:8000
+7. Consulta Mapa do armazém e Definições > Localizações.
+
+NÃO reimportes o Excel se já tens uma base de dados válida.
+
+O QUE HÁ DE NOVO:
+- Visão geral / Consulta de stock / Mapa do armazém no menu principal.
+- Definições -> Localizações, Utilizadores, Registo de atividade.
+- Mapa visual por corredor e andar, ocupadas, livres e a verificar.
+- 1 palete por posição; Chão sem limite.
+
+Para mais detalhes e PostgreSQL, lê LEIA-ME.txt.
+Esta é uma versão de TESTES, sem movimentos ativos.

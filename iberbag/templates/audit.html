@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Atividade | Iberbag WMS{% endblock %}
+{% block crumb %}Atividade{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="overline">ADMINISTRAÇÃO</div><h1>Registo de atividade</h1><p>Operações de administração e acessos recentes.</p></div></div>
+<section class="panel table-panel"><div class="panel-head"><h2>Últimos 150 eventos</h2></div><div class="table-wrap"><table><thead><tr><th>Data e hora</th><th>Utilizador</th><th>Operação</th><th>Detalhes</th></tr></thead><tbody>{% for e in events %}<tr><td>{{ e.occurred_at.strftime('%d/%m/%Y %H:%M') }}</td><td>{{ e.username }}</td><td class="code strong">{{ e.action }}</td><td>{{ e.details }}</td></tr>{% else %}<tr><td colspan="4" class="empty">Sem eventos.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

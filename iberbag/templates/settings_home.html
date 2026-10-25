@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Definições | Iberbag WMS{% endblock %}
+{% block crumb %}Definições{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="overline">ÁREA DO ADMINISTRADOR</div><h1>Definições</h1><p>Escolhe a área que pretendes configurar. As próximas opções serão acrescentadas neste menu.</p></div></div>
+<div class="settings-home-grid">
+ <a class="settings-option" href="/settings/locations"><span class="settings-icon">▦</span><strong>Localizações</strong><span>Corredores, andares, posições e regras de ocupação.</span><b>Abrir →</b></a>
+ <a class="settings-option" href="/users"><span class="settings-icon">♙</span><strong>Utilizadores</strong><span>Contas individuais, permissões e palavras-passe.</span><b>Abrir →</b></a>
+ <a class="settings-option" href="/audit"><span class="settings-icon">◷</span><strong>Registo de atividade</strong><span>Consultar alterações administrativas e acessos.</span><b>Abrir →</b></a>
+</div>
+<div class="info-note"><strong>Área preparada para crescer.</strong> Poderemos adicionar mais opções às Definições sem misturar a gestão das localizações com as restantes configurações.</div>
+{% endblock %}

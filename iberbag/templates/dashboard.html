@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Visão geral | Iberbag WMS{% endblock %}
+{% block crumb %}Visão geral{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="overline">PAINEL DE CONTROLO</div><h1>Visão geral do armazém</h1><p>Consulta centralizada de stock e localizações Iberbag.</p></div><span class="pill outline"><span class="status-dot"></span> Acesso {{ 'administrativo' if user.role == 'admin' else 'operador' }}</span></div>
+<div class="alert warning"><strong>Versão em validação.</strong> A consulta de stock está disponível. As entradas, saídas, FIFO e transferências não estão ativas nesta versão.</div>
+<div class="stat-grid">
+  <div class="stat"><div class="stat-label">PALETES EM STOCK <span>▧</span></div><div class="stat-value">{{ stats[0] }}</div><small>Quantidade total registada</small></div>
+  <div class="stat"><div class="stat-label">ARTIGOS DIFERENTES <span>▤</span></div><div class="stat-value">{{ stats[1] }}</div><small>Referências em stock</small></div>
+  <div class="stat"><div class="stat-label">LOTES DIFERENTES <span>◫</span></div><div class="stat-value">{{ stats[2] }}</div><small>Lotes identificados</small></div>
+  <div class="stat"><div class="stat-label">LOCALIZAÇÕES <span>▦</span></div><div class="stat-value">{{ stats[3] }}</div><small>Localizações com stock</small></div>
+</div>
+<div class="two-cols"><section class="panel"><div class="panel-head"><h2>Acesso rápido</h2><span class="label-muted">Operações disponíveis</span></div>
+  <div class="quicklinks"><a href="/stock"><span class="quick-icon">▤</span><span><b>Consultar stock</b><small>Pesquisa por artigo, lote e localização</small></span><span>→</span></a><a href="/map"><span class="quick-icon">▦</span><span><b>Mapa do armazém</b><small>Posições ocupadas, livres e a verificar</small></span><span>→</span></a>{% if user.role == 'admin' %}<a href="/settings"><span class="quick-icon">⚙</span><span><b>Definições</b><small>Localizações e outras configurações</small></span><span>→</span></a>{% endif %}</div></section>
+  <section class="panel"><div class="panel-head"><h2>Validações pendentes</h2><span class="pill soft">Importação do Excel</span></div><div class="checklist"><div><span class="warn-icon">!</span><p><strong>{{ exceeding_locations|length }} localizações físicas com mais de uma palete</strong><small>Máximo: 1 palete. Chão ilimitado. {% if exceeding_locations %}Por conferir: {{ exceeding_locations[:6]|join(', ') }}{% endif %}</small></p></div><div><span class="warn-icon">!</span><p><strong>{{ unidentified_pallets }} paletes sem localização</strong><small>Registos antigos preservados para revisão; não foram colocados no Chão automaticamente.</small></p></div><div><span class="warn-icon">!</span><p><strong>{{ missing_dates }} cargas sem data de entrada</strong><small>É necessário reconciliar estes registos antes de ativar FIFO.</small></p></div></div></section></div>
+{% endblock %}

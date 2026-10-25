@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Entrar | Iberbag WMS{% endblock %}
+{% block login %}
+<div class="login-scene">
+  <div class="login-wrap"><div class="login-brand"><div class="brand-mark">I</div><div><strong>IBERBAG</strong><span>WAREHOUSE MANAGEMENT SYSTEM</span></div></div>
+    <div class="login-card"><div class="overline">ACESSO AO SISTEMA</div><h1>Bem-vindo de volta.</h1><p class="description">Inicia sessão para consultar o stock e as localizações do armazém.</p>
+    {% if error %}<div class="alert error" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="/login"><label>Nome de utilizador<input name="username" required autocomplete="username" maxlength="60" placeholder="ex.: operador01"></label>
+    <label>Palavra-passe<input type="password" name="password" required autocomplete="current-password" placeholder="A tua palavra-passe"></label>
+    <button class="btn btn-primary full">Entrar no Iberbag WMS →</button></form>
+    <p class="micro">Acesso reservado a colaboradores autorizados.</p></div>
+    <p class="login-bottom">Iberbag WMS · Versão 2 (protótipo de testes)</p>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Detalhes da palete | Iberbag WMS{% endblock %}
+{% block crumb %}Consulta de stock / Detalhes{% endblock %}
+{% block content %}
+<div class="page-head"><div><div class="overline">RASTREABILIDADE</div><h1>{{ 'Informações da palete' if item.quantidade == 1 else 'Informações do grupo de paletes' }}</h1><p>Dados do artigo, da carga e do histórico de entrada/arrumação.</p></div><a href="/stock" class="btn btn-light">← Voltar ao stock</a></div>
+<section class="panel details-panel">
+  <div class="panel-head"><h2>Identificação</h2><span class="pill soft">{{ item.quantidade }} {{ 'palete' if item.quantidade == 1 else 'paletes' }}</span></div>
+  <dl class="detail-grid">
+    <div><dt>Artigo</dt><dd class="code strong">{{ item.artigo }}</dd></div>
+    <div><dt>Lote</dt><dd class="code strong">{{ item.lote }}</dd></div>
+    <div><dt>Localização</dt><dd><span class="loc-tag">{{ item.local }}</span></dd></div>
+    <div><dt>Quantidade</dt><dd>{{ item.quantidade }} {{ 'palete' if item.quantidade == 1 else 'paletes' }}</dd></div>
+  </dl>
+</section>
+<section class="panel details-panel">
+  <div class="panel-head"><h2>Entrada e arrumação</h2><span class="pill outline">Histórico do Excel</span></div>
+  <dl class="detail-grid">
+    <div><dt>Número da carga</dt><dd class="code strong">{{ item.carga }}</dd></div>
+    <div><dt>Data de entrada</dt><dd>{{ carga.entrada.strftime('%d/%m/%Y') if carga and carga.entrada else 'Não registada' }}</dd></div>
+    <div><dt>Quem arrumou</dt><dd>{{ carga.funcionario if carga and carga.funcionario else 'Não registado' }}</dd></div>
+  </dl>
+  <div class="info-note">O Excel guarda o nome do funcionário associado à <strong>arrumação da carga</strong>. Quando uma carga foi arrumada por várias pessoas, o histórico antigo pode não identificar quem colocou esta palete específica.</div>
+</section>
+{% endblock %}

@@ -1,0 +1,87 @@
+IBERBAG WMS — VERSÃO 2.3 · PROTÓTIPO DE CONSULTA E MAPA VISUAL
+================================================================
+Data: outubro de 2026
+
+O QUE MUDOU EM RELAÇÃO À V2.2
+--------------------------------
+1. O menu principal passou a ter:
+   - Visão geral
+   - Consulta de stock
+   - Mapa do armazém (NOVO; leitura para admin e operador)
+2. A secção "Definições" tornou-se uma página com submenus:
+   - Localizações (NOVO submenu; acrescentar/alterar/remover corredores e posições)
+   - Utilizadores (contas e permissões já existentes)
+   - Registo de atividade (auditoria já existente)
+   Só os administradores acedem às Definições e seus submenus.
+3. O novo MAPA DO ARMAZÉM permite:
+   - Escolher corredor por letra e andar;
+   - Visualizar posições (ex.: C214 = corredor C, andar 2, posição 14);
+   - Distinguir: livre, ocupada (1 palete), verificar (>1 palete ou fora do
+     catálogo), e posição não configurada;
+   - Selecionar uma posição com stock para abrir a Consulta de Stock filtrada;
+   - Consultar totais no Chão e registos sem localização atribuída.
+4. O mapa inicial permanece baseado no VBA: A–S; 27 posições por andar,
+   quatro andares por corredor, exceto L e M com cinco.
+5. A capacidade continua a ser 1 palete por posição física; Chão ilimitado.
+6. A pesquisa de stock continua somente por artigo, lote e localização.
+   Carga, data e funcionário aparecem apenas na ficha de detalhes.
+7. As entradas, saídas, transferências e FIFO permanecem INATIVAS.
+
+IMPORTANTE — ATUALIZAR A TUA V2.2 COM SQLITE (TESTE LOCAL)
+----------------------------------------------------------
+1. Fecha o Iberbag WMS v2.2 no CMD com CTRL + C.
+2. Faz uma CÓPIA DE SEGURANÇA de toda a pasta v2.2, sobretudo iberbag-dev.db.
+3. Extrai esta versão numa pasta NOVA, por exemplo C:\IBERBAG_WMS_V2_3.
+4. Copia SOMENTE o ficheiro iberbag-dev.db da pasta anterior para a pasta
+   nova, ao lado de ABRIR_IBERBAG_WMS.bat.
+   NÃO o coloques dentro da subpasta iberbag.
+5. Executa ABRIR_IBERBAG_WMS.bat. Se necessário, opção 1 instala bibliotecas.
+6. Escolhe a opção 5 para iniciar o servidor local.
+7. Abre http://127.0.0.1:8000 e inicia sessão com a conta existente.
+8. Testa "Mapa do armazém" e "Definições > Localizações".
+
+Se conservaste a base de dados, NÃO reimportes o Excel nem cries um novo admin.
+Este ZIP NÃO inclui base de dados para não substituir os teus dados.
+
+SE USAS POSTGRESQL
+------------------
+Faz backup com pg_dump e testa a atualização sobre uma cópia da base de
+produção. Mantém a variável de ambiente WMS_DATABASE_URL corretamente
+configurada. Não copies um ficheiro .db se usas PostgreSQL. Não exposes o
+servidor em HTTP simples aos computadores da rede; utiliza HTTPS, proxies
+corretamente configurados e backups automáticos.
+
+PROTEGER DADOS / LIMITAÇÕES
+---------------------------
+- Trata-se ainda de protótipo para testes, não de um WMS operacional.
+- O mapa é de CONSULTA: nenhuma ação nele cria ou altera stock.
+- Ao mudar o catálogo de posições, paletes existentes NUNCA são apagadas.
+- Uma localização com stock não pode ser eliminada ou renomeada.
+- Os dados originais podem conter inconsistências: ficam assinaladas.
+- O Excel importado para testes apresenta 949 paletes e 913 grupos; a
+  localização N308 tem 2 paletes registadas e 36 paletes estão sem
+  localização. Há 85 identificadores de carga sem data conhecida.
+- A estrutura VBA é um mapa TEÓRICO de 2106 posições e deve ser conferida
+  com o armazém físico.
+- Em qualquer operação sobre dados importantes, manter backup externo.
+
+INSTALAÇÃO NOVA (APENAS PARA TESTES)
+------------------------------------
+Extrai todo o ZIP. Inicia ABRIR_IBERBAG_WMS.bat:
+ 6 — Verificar ficheiros; 1 — Instalar bibliotecas;
+ 2 — Validar o Excel; 3 — Importar o Excel (uma única vez);
+ 4 — Criar admin; 5 — Iniciar o programa.
+
+TESTES AUTOMATIZADOS
+--------------------
+Instala pytest e httpx e executa na pasta extraída:
+  py -m pip install pytest httpx
+  py -m pytest tests -q
+
+FICHEIROS IMPORTANTES
+--------------------
+ ABRIR_IBERBAG_WMS.bat  menu de instalação/arranque para Windows
+ iberbag/                aplicação e ecrãs
+ MAPA_CORREDORES_VBA.csv catálogo teórico extraído do VBA
+ tests/                 testes automatizados
+ requirements.txt        dependências Python

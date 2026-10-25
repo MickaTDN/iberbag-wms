@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block crumb %}Entradas{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Entradas</h1><p>Receção de cargas, revisão e histórico. O stock fica disponível após a arrumação.</p></div><a class="btn" href="/receipts/new">Nova carga</a></div>
+<section class="panel"><table><thead><tr><th>Carga</th><th>Data de entrada</th><th>Responsável pela receção</th><th>Estado</th></tr></thead><tbody>
+{% for row in rows %}<tr><td><a href="/receipts/{{ row.id }}">{{ row.code }}</a></td><td>{{ row.received_on.strftime('%d/%m/%Y') }}</td><td>{{ row.receiver or 'Por confirmar' }}</td><td>{{ 'Confirmada' if row.status == 'confirmed' else 'Rascunho' }}</td></tr>{% else %}<tr><td colspan="4">Ainda não há entradas.</td></tr>{% endfor %}
+</tbody></table></section>
+<p>Página {{ page }} de {{ total_pages }}. {% if page > 1 %}<a href="?page={{ page-1 }}">Anterior</a>{% endif %} {% if page < total_pages %}<a href="?page={{ page+1 }}">Seguinte</a>{% endif %}</p>
+<p>Históricos importados da v2.3 continuam nos detalhes de stock e na auditoria. Não são convertidos em novas entradas.</p>
+{% endblock %}

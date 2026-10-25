@@ -1,3 +1,5 @@
+> Atualização Etapa 3: consultar [Entradas e arrumação](ENTRADAS_E_ARRUMACAO.md). Esta branch usa a revisão 0002 e permite entradas/arrumação em ensaio PostgreSQL. As referências a ausência de movimentos abaixo descrevem as etapas anteriores.
+
 # Instalar no Windows 11 — ensaio com dados fictícios
 
 Este guia prepara **um servidor** Windows 11 e **dois postos de escritório**.

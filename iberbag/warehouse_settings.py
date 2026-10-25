@@ -1,5 +1,8 @@
 """Safe edits of the physical warehouse location catalogue (not of stock)."""
 import re
+from functools import wraps
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from .database import Corridor, Location, Stock, Audit
@@ -9,6 +12,23 @@ CODE = re.compile(r'([A-Z])([1-9])([0-9]{2})\Z')
 
 class WarehouseError(ValueError):
     pass
+
+def catalogue_operation(fn):
+    @wraps(fn)
+    def wrapped(db, *args, **kwargs):
+        try:
+            if db.bind.dialect.name == 'postgresql':
+                db.execute(text('SELECT pg_advisory_xact_lock(72834001)'))
+                db.expire_all()
+            return fn(db, *args, **kwargs)
+        except IntegrityError as error:
+            db.rollback()
+            raise WarehouseError('Conflito no catálogo. Atualiza a página antes de repetir.') from error
+        except Exception:
+            db.rollback()
+            raise
+    return wrapped
+
 
 def validate_corridor(code, floors, positions):
     code = (code or '').strip().upper()
@@ -53,6 +73,7 @@ def validate_location(db, code):
 def audit(db, username, event, details):
     db.add(Audit(username=username, action=event, details=details))
 
+@catalogue_operation
 def add_corridor(db: Session, user, code, floors, positions):
     code, floors, positions = validate_corridor(code, floors, positions)
     if db.scalar(select(Corridor).where(Corridor.codigo == code)) is not None:
@@ -65,6 +86,7 @@ def add_corridor(db: Session, user, code, floors, positions):
     db.commit()
     return code
 
+@catalogue_operation
 def update_corridor(db: Session, user, code, floors, positions):
     current = db.scalar(select(Corridor).where(Corridor.codigo == code))
     if current is None:
@@ -93,6 +115,7 @@ def update_corridor(db: Session, user, code, floors, positions):
     audit(db, user, 'ALTERAR_CORREDOR', f'{code}: {floors} andares, {positions} posições/andar; adicionadas {len(desired-set(existing))}; removidas {len(drop)}.')
     db.commit()
 
+@catalogue_operation
 def remove_corridor(db: Session, user, code):
     corridor = db.scalar(select(Corridor).where(Corridor.codigo == code))
     if corridor is None:
@@ -110,6 +133,7 @@ def remove_corridor(db: Session, user, code):
     audit(db, user, 'REMOVER_CORREDOR', f'{code} ({len(existing)} posições removidas, sem stock).')
     db.commit()
 
+@catalogue_operation
 def add_location(db: Session, user, code):
     code = validate_location(db, code)
     if db.scalar(select(Location).where(Location.codigo == code)):
@@ -121,6 +145,7 @@ def add_location(db: Session, user, code):
     db.commit()
     return code
 
+@catalogue_operation
 def remove_location(db: Session, user, code):
     code = (code or '').strip().upper()
     if is_floor(code) or is_unassigned(code):
@@ -134,6 +159,7 @@ def remove_location(db: Session, user, code):
     audit(db, user, 'REMOVER_LOCALIZACAO', code)
     db.commit()
 
+@catalogue_operation
 def rename_location(db: Session, user, oldcode, newcode):
     oldcode = (oldcode or '').strip().upper()
     newcode = validate_location(db, newcode)

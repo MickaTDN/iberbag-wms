@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block crumb %}Entradas / Nova carga{% endblock %}
+{% block content %}
+<h1>{{ 'Corrigir rascunho' if receipt else 'Nova carga recebida' }}</h1>
+<p>O responsável pela receção será o utilizador que confirmar: <strong>{{ user.display_name }} ({{ user.username }})</strong>.</p>
+<form method="post" action="/receipts/review" class="panel">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="request_key" value="{{ request_key }}">
+{% if receipt %}<input type="hidden" name="receipt_id" value="{{ receipt.id }}"><input type="hidden" name="version" value="{{ receipt.version }}">{% endif %}
+<label>Código da carga <input required maxlength="120" name="code" value="{{ receipt.code if receipt else '' }}"></label>
+<label>Data de entrada <input required type="date" name="received_on" value="{{ receipt.received_on.strftime('%Y-%m-%d') if receipt else '' }}"></label>
+<p>Preencher uma linha por artigo/lote. Quantidades em paletes inteiras; deixar as restantes linhas vazias. Até 20 grupos por carga.</p>
+<table><thead><tr><th>Artigo</th><th>Lote</th><th>Paletes</th></tr></thead><tbody>
+{% for i in range(20) %}{% set line = lines[i] if i < lines|length else none %}
+<tr><td><input aria-label="Artigo {{ i+1 }}" maxlength="120" name="artigo_{{ i }}" value="{{ line.artigo if line else '' }}"></td><td><input aria-label="Lote {{ i+1 }}" maxlength="120" name="lote_{{ i }}" value="{{ line.lote if line else '' }}"></td><td><input aria-label="Paletes {{ i+1 }}" type="number" min="1" step="1" max="2147483647" name="quantidade_{{ i }}" value="{{ line.quantidade if line else '' }}"></td></tr>
+{% endfor %}</tbody></table><button class="btn" type="submit">Rever antes de confirmar</button>
+</form><p>Paletes incompletas não são suportadas nesta etapa.</p>
+{% endblock %}

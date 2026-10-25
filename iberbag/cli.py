@@ -10,6 +10,11 @@ from .capacities import export_csv
 def main():
     parser = argparse.ArgumentParser(description='Iberbag WMS — ferramentas do servidor')
     commands = parser.add_subparsers(dest='command', required=True)
+    upgrade = commands.add_parser('upgrade-db', help='rever/aplicar atualização de esquema com backup verificado')
+    mode = upgrade.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--preview', action='store_true')
+    mode.add_argument('--apply', action='store_true')
+    upgrade.add_argument('--backup-folder')
     commands.add_parser('prepare-db', help='preparar base NOVA com migrações versionadas')
     commands.add_parser('init-db', help='criar as tabelas')
     commands.add_parser('create-admin', help='criar o primeiro administrador')
@@ -22,6 +27,17 @@ def main():
     capim.add_argument('ficheiro')
     capim.add_argument('--apply', action='store_true', help='confirmar gravação')
     args = parser.parse_args()
+    if args.command == 'upgrade-db':
+        import json
+        from .database import engine
+        from .schema_upgrade import preview, apply_upgrade
+        if args.apply and not args.backup_folder:
+            parser.error('--apply exige --backup-folder')
+        try:
+            report = preview(engine) if args.preview else apply_upgrade(engine, args.backup_folder)
+        except Exception:
+            raise SystemExit('Atualização recusada. Verificar revisão, ligação, backup e relatório de restauro; parar o servidor e repetir a pré-visualização.')
+        print(json.dumps(report, ensure_ascii=False, indent=2)); return
     if args.command == 'prepare-db':
         from .migrations import prepare_database
         prepare_database()

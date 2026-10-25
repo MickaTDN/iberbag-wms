@@ -15,6 +15,8 @@
     <div class="side-label">MENU PRINCIPAL</div>
     <nav aria-label="Principal">
       <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">◫ &nbsp; Visão geral</a>
+      <a href="/receipts" class="{% if request.url.path.startswith('/receipts') %}active{% endif %}">Entradas</a>
+      <a href="/putaway" class="{% if request.url.path.startswith('/putaway') %}active{% endif %}">Arrumação</a>
       <a href="/stock" class="{% if request.url.path.startswith('/stock') %}active{% endif %}">▤ &nbsp; Consulta de stock</a>
       <a href="/map" class="{% if request.url.path == '/map' %}active{% endif %}">▦ &nbsp; Mapa do armazém</a>
     </nav>
@@ -31,7 +33,7 @@
       {% endif %}
     </nav>
     {% endif %}
-    <div class="sidebar-bottom"><span class="status-dot"></span> Protótipo de consulta<br><small>Movimentos não ativados</small></div>
+    <div class="sidebar-bottom"><span class="status-dot"></span> Entradas e arrumação<br><small>Saídas não ativadas</small></div>
   </aside>
   <div class="workarea">
     <header class="topbar">

@@ -1,3 +1,5 @@
+Para a Etapa 3, consultar [Entradas e arrumação](docs/ENTRADAS_E_ARRUMACAO.md), incluindo migração 0002 e ensaio da interface.
+
 # Desenvolvimento em rede local
 
 Para o ensaio Windows 11, começar pelo [guia passo a passo](docs/INSTALACAO_WINDOWS.md) e pelo `ASSISTENTE_WINDOWS.bat`. A [referência de migração e backups](docs/MIGRACAO_E_BACKUPS.md) descreve proteções e limitações. Apenas dados fictícios nesta etapa.

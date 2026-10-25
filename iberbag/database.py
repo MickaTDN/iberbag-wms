@@ -165,3 +165,56 @@ def init_db():
     with SessionLocal() as db:
         sync_location_policy(db)
         seed_warehouse_layout(db)
+
+
+class Receipt(Base):
+    __tablename__ = 'receipts'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    code: Mapped[str] = mapped_column(String(120), nullable=False)
+    received_on: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default='draft', nullable=False)
+    carga_id: Mapped[int | None] = mapped_column(ForeignKey('cargas.id'), unique=True)
+    receiver: Mapped[str | None] = mapped_column(String(60))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    __table_args__ = (
+        CheckConstraint("status IN ('draft','confirmed')", name='receipt_status_valid'),
+        CheckConstraint("(status = 'draft' AND carga_id IS NULL AND receiver IS NULL AND confirmed_at IS NULL) OR (status = 'confirmed' AND carga_id IS NOT NULL AND receiver IS NOT NULL AND confirmed_at IS NOT NULL)", name='receipt_confirmation_valid'),
+    )
+
+
+class ReceiptLine(Base):
+    __tablename__ = 'receipt_lines'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    receipt_id: Mapped[int] = mapped_column(ForeignKey('receipts.id'), nullable=False, index=True)
+    artigo: Mapped[str] = mapped_column(String(120), nullable=False)
+    lote: Mapped[str] = mapped_column(String(120), nullable=False)
+    quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
+    __table_args__ = (
+        UniqueConstraint('receipt_id', 'artigo', 'lote', name='receipt_line_group_unique'),
+        CheckConstraint('quantidade > 0', name='receipt_line_positive'),
+    )
+
+
+class Putaway(Base):
+    __tablename__ = 'putaways'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    line_id: Mapped[int] = mapped_column(ForeignKey('receipt_lines.id'), nullable=False, index=True)
+    local: Mapped[str] = mapped_column(String(120), nullable=False)
+    quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default='draft', nullable=False)
+    stock_id: Mapped[int | None] = mapped_column(ForeignKey('stock.id'), index=True)
+    arranger: Mapped[str | None] = mapped_column(String(60))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    __table_args__ = (
+        CheckConstraint('quantidade > 0', name='putaway_positive'),
+        CheckConstraint("status IN ('draft','confirmed')", name='putaway_status_valid'),
+        CheckConstraint("(status = 'draft' AND stock_id IS NULL AND arranger IS NULL AND confirmed_at IS NULL) OR (status = 'confirmed' AND stock_id IS NOT NULL AND arranger IS NOT NULL AND confirmed_at IS NOT NULL)", name='putaway_confirmation_valid'),
+    )

@@ -1,8 +1,4 @@
-"""Iberbag WMS v2.3: central stock reading, location catalogue and occupation map.
-
-Stock movements intentionally disabled until import reconciliation and business rules
-have been accepted. This is an operational prototype, not a certified WMS.
-"""
+"""Iberbag WMS: stock consultation, reception and putaway; no dispatch operations."""
 import hmac, os, re
 from contextlib import asynccontextmanager
 from datetime import timedelta
@@ -163,7 +159,9 @@ def stock_details(stock_id: int, request: Request, db: Session=Depends(database)
                       context(request, user, sess, title='Registo inexistente',
                               message='Esta palete ou grupo já não consta no stock.'), 404)
     carga = db.scalar(select(Carga).where(Carga.codigo == item.carga))
-    return render(request, 'stock_detail.html', context(request, user, sess, item=item, carga=carga))
+    from .database import Putaway
+    events = db.scalars(select(Putaway).where(Putaway.stock_id == item.id, Putaway.status == 'confirmed').order_by(Putaway.id)).all()
+    return render(request, 'stock_detail.html', context(request, user, sess, item=item, carga=carga, events=events))
 
 @app.get('/locations')
 def old_locations_redirect(request: Request, db: Session=Depends(database)):
@@ -414,3 +412,7 @@ def health(db: Session = Depends(database)):
     except SQLAlchemyError:
         return JSONResponse({'status': 'unavailable'}, status_code=503)
     return {'status': 'ok', 'application': 'Iberbag WMS', 'version':'2.3-prototipo'}
+
+# Imported after shared rendering/auth helpers are defined.
+from .receiving_routes import router as receiving_router
+app.include_router(receiving_router)

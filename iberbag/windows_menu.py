@@ -25,6 +25,8 @@ def main():
         '7': ['-m', 'iberbag.backup', 'restore-test'],
         '8': ['-m', 'iberbag.server', 'prepare'],
         '9': ['-m', 'iberbag.server', 'admin'],
+        '10': ['-m', 'iberbag.server', 'upgrade-preview'],
+        '11': ['-m', 'iberbag.server', 'upgrade-apply'],
     }
     while True:
         print('''
@@ -37,6 +39,8 @@ def main():
 7 Ensaiar restauro numa OUTRA base VAZIA
 8 Preparar base SEM migração (instalação vazia)
 9 Criar administrador (instalação vazia)
+10 Pré-visualizar atualização 0001 para 0002
+11 Aplicar atualização com backup/restauro verificado
 0 Sair
 ''')
         choice = input('Opção: ').strip()
@@ -50,6 +54,10 @@ def main():
             if choice == '2':
                 args += ['--source', input('Ficheiro SQLite FICTÍCIO: ').strip().strip('"')]
             args += ['--bundle', input('Pasta do ensaio (nova na pré-visualização): ').strip().strip('"'), '--test-data-only']
+        if choice == '11':
+            args += ['--backup-folder', input('Pasta do backup com relatório de restauro reconciliado: ').strip().strip('"')]
+            if input('Servidor parado e pré-visualização revista? Escreva ATUALIZAR TESTE: ') != 'ATUALIZAR TESTE':
+                continue
         if choice in ('6', '7'):
             args += ['--folder', input('Pasta do backup (nova ao criar): ').strip().strip('"')]
         if choice == '7':

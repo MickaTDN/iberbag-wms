@@ -51,8 +51,8 @@ def test_reception_review_edit_confirm_and_duplicate(warehouse):
     engine, accounts = warehouse; actor = accounts['operador'][0]
     with Session(engine) as db:
         key = secrets.token_hex(16)
-        ident = ops.save_receipt(db, actor, key, 'NOVA', '2026-01-10', [('A', 'L', '2'), ('B', 'L', '3')])
-        assert ops.save_receipt(db, actor, key, 'NOVA', '2026-01-10', [('A', 'L', '2'), ('B', 'L', '3')]) == ident
+        ident = ops.save_receipt(db, actor, key, 'NOVA', '2026-01-10', [('A', 'L1', '2'), ('B', 'L2', '3')])
+        assert ops.save_receipt(db, actor, key, 'NOVA', '2026-01-10', [('A', 'L1', '2'), ('B', 'L2', '3')]) == ident
         assert db.scalar(select(func.count()).select_from(Carga)) == 0
         ops.save_receipt(db, actor, key, 'NOVA', '2026-01-11', [('A', 'L', '4')], ident, 1)
         with pytest.raises(ops.ReceivingError): ops.confirm_receipt(db, actor, ident, 1)

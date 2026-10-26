@@ -90,7 +90,7 @@ def test_unknown_date_blocks_even_with_sufficient_dated_stock(warehouse, missing
 def test_insufficient_stock_and_atomic_multiline_review(warehouse):
     engine,accounts=warehouse; actor=accounts['operador'][0]
     add_stock(engine,'ONE')
-    ident=order(engine,actor,[('A','L','1'),('B','L','1')])
+    ident=order(engine,actor,[('A','L','1'),('B','L2','1')])
     with pytest.raises(ops.DispatchError,match='insuficiente'): review(engine,actor,ident)
     with Session(engine) as db: assert ops.picks(db,ident)==[]
 
@@ -227,15 +227,14 @@ def test_dispatch_ui_and_hidden_exhausted_stock(warehouse):
             page=client.get('/dispatches/new'); csrf=field(page,'csrf')
             data=dict(csrf=csrf,request_key=field(page,'request_key'),reference='UI-ORDER',artigo_0='A',lote_0='L',quantidade_0='1',stock_id='999',carga='FORGED')
             response=client.post('/dispatches/save',data=data); url=str(response.url).split('testserver')[1]
-            assert 'Stock físico registado' in response.text
+            assert 'Stock registado' in response.text
             assert client.post(url+'/review',data={'version':'1'}).status_code==403
             ready=client.post(url+'/review',data={'csrf':csrf,'version':'1'})
             assert 'UI-LOAD' in ready.text and 'FORGED' not in ready.text
             with Session(engine) as db: pick=db.scalar(select(DispatchPick.id))
-            checked=client.post(url+'/check',data={'csrf':csrf,f'actual_{pick}':'1'})
-            assert 'Conferido' in checked.text
+            # Office preparation no longer requires physical collection confirmation.
             confirmed=client.post(url+'/confirm',data={'csrf':csrf})
-            assert 'Saída confirmada por operador' in confirmed.text
+            assert 'stock descontado' in confirmed.text
             assert 'Não há' in client.get('/stock?artigo=A').text or '0 paletes' in client.get('/stock?artigo=A').text
             assert client.get(f'/stock/{stock}').status_code==200
             assert client.get('/settings').status_code==403
@@ -273,15 +272,15 @@ def test_upgrade_0002_preserves_history_and_positive_stock(warehouse,pg_database
     assert preview(legacy)['from']=='0002'
     folder=tmp_path/'upgrade-backup'; backup.backup(legacy,folder,runner=docker_client)
     backup.restore(restored,folder,runner=docker_client)
-    assert apply_upgrade(legacy,folder)['revision']=='0004'
+    assert apply_upgrade(legacy,folder)['revision']=='0005'
     assert preview(legacy)['data']==preview(restored)['data']
 
 
 def test_multiline_confirmation_is_all_or_nothing_when_last_fifo_changes(warehouse):
     engine,accounts=warehouse; actor=accounts['operador'][0]
-    first=add_stock(engine,'ONE',artigo='A'); second=add_stock(engine,'TWO',artigo='B')
-    ident=order(engine,actor,[('A','L','1'),('B','L','1')]); review(engine,actor,ident); check(engine,actor,ident)
-    add_stock(engine,'UNKNOWN',None,artigo='B')
+    first=add_stock(engine,'ONE',artigo='A'); second=add_stock(engine,'TWO',artigo='B',lote='L2')
+    ident=order(engine,actor,[('A','L','1'),('B','L2','1')]); review(engine,actor,ident); check(engine,actor,ident)
+    add_stock(engine,'UNKNOWN',None,artigo='B',lote='L2')
     confirm(engine,actor,ident)
     with Session(engine) as db:
         assert db.get(DispatchOrder,ident).status=='blocked'

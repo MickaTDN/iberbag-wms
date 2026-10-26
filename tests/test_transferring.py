@@ -104,10 +104,10 @@ def test_date_and_fifo_preserved_and_unknown_stays_unknown(warehouse):
         plan=dispatching.picks(db,pedido)
         assert [p.carga for p in plan]==['OLD','OLD','NEW']
         assert [p.quantidade for p in plan]==[1,1,1]
-    unknown=add_stock(engine,'UNKNOWN',None,local='A102',artigo='UNKNOWN')
+    unknown=add_stock(engine,'UNKNOWN',None,local='A102',artigo='UNKNOWN',lote='UNKNOWN-LOT')
     moved=review(engine,actor,unknown,'Chão'); confirm(engine,actor,moved)
     with Session(engine) as db: assert db.get(StockTransfer,moved).entrada is None
-    unknown_order=order(engine,actor,[('UNKNOWN','L','1')])
+    unknown_order=order(engine,actor,[('UNKNOWN','UNKNOWN-LOT','1')])
     with pytest.raises(dispatching.DispatchError,match='desconhecida'): review_dispatch(engine,actor,unknown_order)
 
 
@@ -258,7 +258,7 @@ def test_upgrade_0003_requires_verified_backup_and_preserves_stock(warehouse,pg_
     assert preview(legacy)['from']=='0003'
     with pytest.raises(ValueError,match='restauro'): apply_upgrade(legacy,folder)
     backup.restore(restored,folder,runner=docker_client)
-    assert apply_upgrade(legacy,folder)['revision']=='0004'
+    assert apply_upgrade(legacy,folder)['revision']=='0005'
     assert apply_upgrade(legacy,folder)['status']=='already_current'
     assert preview(legacy)['data']==preview(restored)['data']
     with Session(legacy) as db: assert all(db.scalars(select(Location.active)).all())

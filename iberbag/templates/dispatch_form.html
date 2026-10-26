@@ -1,11 +1,11 @@
 {% extends "base.html" %}{% block crumb %}Saídas / Pedido{% endblock %}
-{% block content %}<h1>{{ 'Corrigir rascunho' if order else 'Novo pedido de saída' }}</h1>
-<p>Indicar apenas artigo, lote e paletes inteiras. O sistema selecionará as cargas e localizações por FIFO.</p>
+{% block content %}<h1>{{ 'Corrigir rascunho' if order else 'Nova preparação' }}</h1>
+<p>Indicar apenas lotes e paletes inteiras. Os artigos e o stock são identificados automaticamente ao guardar. O sistema selecionará as cargas e localizações por FIFO.</p>
 <form method="post" action="/dispatches/save" class="panel"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="request_key" value="{{ request_key }}">
 {% if order %}<input type="hidden" name="order_id" value="{{ order.id }}"><input type="hidden" name="version" value="{{ order.version }}">{% endif %}
-<label>Referência <input name="reference" required maxlength="120" value="{{ order.reference if order else '' }}"></label>
-<table><thead><tr><th>Artigo</th><th>Lote</th><th>Paletes</th></tr></thead><tbody>{% for i in range(20) %}{% set line = lines[i] if i < lines|length else none %}<tr>
-<td><input name="artigo_{{ i }}" aria-label="Artigo {{ i+1 }}" maxlength="120" value="{{ line.artigo if line else '' }}"></td>
-<td><input name="lote_{{ i }}" aria-label="Lote {{ i+1 }}" maxlength="120" value="{{ line.lote if line else '' }}"></td>
+<label>Referência <input name="reference" maxlength="120" value="{{ order.reference if order else '' }}"></label>
+<datalist id="known-lots">{% for option in lot_options %}<option value="{{ option.lote }}">{{ option.label }}</option>{% endfor %}</datalist><table><thead><tr><th>Lote</th><th>Paletes</th></tr></thead><tbody>{% for i in range(20) %}{% set line = lines[i] if i < lines|length else none %}<tr>
+
+<td><input name="lote_{{ i }}" list="known-lots" aria-label="Lote {{ i+1 }}" maxlength="120" value="{{ line.lote if line else '' }}"></td>
 <td><input name="quantidade_{{ i }}" aria-label="Paletes {{ i+1 }}" type="number" min="1" step="1" max="2147483647" value="{{ line.quantidade if line else '' }}"></td></tr>{% endfor %}</tbody></table>
-<button class="btn" type="submit">Guardar rascunho e rever disponibilidade</button></form>{% endblock %}
+<button class="btn" type="submit">Identificar artigos e stock / guardar rascunho</button></form>{% endblock %}

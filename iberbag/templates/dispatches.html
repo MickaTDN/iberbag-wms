@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block crumb %}Saídas{% endblock %}
-{% block content %}<div class="page-head"><h1>Saídas de mercadoria</h1><a class="btn" href="/dispatches/new">Novo pedido</a></div>
-<p>Recolha automática por FIFO. Pedidos com divergências ficam pendentes de resolução administrativa.</p>
+{% block content %}<div class="page-head"><h1>Saídas de mercadoria</h1><a class="btn" href="/dispatches/new">Nova preparação</a></div>
+<p>Preparação no escritório: lote e paletes, FIFO automático, confirmação com desconto imediato e documento PDF.</p>
 <section class="panel"><table><thead><tr><th>Pedido</th><th>Estado</th><th>Confirmado por</th><th>Data/hora UTC</th></tr></thead><tbody>
-{% for order in orders %}<tr><td><a href="/dispatches/{{ order.id }}">#{{ order.id }} · {{ order.reference }}</a></td><td>{{ {'draft':'Rascunho','ready':'Em recolha','checked':'Conferido','blocked':'Bloqueado — resolução administrativa','confirmed':'Confirmado'}[order.status] }}</td><td>{{ order.confirmed_by or '—' }}</td><td>{{ order.confirmed_at or '—' }}</td></tr>{% else %}<tr><td colspan="4">Sem pedidos.</td></tr>{% endfor %}</tbody></table></section>
+{% for order in orders %}<tr><td><a href="/dispatches/{{ order.id }}">#{{ order.id }} · {{ order.reference }}</a></td><td>{{ {'draft':'Rascunho','ready':'Em recolha','checked':'Conferido','blocked':'Bloqueado — resolução administrativa','confirmed':'Confirmado','cancelled':'Cancelado'}[order.status] }}</td><td>{{ order.confirmed_by or '—' }}</td><td>{{ order.confirmed_at or '—' }}</td></tr>{% else %}<tr><td colspan="4">Sem pedidos.</td></tr>{% endfor %}</tbody></table></section>
 <p>Página {{ page }} de {{ total_pages }}. {% if page > 1 %}<a href="?page={{ page-1 }}">Anterior</a>{% endif %} {% if page < total_pages %}<a href="?page={{ page+1 }}">Seguinte</a>{% endif %}</p>{% endblock %}

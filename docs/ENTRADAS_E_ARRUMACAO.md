@@ -1,3 +1,5 @@
+> Etapa 4: esta branch usa a revisão 0003 e acrescenta saídas por FIFO. Consultar [SAIDAS_E_FIFO.md](SAIDAS_E_FIFO.md) para o fluxo atual e a atualização. As revisões/limitações abaixo descrevem as etapas anteriores.
+
 # Etapa 3 — Entradas e arrumação para ensaio
 
 ## Análise e regras confirmadas

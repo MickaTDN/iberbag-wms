@@ -15,7 +15,9 @@ from .migrations import config, REVISION
 
 TABLES = list(Base.metadata.sorted_tables)
 LOCK = 72834002
-OPERATIONAL_TABLES = {'receipts', 'receipt_lines', 'putaways'}
+RECEIVING_TABLES = {'receipts', 'receipt_lines', 'putaways'}
+DISPATCH_TABLES = {'dispatch_orders', 'dispatch_lines', 'dispatch_picks'}
+OPERATIONAL_TABLES = RECEIVING_TABLES | DISPATCH_TABLES
 
 
 def digest_file(path):
@@ -39,18 +41,18 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
-    legacy = missing == OPERATIONAL_TABLES
-    if names - expected - {'alembic_version'} or (missing and not legacy) or inspector.get_view_names():
+    legacy_revision = {frozenset(OPERATIONAL_TABLES): '0001', frozenset(DISPATCH_TABLES): '0002', frozenset(): REVISION}.get(frozenset(missing))
+    if names - expected - {'alembic_version'} or legacy_revision is None or inspector.get_view_names():
         raise ValueError('Esquema diferente da v2.3: tabelas em falta, adicionais ou vistas. Rever manualmente.')
     if 'alembic_version' in names:
-        if connection.execute(text('SELECT version_num FROM alembic_version')).scalars().all() != ['0001' if legacy else REVISION]:
+        if connection.execute(text('SELECT version_num FROM alembic_version')).scalars().all() != [legacy_revision]:
             raise ValueError('Revisão incompatível.')
     if connection.dialect.name == 'sqlite':
         if connection.scalar(text('SELECT count(*) FROM users WHERE active NOT IN (0, 1) OR active IS NULL')):
             raise ValueError('Valor booleano inválido em users.active; não será convertido.')
     result = {}
     for table in TABLES:
-        if legacy and table.name in OPERATIONAL_TABLES:
+        if table.name in missing:
             result[table.name] = []
             continue
         if {c['name'] for c in inspector.get_columns(table.name)} != set(table.columns.keys()):
@@ -167,6 +169,8 @@ def apply(bundle, engine):
                 rows = data[table.name]
                 if table.name == 'receipts':
                     rows = [dict(row, status='draft', carga_id=None, receiver=None, confirmed_at=None) for row in rows]
+                if table.name == 'dispatch_orders':
+                    rows = [dict(row, status='draft', reviewed_at=None, checked_by=None, checked_at=None, discrepancy=None, confirmed_by=None, confirmed_at=None) for row in rows]
                 connection.execute(table.insert(), rows)
             if 'id' in table.columns:
                 maximum = max((row['id'] for row in data[table.name]), default=0)
@@ -178,6 +182,10 @@ def apply(bundle, engine):
         for row in data['receipts']:
             if row['status'] == 'confirmed':
                 connection.execute(Receipt.__table__.update().where(Receipt.id == row['id']).values(**row))
+        from .database import DispatchOrder
+        for row in data['dispatch_orders']:
+            if row['status'] != 'draft':
+                connection.execute(DispatchOrder.__table__.update().where(DispatchOrder.id == row['id']).values(**row))
         actual = inventory(read_data(connection))
         changed = differences(report['expected'], actual)
         if changed:

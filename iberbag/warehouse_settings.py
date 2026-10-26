@@ -54,7 +54,7 @@ def occupied(db, codes):
     if not codes:
         return []
     return db.execute(select(Stock.local, func.sum(Stock.quantidade))
-                      .where(Stock.local.in_(sorted(codes)))
+                      .where(Stock.local.in_(sorted(codes)), Stock.quantidade > 0)
                       .group_by(Stock.local)).all()
 
 def validate_location(db, code):
@@ -96,7 +96,7 @@ def update_corridor(db: Session, user, code, floors, positions):
     desired = codes_for(code, floors, positions)
     drop = set(existing) - desired
     # Include stocked codes that may exist without a catalogue row (legacy Excel).
-    stock_codes = db.scalars(select(Stock.local).where(Stock.local.like(f'{code}%'))).all()
+    stock_codes = db.scalars(select(Stock.local).where(Stock.local.like(f'{code}%'), Stock.quantidade > 0)).all()
     out_of_range_stock = {c for c in stock_codes if CODE.fullmatch(c) and c[0] == code and c not in desired}
     occupied_drop = occupied(db, drop | out_of_range_stock)
     if occupied_drop:
@@ -124,7 +124,7 @@ def remove_corridor(db: Session, user, code):
     if occupied(db, existing):
         raise WarehouseError('Não podes eliminar o corredor enquanto existirem paletes nas suas posições.')
     # Include stray stocked positions of this code, even if missing in the catalogue.
-    stray = db.scalars(select(Stock.local).where(Stock.local.like(f'{code}%'))).all()
+    stray = db.scalars(select(Stock.local).where(Stock.local.like(f'{code}%'), Stock.quantidade > 0)).all()
     if any(CODE.fullmatch(loc) and loc[0] == code for loc in stray):
         raise WarehouseError('Ainda há stock registado neste corredor. Não foi eliminado.')
     for loc in existing.values():

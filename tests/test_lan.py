@@ -69,7 +69,7 @@ def test_transaction_rollback_preserves_stock_and_audit():
     with SessionLocal() as db:
         before = db.scalar(select(func.count()).select_from(Stock))
         db.add(Audit(username='test', action=marker, details='fictício'))
-        db.add(Stock(artigo=marker, lote=marker, carga=marker, local='A102', quantidade=0))
+        db.add(Stock(artigo=marker, lote=marker, carga=marker, local='A102', quantidade=-1))
         with pytest.raises(IntegrityError):
             db.commit()
         db.rollback()

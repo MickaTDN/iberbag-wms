@@ -1,3 +1,5 @@
+> Etapa 6: o fluxo atual é de escritório, com preparação por lote e desconto imediato, PDF e inventário; revisão 0005. Consultar [ETAPA6_ESCRITORIO_E_INVENTARIO.md](ETAPA6_ESCRITORIO_E_INVENTARIO.md). Regras de recolha/reservas e revisões abaixo são históricas.
+
 # Etapa 5 — Transferências entre localizações
 
 ## Utilização

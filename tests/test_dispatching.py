@@ -1,3 +1,4 @@
+from legacy_catalogue import seed_legacy_catalogue
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
@@ -267,12 +268,12 @@ def test_upgrade_0002_preserves_history_and_positive_stock(warehouse,pg_database
     legacy,restored=pg_databases(restricted=True),pg_databases(restricted=True)
     with legacy.begin() as conn:
         cfg=config(); cfg.attributes['connection']=conn; command.upgrade(cfg,'0002')
-    with Session(legacy) as db: seed_warehouse_layout(db)
+    with Session(legacy) as db: seed_legacy_catalogue(db)
     add_stock(legacy,'LEGACY',qty=3)
     assert preview(legacy)['from']=='0002'
     folder=tmp_path/'upgrade-backup'; backup.backup(legacy,folder,runner=docker_client)
     backup.restore(restored,folder,runner=docker_client)
-    assert apply_upgrade(legacy,folder)['revision']=='0003'
+    assert apply_upgrade(legacy,folder)['revision']=='0004'
     assert preview(legacy)['data']==preview(restored)['data']
 
 

@@ -1,3 +1,5 @@
+> Etapa 5: revisão atual 0004, com transferências e catálogo ativo/inativo. Consultar [TRANSFERENCIAS.md](TRANSFERENCIAS.md). As referências a revisões abaixo descrevem etapas anteriores.
+
 # Etapa 4 — Saídas de mercadoria e FIFO
 
 ## Fluxo disponível

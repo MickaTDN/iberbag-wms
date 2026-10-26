@@ -1,3 +1,4 @@
+from legacy_catalogue import seed_legacy_catalogue
 import re
 import secrets
 from concurrent.futures import ThreadPoolExecutor
@@ -198,7 +199,7 @@ def test_verified_upgrade_preserves_legacy_data(warehouse, pg_databases, tmp_pat
     with legacy.begin() as conn:
         cfg = config(); cfg.attributes['connection'] = conn; command.upgrade(cfg, '0001')
     with Session(legacy) as db:
-        seed_warehouse_layout(db)
+        seed_legacy_catalogue(db)
         db.add(Carga(codigo='LEGADO-FICTICIO', entrada=None, funcionario=None))
         db.add(Stock(artigo='LEGADO', lote='LOTE', carga='LEGADO-FICTICIO', local='A101', quantidade=2))
         db.add(Audit(username='ficticio', action='HISTORICO', details='Preservar sem inventar dados.'))

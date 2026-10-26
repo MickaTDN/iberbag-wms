@@ -87,6 +87,19 @@ def analyze(path):
 
 
 def import_stock(db, report: Scan, username='importador'):
+    from sqlalchemy import text
+    from .lots import assert_lot
+    if db.bind.dialect.name != 'postgresql':
+        raise ValueError('Importação de stock exige PostgreSQL; análise sem gravação continua disponível.')
+    db.execute(text('SELECT pg_advisory_xact_lock(72834001)'))
+    lotes = {}
+    for (art, lot, load, loc), qty in report.groups.items():
+        if UNKNOWN in (art,lot,load) or not all(str(v).strip() for v in (art,lot,load)):
+            raise ValueError('Identidade de artigo/lote/carga incompleta. Esclarecer antes de importar.')
+        assert_lot(db, lot, art)
+        if lot in lotes and lotes[lot] != art:
+            raise ValueError('Importação contraditória: um lote pertence a vários artigos.')
+        lotes[lot] = art
     if db.scalar(select(func.count()).select_from(Stock)):
         raise ValueError('Já existe stock. Importação cancelada para evitar duplicados.')
     if db.scalar(select(func.count()).select_from(ImportBatch).where(ImportBatch.source_sha256 == report.digest)):

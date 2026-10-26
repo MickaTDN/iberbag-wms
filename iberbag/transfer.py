@@ -3,6 +3,7 @@ import argparse
 from collections import Counter
 from datetime import date, datetime
 import hashlib
+import base64
 import json
 import os
 from pathlib import Path
@@ -18,7 +19,8 @@ LOCK = 72834002
 RECEIVING_TABLES = {'receipts', 'receipt_lines', 'putaways'}
 DISPATCH_TABLES = {'dispatch_orders', 'dispatch_lines', 'dispatch_picks'}
 TRANSFER_TABLES = {'stock_transfers'}
-OPERATIONAL_TABLES = RECEIVING_TABLES | DISPATCH_TABLES | TRANSFER_TABLES
+INVENTORY_TABLES = {'lot_resolutions','dispatch_documents','preparation_completions','location_clocks','physical_inventories','inventory_scopes','inventory_counts','stock_incidents','stock_adjustments','preparation_compensations'}
+OPERATIONAL_TABLES = RECEIVING_TABLES | DISPATCH_TABLES | TRANSFER_TABLES | INVENTORY_TABLES
 
 
 def digest_file(path):
@@ -29,6 +31,8 @@ def digest_file(path):
 def json_value(value):
     if isinstance(value, (datetime, date)):
         return value.isoformat()
+    if isinstance(value,(bytes,bytearray,memoryview)):
+        return base64.b64encode(value).decode('ascii')
     raise TypeError('Tipo de dados não suportado.')
 
 
@@ -42,7 +46,7 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
-    legacy_revision = {frozenset(OPERATIONAL_TABLES): '0001', frozenset(DISPATCH_TABLES | TRANSFER_TABLES): '0002', frozenset(TRANSFER_TABLES): '0003', frozenset(): REVISION}.get(frozenset(missing))
+    legacy_revision = {frozenset(OPERATIONAL_TABLES): '0001', frozenset(DISPATCH_TABLES | TRANSFER_TABLES | INVENTORY_TABLES): '0002', frozenset(TRANSFER_TABLES | INVENTORY_TABLES): '0003', frozenset(INVENTORY_TABLES): '0004', frozenset(): REVISION}.get(frozenset(missing))
     if names - expected - {'alembic_version'} or legacy_revision is None or inspector.get_view_names():
         raise ValueError('Esquema diferente da v2.3: tabelas em falta, adicionais ou vistas. Rever manualmente.')
     if 'alembic_version' in names:
@@ -60,11 +64,15 @@ def read_data(connection):
             result[table.name] = []
             continue
         columns = {c['name'] for c in inspector.get_columns(table.name)}
-        legacy_locations = table.name == 'locations' and legacy_revision != REVISION and columns == set(table.columns.keys()) - {'active'}
-        if columns != set(table.columns.keys()) and not legacy_locations:
+        legacy_locations = table.name == 'locations' and legacy_revision in ('0001','0002','0003') and columns == set(table.columns.keys()) - {'active'}
+        legacy_dispatch = table.name=='dispatch_orders' and legacy_revision != REVISION and columns == set(table.columns.keys()) - {'office','cancellation_reason','cancelled_by','cancelled_at'}
+        if columns != set(table.columns.keys()) and not legacy_locations and not legacy_dispatch:
             raise ValueError(f'Colunas incompatíveis: {table.name}.')
         query = select(*(col for col in table.columns if col.name in columns)).order_by(*table.primary_key.columns)
         result[table.name] = [dict(row) for row in connection.execute(query).mappings()]
+        if legacy_dispatch:
+            for row in result[table.name]:
+                row.update(office=False,cancellation_reason=None,cancelled_by=None,cancelled_at=None)
         if legacy_locations:
             for row in result[table.name]:
                 row['active'] = True  # All catalogue positions were implicitly active before 0004.
@@ -84,6 +92,7 @@ def inventory(data):
         'tables': {name: {'rows': len(rows), 'sha256': fingerprint(rows)} for name, rows in data.items()},
         'stock': {key: len({row[key] for row in stock}) for key in ('artigo', 'lote', 'carga', 'local')},
         'paletes': sum(row['quantidade'] for row in stock),
+        'associacoes_historicas_lote_contraditorias': sum(len({r['artigo'] for name in ('stock','receipt_lines','dispatch_lines','stock_transfers') for r in data[name] if r['lote']==lot})>1 for lot in {r['lote'] for name in ('stock','receipt_lines','dispatch_lines','stock_transfers') for r in data[name]}),
         'cargas_sem_data': sum(row['entrada'] is None for row in data['cargas']),
         'cargas_sem_responsavel': sum(row['funcionario'] is None for row in data['cargas']),
         'locais_acima_capacidade': sum(capacity_for(loc) == 1 and qty > 1 for loc, qty in occupancy.items()),
@@ -173,6 +182,8 @@ def apply(bundle, engine):
         cfg = config()
         cfg.attributes['connection'] = connection
         command.upgrade(cfg, 'head')
+        connection.execute(text('ALTER TABLE stock DISABLE TRIGGER stock_clock'))
+        connection.execute(text('ALTER TABLE locations DISABLE TRIGGER catalogue_clock'))
         for table in TABLES:
             if data[table.name]:
                 rows = data[table.name]
@@ -180,6 +191,8 @@ def apply(bundle, engine):
                     rows = [dict(row, status='draft', carga_id=None, receiver=None, confirmed_at=None) for row in rows]
                 if table.name == 'dispatch_orders':
                     rows = [dict(row, status='draft', reviewed_at=None, checked_by=None, checked_at=None, discrepancy=None, confirmed_by=None, confirmed_at=None) for row in rows]
+                if table.name=='physical_inventories':
+                    rows=[dict(row,status='draft',submitted_by=None,submitted_at=None,applied_by=None,applied_at=None,reason=None) for row in rows]
                 connection.execute(table.insert(), rows)
             if 'id' in table.columns:
                 maximum = max((row['id'] for row in data[table.name]), default=0)
@@ -195,6 +208,12 @@ def apply(bundle, engine):
         for row in data['dispatch_orders']:
             if row['status'] != 'draft':
                 connection.execute(DispatchOrder.__table__.update().where(DispatchOrder.id == row['id']).values(**row))
+        from .database import PhysicalInventory
+        for row in data['physical_inventories']:
+            if row['status']!='draft':
+                connection.execute(PhysicalInventory.__table__.update().where(PhysicalInventory.id==row['id']).values(**row))
+        connection.execute(text('ALTER TABLE stock ENABLE TRIGGER stock_clock'))
+        connection.execute(text('ALTER TABLE locations ENABLE TRIGGER catalogue_clock'))
         actual = inventory(read_data(connection))
         changed = differences(report['expected'], actual)
         if changed:

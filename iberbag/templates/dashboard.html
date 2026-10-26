@@ -3,7 +3,7 @@
 {% block crumb %}Visão geral{% endblock %}
 {% block content %}
 <div class="page-head"><div><div class="overline">PAINEL DE CONTROLO</div><h1>Visão geral do armazém</h1><p>Consulta centralizada de stock e localizações Iberbag.</p></div><span class="pill outline"><span class="status-dot"></span> Acesso {{ 'administrativo' if user.role == 'admin' else 'operador' }}</span></div>
-<div class="alert warning"><strong>Versão em validação.</strong> Entradas e arrumação estão disponíveis para ensaio. Saídas, FIFO, transferências e paletes incompletas continuam inativos.</div>
+<div class="alert warning"><strong>Versão em validação.</strong> Entradas, arrumação e saídas por FIFO disponíveis para ensaio. Transferências, expedições especiais e paletes incompletas continuam inativos.</div>
 <div class="stat-grid">
   <div class="stat"><div class="stat-label">PALETES EM STOCK <span>▧</span></div><div class="stat-value">{{ stats[0] }}</div><small>Quantidade total registada</small></div>
   <div class="stat"><div class="stat-label">ARTIGOS DIFERENTES <span>▤</span></div><div class="stat-value">{{ stats[1] }}</div><small>Referências em stock</small></div>

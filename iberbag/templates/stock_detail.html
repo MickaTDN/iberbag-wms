@@ -23,4 +23,5 @@
   {% else %}<p>Funcionário associado à carga no histórico antigo: {{ carga.funcionario if carga and carga.funcionario else 'Não registado' }}.</p>{% endif %}
   <div class="info-note">O Excel guarda o nome do funcionário associado à <strong>arrumação da carga</strong>. Quando uma carga foi arrumada por várias pessoas, o histórico antigo pode não identificar quem colocou esta palete específica.</div>
 </section>
+{% if dispatches %}<section class="panel"><h2>Histórico de saídas deste grupo</h2><table><thead><tr><th>Pedido</th><th>Paletes</th><th>Confirmado por</th><th>Data/hora UTC</th></tr></thead><tbody>{% for pick, order in dispatches %}<tr><td><a href="/dispatches/{{ order.id }}">#{{ order.id }} · {{ order.reference }}</a></td><td>{{ pick.quantidade }}</td><td>{{ order.confirmed_by }}</td><td>{{ order.confirmed_at }}</td></tr>{% endfor %}</tbody></table></section>{% endif %}
 {% endblock %}

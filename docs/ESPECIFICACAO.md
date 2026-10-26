@@ -25,7 +25,7 @@
 - A configuração inicial é a derivada das macros do Excel e exige conferência física.
 - Impedir eliminação/alteração de código com stock; preservar stock anómalo sem normalização silenciosa.
 
-## Saídas e FIFO (planeado, ainda não implementado)
+## Saídas e FIFO (Etapa 4, em ensaio)
 - O sistema seleciona automaticamente cargas mais antigas para o artigo/lote solicitado, pela data real de entrada.
 - Operador recebe instruções de localização e confirma quantidades efetivamente separadas.
 - A seleção atual das macros por ordem de linhas Excel não garante FIFO cronológico; melhorar explicitamente.
@@ -52,3 +52,5 @@ Em importações históricas foram identificadas posições acima da capacidade 
 - Plano de instalação Windows e verificação de restauro; testes de aceitação com dados fictícios.
 
 A Etapa 3 implementa receção confirmada, pendentes e arrumação transacional em PostgreSQL, preservando a v2.3. Ver [ENTRADAS_E_ARRUMACAO.md](ENTRADAS_E_ARRUMACAO.md). Paletes incompletas e comportamentos VBA não documentados continuam por confirmar.
+
+A Etapa 4 implementa pedidos, listas automáticas FIFO, conferência e confirmação atómica em PostgreSQL. Empates usam data, ID de carga e ID do grupo. Datas desconhecidas e divergências bloqueiam o pedido; não existe bypass de FIFO. Ver [SAIDAS_E_FIFO.md](SAIDAS_E_FIFO.md).

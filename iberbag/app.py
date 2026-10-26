@@ -119,8 +119,8 @@ def dashboard(request: Request, db: Session = Depends(database)):
     user, sess = identity(request, db)
     if unauthorized(user): return redirect('/login')
     stats = db.execute(select(func.coalesce(func.sum(Stock.quantidade),0),func.count(func.distinct(Stock.artigo)),
-                              func.count(func.distinct(Stock.lote)), func.count(func.distinct(Stock.local)))).first()
-    occupied = db.execute(select(Stock.local, func.sum(Stock.quantidade)).group_by(Stock.local)).all()
+                              func.count(func.distinct(Stock.lote)), func.count(func.distinct(Stock.local))).where(Stock.quantidade > 0)).first()
+    occupied = db.execute(select(Stock.local, func.sum(Stock.quantidade)).where(Stock.quantidade > 0).group_by(Stock.local)).all()
     exceeding_locations = [loc for loc, total in occupied if capacity_for(loc) is not None and total > 1]
     unidentified_pallets = sum(total for loc, total in occupied if is_unassigned(loc))
     missing_dates = db.scalar(select(func.count()).select_from(Carga).where(Carga.entrada.is_(None))) or 0
@@ -134,8 +134,8 @@ def stock_page(request: Request, artigo: str='', lote: str='', local: str='', pa
     user, sess = identity(request, db)
     if unauthorized(user): return redirect('/login')
     page = max(1, min(page, 10000)); filters = {'artigo': artigo.strip()[:100], 'lote': lote.strip()[:100], 'local': local.strip()[:100]}
-    query = select(Stock)
-    count_query = select(func.count(), func.coalesce(func.sum(Stock.quantidade),0)).select_from(Stock)
+    query = select(Stock).where(Stock.quantidade > 0)
+    count_query = select(func.count(), func.coalesce(func.sum(Stock.quantidade),0)).select_from(Stock).where(Stock.quantidade > 0)
     for key, value in filters.items():
         if value:
             field = getattr(Stock, key)
@@ -161,7 +161,9 @@ def stock_details(stock_id: int, request: Request, db: Session=Depends(database)
     carga = db.scalar(select(Carga).where(Carga.codigo == item.carga))
     from .database import Putaway
     events = db.scalars(select(Putaway).where(Putaway.stock_id == item.id, Putaway.status == 'confirmed').order_by(Putaway.id)).all()
-    return render(request, 'stock_detail.html', context(request, user, sess, item=item, carga=carga, events=events))
+    from .database import DispatchOrder, DispatchPick, DispatchLine
+    dispatches = db.execute(select(DispatchPick, DispatchOrder).join(DispatchLine, DispatchLine.id == DispatchPick.line_id).join(DispatchOrder, DispatchOrder.id == DispatchLine.order_id).where(DispatchPick.stock_id == item.id, DispatchOrder.status == 'confirmed').order_by(DispatchOrder.id)).all()
+    return render(request, 'stock_detail.html', context(request, user, sess, item=item, carga=carga, events=events, dispatches=dispatches))
 
 @app.get('/locations')
 def old_locations_redirect(request: Request, db: Session=Depends(database)):
@@ -240,7 +242,7 @@ def warehouse_map(request: Request, corredor: str='', andar: int=1,
                       'configured': exists})
     # Floor and missing locations are not silently treated as rack positions.
     from .location_rules import is_floor, is_unassigned
-    all_stock = db.execute(select(Stock.local, func.sum(Stock.quantidade)).group_by(Stock.local)).all()
+    all_stock = db.execute(select(Stock.local, func.sum(Stock.quantidade)).where(Stock.quantidade > 0).group_by(Stock.local)).all()
     floor_pallets = sum(int(qty) for code,qty in all_stock if is_floor(code))
     unassigned = sum(int(qty) for code,qty in all_stock if is_unassigned(code))
     return render(request, 'warehouse_map.html', context(request, user, sess,
@@ -416,3 +418,6 @@ def health(db: Session = Depends(database)):
 # Imported after shared rendering/auth helpers are defined.
 from .receiving_routes import router as receiving_router
 app.include_router(receiving_router)
+
+from .dispatch_routes import router as dispatch_router
+app.include_router(dispatch_router)

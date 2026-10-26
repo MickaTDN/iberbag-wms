@@ -25,7 +25,7 @@ def operation(fn):
     def wrapped(db, actor_id, *args, **kwargs):
         try:
             if db.bind.dialect.name != 'postgresql':
-                raise ReceivingError('Entradas e arrumação exigem PostgreSQL. SQLite permite apenas consulta.', 503)
+                raise ReceivingError('Operações de stock exigem PostgreSQL. SQLite permite apenas consulta.', 503)
             db.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK})
             db.expire_all()
             actor = db.get(User, actor_id)

@@ -17,6 +17,7 @@
       <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">◫ &nbsp; Visão geral</a>
       <a href="/receipts" class="{% if request.url.path.startswith('/receipts') %}active{% endif %}">Entradas</a>
       <a href="/putaway" class="{% if request.url.path.startswith('/putaway') %}active{% endif %}">Arrumação</a>
+      <a href="/dispatches" class="{% if request.url.path.startswith('/dispatches') %}active{% endif %}">Saídas</a>
       <a href="/stock" class="{% if request.url.path.startswith('/stock') %}active{% endif %}">▤ &nbsp; Consulta de stock</a>
       <a href="/map" class="{% if request.url.path == '/map' %}active{% endif %}">▦ &nbsp; Mapa do armazém</a>
     </nav>
@@ -33,7 +34,7 @@
       {% endif %}
     </nav>
     {% endif %}
-    <div class="sidebar-bottom"><span class="status-dot"></span> Entradas e arrumação<br><small>Saídas não ativadas</small></div>
+    <div class="sidebar-bottom"><span class="status-dot"></span> Entradas e arrumação<br><small>Saídas por FIFO em ensaio</small></div>
   </aside>
   <div class="workarea">
     <header class="topbar">

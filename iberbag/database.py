@@ -55,7 +55,7 @@ class Stock(Base):
     quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
     __table_args__ = (
         UniqueConstraint('artigo', 'lote', 'carga', 'local', name='stock_key_unique'),
-        CheckConstraint('quantidade > 0', name='stock_positive'),
+        CheckConstraint('quantidade >= 0', name='stock_nonnegative'),
         Index('ix_stock_article_lot_location', 'artigo', 'lote', 'local'),
     )
 
@@ -217,4 +217,59 @@ class Putaway(Base):
         CheckConstraint('quantidade > 0', name='putaway_positive'),
         CheckConstraint("status IN ('draft','confirmed')", name='putaway_status_valid'),
         CheckConstraint("(status = 'draft' AND stock_id IS NULL AND arranger IS NULL AND confirmed_at IS NULL) OR (status = 'confirmed' AND stock_id IS NOT NULL AND arranger IS NOT NULL AND confirmed_at IS NOT NULL)", name='putaway_confirmation_valid'),
+    )
+
+
+class DispatchOrder(Base):
+    __tablename__ = 'dispatch_orders'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    request_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    reference: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default='draft')
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    checked_by: Mapped[str | None] = mapped_column(String(60))
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime)
+    discrepancy: Mapped[str | None] = mapped_column(Text)
+    confirmed_by: Mapped[str | None] = mapped_column(String(60))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    __table_args__ = (
+        CheckConstraint("status IN ('draft','ready','checked','blocked','confirmed')", name='dispatch_state_valid'),
+        CheckConstraint("status = 'draft' OR reviewed_at IS NOT NULL", name='dispatch_review_valid'),
+        CheckConstraint("status NOT IN ('checked','blocked','confirmed') OR (checked_at IS NOT NULL AND checked_by IS NOT NULL)", name='dispatch_check_valid'),
+        CheckConstraint("status <> 'blocked' OR discrepancy IS NOT NULL", name='dispatch_discrepancy_required'),
+        CheckConstraint("(status = 'confirmed' AND confirmed_by IS NOT NULL AND confirmed_at IS NOT NULL) OR (status <> 'confirmed' AND confirmed_by IS NULL AND confirmed_at IS NULL)", name='dispatch_confirmation_valid'),
+    )
+
+
+class DispatchLine(Base):
+    __tablename__ = 'dispatch_lines'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('dispatch_orders.id'), nullable=False, index=True)
+    artigo: Mapped[str] = mapped_column(String(120), nullable=False)
+    lote: Mapped[str] = mapped_column(String(120), nullable=False)
+    quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
+    __table_args__ = (
+        UniqueConstraint('order_id', 'artigo', 'lote', name='dispatch_line_unique'),
+        CheckConstraint('quantidade > 0', name='dispatch_line_positive'),
+    )
+
+
+class DispatchPick(Base):
+    __tablename__ = 'dispatch_picks'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    line_id: Mapped[int] = mapped_column(ForeignKey('dispatch_lines.id'), nullable=False, index=True)
+    stock_id: Mapped[int] = mapped_column(ForeignKey('stock.id'), nullable=False, index=True)
+    quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
+    actual: Mapped[int | None] = mapped_column(Integer)
+    carga: Mapped[str] = mapped_column(String(120), nullable=False)
+    local: Mapped[str] = mapped_column(String(120), nullable=False)
+    entrada: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    __table_args__ = (
+        UniqueConstraint('line_id', 'stock_id', name='dispatch_pick_unique'),
+        CheckConstraint('quantidade > 0', name='dispatch_pick_positive'),
+        CheckConstraint('actual IS NULL OR actual >= 0', name='dispatch_actual_nonnegative'),
     )

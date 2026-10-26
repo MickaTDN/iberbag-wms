@@ -163,7 +163,9 @@ def stock_details(stock_id: int, request: Request, db: Session=Depends(database)
     events = db.scalars(select(Putaway).where(Putaway.stock_id == item.id, Putaway.status == 'confirmed').order_by(Putaway.id)).all()
     from .database import DispatchOrder, DispatchPick, DispatchLine
     dispatches = db.execute(select(DispatchPick, DispatchOrder).join(DispatchLine, DispatchLine.id == DispatchPick.line_id).join(DispatchOrder, DispatchOrder.id == DispatchLine.order_id).where(DispatchPick.stock_id == item.id, DispatchOrder.status == 'confirmed').order_by(DispatchOrder.id)).all()
-    return render(request, 'stock_detail.html', context(request, user, sess, item=item, carga=carga, events=events, dispatches=dispatches))
+    from .database import StockTransfer
+    transfers = db.scalars(select(StockTransfer).where(or_(StockTransfer.source_stock_id == item.id, StockTransfer.destination_stock_id == item.id), StockTransfer.status == 'confirmed').order_by(StockTransfer.id)).all()
+    return render(request, 'stock_detail.html', context(request, user, sess, item=item, carga=carga, events=events, dispatches=dispatches, transfers=transfers))
 
 @app.get('/locations')
 def old_locations_redirect(request: Request, db: Session=Depends(database)):
@@ -212,8 +214,9 @@ def warehouse_map(request: Request, corredor: str='', andar: int=1,
                       unassigned=0, special_stock=[]))
     current = next((c for c in corridors if c.codigo == corredor.strip().upper()), corridors[0])
     selected_floor = andar if 1 <= andar <= current.andares else 1
-    configured = set(db.scalars(select(Location.codigo).where(
-        Location.codigo.like(f'{current.codigo}%'))).all())
+    catalogue = db.scalars(select(Location).where(Location.codigo.like(f'{current.codigo}%'))).all()
+    configured = {loc.codigo for loc in catalogue}
+    inactive = {loc.codigo for loc in catalogue if not loc.active}
     # Restrict by the full 4-character code in Python, rather than matching
     # arbitrary historical names or strings that happen to share a prefix.
     codes = [f'{current.codigo}{selected_floor}{i:02d}' for i in range(1, current.posicoes+1)]
@@ -229,6 +232,9 @@ def warehouse_map(request: Request, corredor: str='', andar: int=1,
             status = 'anomaly' if qty else 'removed'
             if qty: anomalies += 1
             else: removed += 1
+        elif code in inactive and qty == 0:
+            status = 'inactive'
+            removed += 1
         elif qty > 1:
             status = 'anomaly'
             anomalies += 1
@@ -265,6 +271,7 @@ def corridor_page(code: str, request: Request, db: Session=Depends(database)):
                      .group_by(Stock.local)).all()}
     entries = [dict(code=f'{code}{floor}{pos:02d}', floor=floor, pos=pos,
                     present=f'{code}{floor}{pos:02d}' in locations,
+                    active=locations[f'{code}{floor}{pos:02d}'].active if f'{code}{floor}{pos:02d}' in locations else False,
                     occupied=count.get(f'{code}{floor}{pos:02d}', 0))
                for floor in range(1, corridor.andares+1) for pos in range(1, corridor.posicoes+1)]
     return render(request, 'corridor.html', context(request, user, sess, corridor=corridor,
@@ -421,3 +428,6 @@ app.include_router(receiving_router)
 
 from .dispatch_routes import router as dispatch_router
 app.include_router(dispatch_router)
+
+from .transfer_routes import router as transfer_router
+app.include_router(transfer_router)

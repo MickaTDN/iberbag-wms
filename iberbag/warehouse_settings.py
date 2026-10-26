@@ -178,3 +178,16 @@ def rename_location(db: Session, user, oldcode, newcode):
     audit(db, user, 'ALTERAR_LOCALIZACAO', f'{oldcode} -> {newcode}.')
     db.commit()
     return newcode
+
+
+@catalogue_operation
+def set_location_active(db, username, code, active):
+    location = db.scalar(select(Location).where(Location.codigo == code))
+    if location is None:
+        raise WarehouseError('Localização inexistente.')
+    if not active and occupied(db, [location.codigo]):
+        raise WarehouseError('Não é possível desativar uma localização ocupada.')
+    if location.active != active:
+        location.active = active
+        audit(db, username, 'ESTADO_LOCALIZACAO', f'{location.codigo}: ativa={active}.')
+    db.commit()

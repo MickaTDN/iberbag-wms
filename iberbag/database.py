@@ -2,7 +2,7 @@
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from sqlalchemy import select, create_engine, String, Integer, DateTime, ForeignKey, CheckConstraint, UniqueConstraint, Index, Text
+from sqlalchemy import select, text, create_engine, String, Integer, DateTime, Boolean, ForeignKey, CheckConstraint, UniqueConstraint, Index, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, relationship
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -68,6 +68,7 @@ class Carga(Base):
 
 class Location(Base):
     __tablename__ = 'locations'
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'), nullable=False)
     id: Mapped[int] = mapped_column(primary_key=True)
     codigo: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     capacidade: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -272,4 +273,30 @@ class DispatchPick(Base):
         UniqueConstraint('line_id', 'stock_id', name='dispatch_pick_unique'),
         CheckConstraint('quantidade > 0', name='dispatch_pick_positive'),
         CheckConstraint('actual IS NULL OR actual >= 0', name='dispatch_actual_nonnegative'),
+    )
+
+
+class StockTransfer(Base):
+    __tablename__ = 'stock_transfers'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    source_stock_id: Mapped[int] = mapped_column(ForeignKey('stock.id'), nullable=False, index=True)
+    destination_stock_id: Mapped[int | None] = mapped_column(ForeignKey('stock.id'), index=True)
+    artigo: Mapped[str] = mapped_column(String(120), nullable=False)
+    lote: Mapped[str] = mapped_column(String(120), nullable=False)
+    carga: Mapped[str] = mapped_column(String(120), nullable=False)
+    entrada: Mapped[datetime | None] = mapped_column(DateTime)
+    source_local: Mapped[str] = mapped_column(String(120), nullable=False)
+    destination_local: Mapped[str] = mapped_column(String(120), nullable=False)
+    quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default='draft', nullable=False)
+    confirmed_by: Mapped[str | None] = mapped_column(String(60))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    __table_args__ = (
+        CheckConstraint('quantidade > 0', name='transfer_positive'),
+        CheckConstraint('source_local <> destination_local', name='transfer_different_locations'),
+        CheckConstraint("status IN ('draft','confirmed')", name='transfer_status_valid'),
+        CheckConstraint("(status = 'draft' AND destination_stock_id IS NULL AND confirmed_by IS NULL AND confirmed_at IS NULL) OR (status = 'confirmed' AND destination_stock_id IS NOT NULL AND confirmed_by IS NOT NULL AND confirmed_at IS NOT NULL)", name='transfer_confirmation_valid'),
     )

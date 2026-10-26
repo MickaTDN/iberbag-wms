@@ -1,3 +1,5 @@
+Etapa 5: [Transferências entre localizações](docs/TRANSFERENCIAS.md), incluindo migração 0004, reservas e ensaio da interface.
+
 Etapa 4: [Saídas de mercadoria e FIFO](docs/SAIDAS_E_FIFO.md), com migração 0003, reservas, limitações e ensaio da interface.
 
 Para a Etapa 3, consultar [Entradas e arrumação](docs/ENTRADAS_E_ARRUMACAO.md), incluindo migração 0002 e ensaio da interface.

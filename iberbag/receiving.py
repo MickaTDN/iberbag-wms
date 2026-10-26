@@ -159,8 +159,8 @@ def destination(db, value, qty):
         except WarehouseError as error:
             raise ReceivingError(str(error), 400) from error
     location = db.scalar(select(Location).where(Location.codigo == value).with_for_update())
-    if location is None:
-        raise ReceivingError('A posição não existe no catálogo de localizações.')
+    if location is None or not location.active:
+        raise ReceivingError('A posição não existe ou está inativa no catálogo de localizações.')
     # Do not trust stale/custom capacity values: physical positions always hold one pallet.
     used = db.scalar(select(func.coalesce(func.sum(Stock.quantidade), 0)).where(Stock.local == value))
     if not is_floor(value) and used + qty > 1:

@@ -54,3 +54,5 @@ Em importações históricas foram identificadas posições acima da capacidade 
 A Etapa 3 implementa receção confirmada, pendentes e arrumação transacional em PostgreSQL, preservando a v2.3. Ver [ENTRADAS_E_ARRUMACAO.md](ENTRADAS_E_ARRUMACAO.md). Paletes incompletas e comportamentos VBA não documentados continuam por confirmar.
 
 A Etapa 4 implementa pedidos, listas automáticas FIFO, conferência e confirmação atómica em PostgreSQL. Empates usam data, ID de carga e ID do grupo. Datas desconhecidas e divergências bloqueiam o pedido; não existe bypass de FIFO. Ver [SAIDAS_E_FIFO.md](SAIDAS_E_FIFO.md).
+
+A Etapa 5 acrescenta transferências atómicas, revisão, histórico e catálogo ativo/inativo. Preserva carga/data e bloqueia operações sobre artigo/lote com saída ativa. Ver [TRANSFERENCIAS.md](TRANSFERENCIAS.md).

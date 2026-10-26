@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block crumb %}Transferências / Nova{% endblock %}
+{% block content %}<h1>Nova transferência</h1>
+<form method="get" action="/transfers/new" class="panel"><label>Localização de origem <input name="source" maxlength="120" required placeholder="C214 ou Chão" value="{{ source }}"></label><button class="btn" type="submit">Pesquisar stock na origem</button></form>
+{% if source %}<h2>Stock existente em {{ source }}</h2><p>Reservas de saída podem impedir a operação. A revisão não reserva a posição; o saldo, destino e reservas serão novamente verificados na confirmação.</p>
+{% if rows %}<form method="post" action="/transfers/review" class="panel"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="request_key" value="{{ request_key }}">
+<table><thead><tr><th>Selecionar grupo</th><th>Artigo</th><th>Lote</th><th>Carga</th><th>Paletes existentes</th></tr></thead><tbody>{% for row in rows %}<tr><td><input type="radio" name="stock_id" value="{{ row.id }}" required aria-label="Grupo {{ row.id }}"></td><td>{{ row.artigo }}</td><td>{{ row.lote }}</td><td>{{ row.carga }}</td><td>{{ row.quantidade }}</td></tr>{% endfor %}</tbody></table>
+<label>Localização de destino <input name="destination" maxlength="120" required placeholder="C214 ou Chão"></label><label>Paletes a transferir <input name="quantidade" type="number" min="1" step="1" max="2147483647" required></label><button class="btn" type="submit">Rever antes de confirmar</button></form>{% else %}<p>Não existe stock positivo nessa localização.</p>{% endif %}{% endif %}
+{% endblock %}

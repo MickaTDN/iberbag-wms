@@ -1,3 +1,5 @@
+> Etapa 5: revisão atual 0004, com transferências e catálogo ativo/inativo. Consultar [TRANSFERENCIAS.md](TRANSFERENCIAS.md). As referências a revisões abaixo descrevem etapas anteriores.
+
 > Etapa 4: esta branch usa a revisão 0003 e acrescenta saídas por FIFO. Consultar [SAIDAS_E_FIFO.md](SAIDAS_E_FIFO.md) para o fluxo atual e a atualização. As revisões/limitações abaixo descrevem as etapas anteriores.
 
 > Atualização Etapa 3: consultar [Entradas e arrumação](ENTRADAS_E_ARRUMACAO.md). Esta branch usa a revisão 0002 e permite entradas/arrumação em ensaio PostgreSQL. As referências a ausência de movimentos abaixo descrevem as etapas anteriores.

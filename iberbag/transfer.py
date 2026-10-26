@@ -17,7 +17,8 @@ TABLES = list(Base.metadata.sorted_tables)
 LOCK = 72834002
 RECEIVING_TABLES = {'receipts', 'receipt_lines', 'putaways'}
 DISPATCH_TABLES = {'dispatch_orders', 'dispatch_lines', 'dispatch_picks'}
-OPERATIONAL_TABLES = RECEIVING_TABLES | DISPATCH_TABLES
+TRANSFER_TABLES = {'stock_transfers'}
+OPERATIONAL_TABLES = RECEIVING_TABLES | DISPATCH_TABLES | TRANSFER_TABLES
 
 
 def digest_file(path):
@@ -41,7 +42,7 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
-    legacy_revision = {frozenset(OPERATIONAL_TABLES): '0001', frozenset(DISPATCH_TABLES): '0002', frozenset(): REVISION}.get(frozenset(missing))
+    legacy_revision = {frozenset(OPERATIONAL_TABLES): '0001', frozenset(DISPATCH_TABLES | TRANSFER_TABLES): '0002', frozenset(TRANSFER_TABLES): '0003', frozenset(): REVISION}.get(frozenset(missing))
     if names - expected - {'alembic_version'} or legacy_revision is None or inspector.get_view_names():
         raise ValueError('Esquema diferente da v2.3: tabelas em falta, adicionais ou vistas. Rever manualmente.')
     if 'alembic_version' in names:
@@ -50,15 +51,23 @@ def read_data(connection):
     if connection.dialect.name == 'sqlite':
         if connection.scalar(text('SELECT count(*) FROM users WHERE active NOT IN (0, 1) OR active IS NULL')):
             raise ValueError('Valor booleano inválido em users.active; não será convertido.')
+        if 'active' in {c['name'] for c in inspector.get_columns('locations')}:
+            if connection.scalar(text('SELECT count(*) FROM locations WHERE active NOT IN (0, 1) OR active IS NULL')):
+                raise ValueError('Valor booleano inválido em locations.active; não será convertido.')
     result = {}
     for table in TABLES:
         if table.name in missing:
             result[table.name] = []
             continue
-        if {c['name'] for c in inspector.get_columns(table.name)} != set(table.columns.keys()):
+        columns = {c['name'] for c in inspector.get_columns(table.name)}
+        legacy_locations = table.name == 'locations' and legacy_revision != REVISION and columns == set(table.columns.keys()) - {'active'}
+        if columns != set(table.columns.keys()) and not legacy_locations:
             raise ValueError(f'Colunas incompatíveis: {table.name}.')
-        result[table.name] = [dict(row) for row in connection.execute(
-            select(table).order_by(*table.primary_key.columns)).mappings()]
+        query = select(*(col for col in table.columns if col.name in columns)).order_by(*table.primary_key.columns)
+        result[table.name] = [dict(row) for row in connection.execute(query).mappings()]
+        if legacy_locations:
+            for row in result[table.name]:
+                row['active'] = True  # All catalogue positions were implicitly active before 0004.
     if not any(row['key'] == 'warehouse_layout_seeded_vba' and row['value'] == '1'
                for row in result['app_config']):
         raise ValueError('Catálogo v2.3 não inicializado. Não será deduzido automaticamente.')

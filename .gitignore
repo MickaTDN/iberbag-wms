@@ -6,6 +6,8 @@ __pycache__/
 *.sqlite*
 *.xls*
 *.zip
+# Reviewed source-only DEMO download while Actions/release uploads are unavailable.
+!/downloads/IBERBAG-DEMO-Codigo-Windows-b579ea8.zip
 .env
 .env.*
 *.log

@@ -1,13 +1,9 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-if exist "%~dp0IBERBAG_DEMO.exe" (
-  "%~dp0IBERBAG_DEMO.exe" start
-  if errorlevel 1 pause
-  exit /b
-)
 if not exist "%~dp0demo-env\Scripts\python.exe" (
-  echo Execute primeiro INSTALAR_DEMO.bat nesta pasta. A versao autonoma nao exige instalacao.
+  echo Este pacote de codigo usa Python oficial. Execute primeiro INSTALAR_DEMO.bat.
+  echo Nao liberte nem execute ficheiros bloqueados pelo antivirus.
   pause
   exit /b 1
 )

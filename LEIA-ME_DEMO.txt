@@ -1,91 +1,62 @@
-IBERBAG WMS — DEMONSTRAÇÃO LOCAL — DADOS FICTÍCIOS
+IBERBAG WMS — DEMONSTRAÇÃO EM CÓDIGO — DADOS FICTÍCIOS
 
-PACOTE AUTÓNOMO WINDOWS (recomendado)
-1. Descarregue o artefacto IBERBAG-DEMO-Windows-x64 no workflow "DEMO Windows".
-   GitHub > MickaTDN/iberbag-wms > Actions > DEMO Windows > execução verde
-   da branch codex/windows-local-demo > Artifacts (no fim) > descarregar.
-   É necessário estar autenticado com acesso ao repositório privado.
-2. No Explorador, botão direito no ZIP > Extrair Tudo. Escolha uma pasta nova
-   onde possa escrever, por exemplo Documentos\IberbagDemo. Não use Program Files,
-   uma pasta de rede, nem a pasta da instalação definitiva.
-3. Abra a pasta extraída e faça duplo clique em INICIAR_DEMO.bat.
-4. O navegador abre automaticamente. Mantenha a janela da demonstração aberta.
-   Se o navegador não abrir, copie o endereço http://127.0.0.1:... mostrado.
-5. Para terminar, use "Encerrar DEMO" no topo, PARAR_DEMO.bat, ou Ctrl+C
-   na janela da demonstração. Não é preciso terminar outros programas.
+ALERTA ANTIVÍRUS AINDA POR ESCLARECER
+Foi reportado um bloqueio do executável autónomo pelo Trend Micro Security Agent,
+com a deteção TROJ.WIN32.TRX.XXPE50FFF110, antes de a aplicação abrir.
+Não se concluiu que é falso positivo nem se certificou esse executável como seguro.
+Mantenha-o bloqueado/em quarentena e não desative o antivírus ou crie exclusões.
+Se este computador for gerido pela empresa, peça revisão ao responsável pelo Agent
+antes de instalar/executar software. Não enviar ficheiros empresariais ao fornecedor
+sem respeitar os procedimentos de confidencialidade da organização.
 
-Não instalar PostgreSQL, Docker, Git, GitHub Desktop ou Python para o pacote
-que contém IBERBAG_DEMO.exe. Não necessita de privilégios administrativos ou
-regras de firewall. A execução não faz downloads nem envia dados para serviços.
-O executável não tem assinatura comercial. Se o Windows/antivírus/política da
-organização o bloquear, não desative a proteção: peça revisão do pacote ou use
-um computador autorizado. Não afirmar que o teste automatizado num runner
-Windows Server equivale a teste físico num computador Windows 11.
+SOBRE ESTE PACOTE
+Contém o código legível da DEMO e os scripts. Não inclui IBERBAG_DEMO.exe,
+_runtime, executável PyInstaller, bases existentes, Excel, dados reais ou credenciais.
+Os scripts deste pacote não procuram nem executam o executável assinalado.
+Esta alternativa não é uma certificação antimalware. Mantenha as proteções ativas.
+O ficheiro MANIFESTO_SHA256.txt identifica os ficheiros produzidos pelo workflow;
+hashes permitem comparar integridade, não provam ausência de código malicioso.
+
+INSTALAÇÃO (SEM COMANDOS)
+1. Extrair Tudo para uma pasta NOVA, por exemplo Documentos\IberbagDemoCodigo.
+   Não misturar com a pasta do executável assinalado ou com o WMS definitivo.
+2. Instalar Python 3.12 de https://www.python.org/downloads/windows/.
+   Usar o instalador oficial para Windows 64 bits, da Python Software Foundation.
+   Escolher instalação apenas para o utilizador atual, incluindo o launcher "py";
+   não selecionar instalação do launcher para todos os utilizadores.
+   Não ignorar qualquer alerta do antivírus/política da organização durante a instalação.
+3. Dar duplo clique em INSTALAR_DEMO.bat. Requer Internet para obter bibliotecas
+   Python de demonstração e instala-as só na pasta demo-env deste pacote.
+4. Dar duplo clique em INICIAR_DEMO.bat. O navegador abre automaticamente.
+5. Encerrar em "Encerrar DEMO", PARAR_DEMO.bat ou Ctrl+C na janela do servidor.
+
+Não instalar PostgreSQL, Docker, Git ou GitHub Desktop. Não precisa de configurar
+rede ou firewall. A execução usa apenas 127.0.0.1 e dados fictícios; o programa
+não lê configurações de produção ou Excel, nem liga a PostgreSQL.
 
 EXPERIMENTAR
-- Visão geral: totais, ligações guiadas e movimentos recentes fictícios.
-- Consulta de Stock: artigo, lote e localização. Abra uma linha para ver carga,
-  data e responsável. Comece por LOTE-DEMO-A, que existe em várias cargas.
-- Mapa: corredores A–S; andares, posições livres/ocupadas e Chão.
-- Saídas: novo cliente fictício, LOTE-DEMO-A, 12 paletes. Rever FIFO, confirmar,
-  ver stock descontado apenas na simulação e pendente para a falta. Abrir PDF.
-- Mercadona: escolher destino fictício por linha, lote e paletes; rever/imprimir.
+- Stock e mapa: artigo, lote, localização, Chão e corredores A–S.
+- Saídas: CLIENTE DEMO GAMA, LOTE-DEMO-A, 12 paletes; rever FIFO e confirmar.
 - Entradas: carga nova, data fictícia, ART-DEMO-SACO / LOTE-DEMO-B / 4.
-  Rever clientes e excedente. Confirmar; só o excedente aparece em Arrumação.
-- Arrumação: uma palete por posição (ex.: A104); várias apenas no Chão.
-- Transferências: mover um grupo para posição livre, preservando carga e lote.
-- Pendentes: originais/satisfeitos/saldo e mercadoria separada para clientes.
-  Simular recolha física não desconta uma segunda vez.
-- Inventário: parcial A102 A103, contar uma vazia e deixar a outra desconhecida.
-  Submeter exige todas contadas. Administrador pode aprovar ajuste com motivo.
-  Para conhecer um completo sem preencher mais de duas mil posições, existe
-  atalho EXCLUSIVO DEMO para carregar uma contagem fictícia explícita; essa
-  ação não existe na versão operacional e não representa uma contagem real.
-- Definições: alternar perfis demonstrativos Administrador/Operador, testar
-  bloqueio de ajustes e alteração de posições ocupadas. Geometria é fixa na DEMO.
-- Repor dados de demonstração: ligação permanente no topo, com confirmação.
-  Limpa apenas o estado fictício desta pasta; não elimina outros ficheiros.
+  Rever a atribuição aos clientes; só o excedente vai para arrumação normal.
+- Arrumação e transferências: uma palete por posição; Chão ilimitado.
+- Mercadona: preparar lotes para destinos fictícios e abrir PDF por destino.
+- Inventário: contar por localização; não contado é diferente de contado vazio.
+  Só Administrador demonstrativo aprova ajustes, com motivo fictício.
+- Pendentes: consultar originais/satisfeitos/saldos; recolha não desconta novamente.
+- Repor dados de demonstração: confirmação visível no topo, apenas dados desta DEMO.
 
-PDFS
-Documentos de Entrada/Arrumação, CARGA/Preparação, Mercadona e inventário
-submetido são criados na simulação e arquivados. Todos indicam DEMONSTRAÇÃO.
-Abrir/reimprimir não altera stock. O navegador permite imprimir ou guardar uma
-cópia num destino escolhido explicitamente pelo utilizador.
-
-DIFERENÇAS E LIMITES
-Esta é uma simulação educativa de um único processo/computador, sem garantias
-transacionais multiutilizador do PostgreSQL. Não serve para stock real, rede
-local empresarial, produção, migração ou importação de Excel. Não há ligação
-possível a PostgreSQL na distribuição. Os serviços operacionais não são ativados
-em SQLite. Perfis são demonstrativos e podem ser alternados, não contas reais.
-FIFO usa data da carga, código de carga e grupo como desempate determinístico
-(na versão real usa IDs de carga). Inventário usa uma versão global conservadora:
-qualquer movimento obriga a recomeçar a contagem. O atalho de contagem completa
-é apenas fictício. Não inclui compensações, reservas antigas, expedições especiais,
-edição da geometria, utilizadores reais ou composição operacional de paletes mistas.
-Os ecrãs identificados como ilustrativos não anunciam ações inexistentes.
-
-Os dados ficam exclusivamente na subpasta DEMO: estado.sqlite, controlo de
-arranque e temporários. Não copie bases reais para esta pasta. Se um ficheiro
-não for reconhecido como demonstração, o programa recusa substituí-lo.
-Pode encerrar e remover a pasta inteira da demonstração pelo Explorador,
-depois de confirmar que nela não guardou documentos pessoais.
-Pode ter uma instalação operacional noutro local; esta DEMO não a lê nem altera.
-Porta automática por defeito. Suporte técnico pode iniciar o executável com
-"start --port 8877"; endereço sempre 127.0.0.1. Abrir o BAT novamente reutiliza
-apenas a instância desta pasta, sem criar vários servidores.
-
-ALTERNATIVA SEM EXECUTÁVEL (pacote de código-fonte)
-Só se o pacote não tiver IBERBAG_DEMO.exe: instalar Python 3.12 de python.org,
-para o utilizador atual, sem privilégios administrativos se permitido. Depois
-executar INSTALAR_DEMO.bat (Internet apenas nesta instalação), que cria demo-env
-nesta pasta e instala as dependências de requirements-demo.txt: FastAPI, Uvicorn,
-Jinja2, ReportLab e dependências transitivas. Não altera o Python global.
-Por fim executar INICIAR_DEMO.bat. Não executar INSTALAR_WINDOWS.bat ou outros
-scripts do WMS operacional. O ZIP autónomo é a opção preferida sem instalações.
+LIMITES
+Perfis alternáveis são demonstrativos; não existe autenticação empresarial.
+A simulação pessoal não oferece garantias PostgreSQL multiutilizador.
+Geometria é fixa; paletes mistas, compensações e reconciliação avançada são apenas
+ilustrativas. Há um atalho de contagem completa EXCLUSIVO DEMO, explicitamente
+confirmado, que não representa contagem física e não existe no programa operacional.
+PDFs fictícios ficam arquivados; reimprimir não movimenta stock.
+Dados ficam na subpasta DEMO. Reposição não apaga outros ficheiros.
 
 VALIDAÇÃO
-Consulte a execução do workflow que gerou o ZIP e docs/DEMO_WINDOWS.md no
-repositório para resultados e limitações. O runner automatizado Windows é um
-Windows Server; aceitação física em Windows 11, navegador, impressão, SmartScreen
-ou políticas de antivírus permanecem validações locais. Não houve deploy na empresa.
+O workflow testa o código e o pacote em Windows Server, não num Windows 11 pessoal.
+Aceitação física Windows 11, navegador, impressão e avaliação do alerta pelo fornecedor
+continuam pendentes. Consulte docs/DEMO_WINDOWS.md e docs/ALERTA_ANTIVIRUS_DEMO.md
+no repositório. Não houve deploy, merge ou alteração de dados/instalações reais.

@@ -1,15 +1,11 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-if exist "%~dp0IBERBAG_DEMO.exe" (
-  echo Este pacote ja inclui tudo. Execute INICIAR_DEMO.bat.
-  pause
-  exit /b 0
-)
 where py >nul 2>nul
 if errorlevel 1 (
   echo Esta alternativa precisa de Python 3.12, instalado apenas para o utilizador.
-  echo Prefira o ZIP autonomo do workflow DEMO Windows, que nao precisa de Python.
+  echo Consulte LEIA-ME_DEMO.txt para instalar Python a partir de python.org.
+  echo Nao utilize o executavel autonomo enquanto o alerta antivirus estiver por esclarecer.
   pause
   exit /b 1
 )

@@ -1,11 +1,6 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-if exist "%~dp0IBERBAG_DEMO.exe" (
-  "%~dp0IBERBAG_DEMO.exe" stop
-  if errorlevel 1 pause
-  exit /b
-)
 if not exist "%~dp0demo-env\Scripts\python.exe" (
   echo A demonstracao nao esta instalada nesta pasta.
   pause

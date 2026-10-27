@@ -233,3 +233,30 @@ def test_fallback_isolated_entry_uses_only_its_package(tmp_path):
     folder=tmp_path/'Pacote fonte ação';build(folder)
     code="import sys;sys.path.insert(0,sys.argv[1]);from iberbag_demo.app import create_app;app=create_app(sys.argv[1],8877,__import__('secrets').token_hex(32));assert 'iberbag.database' not in sys.modules;assert 'iberbag.app' not in sys.modules"
     subprocess.run([sys.executable,'-I','-B','-c',code,str(folder)],cwd=folder,check=True,capture_output=True,timeout=20)
+
+
+def test_source_distribution_never_launches_custom_executable(tmp_path):
+    import hashlib
+    from scripts.build_demo import build
+    folder=tmp_path/'code';archive=build(folder)
+    for name in ('INICIAR_DEMO.bat','PARAR_DEMO.bat','INSTALAR_DEMO.bat'):
+        script=(folder/name).read_text()
+        assert 'IBERBAG_DEMO.exe' not in script and 'demo-env' in script
+    with zipfile.ZipFile(archive) as z:
+        assert not any(n.lower().endswith(('.exe','.dll','.pyd')) or n.startswith('_runtime/') for n in z.namelist())
+    for line in (folder/'MANIFESTO_SHA256.txt').read_text().splitlines():
+        digest,name=line.split('  ',1)
+        assert hashlib.sha256((folder/name).read_bytes()).hexdigest()==digest
+
+
+def test_standalone_build_is_suspended_without_creating_files(tmp_path):
+    from scripts.build_demo import build
+    target=tmp_path/'suspended'
+    with pytest.raises(RuntimeError,match='suspenso'):build(target,standalone=True)
+    assert not target.exists()
+
+
+def test_frozen_smoke_is_suspended_before_any_execution(tmp_path):
+    from scripts.smoke_demo_package import smoke
+    with pytest.raises(RuntimeError,match='suspenso'):smoke(tmp_path)
+    assert list(tmp_path.iterdir())==[]

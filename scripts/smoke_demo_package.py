@@ -16,13 +16,9 @@ import urllib.error
 
 def smoke(folder,command=None):
     folder=Path(folder).resolve()
-    command=command or [str(folder/'IBERBAG_DEMO.exe')]
+    if command is None:raise RuntimeError('Ensaio do executável suspenso após alerta antivírus. Usar --source com Python oficial.')
     env=dict(os.environ,WMS_DATABASE_URL='postgresql+psycopg://invalid:invalid@192.0.2.1/forbidden',PGHOST='192.0.2.1')
-    if (folder/'IBERBAG_DEMO.exe').exists():
-        env['PATH']=str(Path(os.environ['SystemRoot'])/'System32')
-        env.pop('PYTHONPATH',None);env.pop('PYTHONHOME',None)
-    else:
-        env['PYTHONPATH']=str(Path(__file__).resolve().parent.parent)
+    env['PYTHONPATH']=str(Path(__file__).resolve().parent.parent)
     output=folder/'ensaio-arranque.txt'
     external=folder.parent/'sentinela-demo-externa.txt'
     if external.exists():raise RuntimeError('Usar pasta de ensaio nova; não substituir sentinelas existentes.')
@@ -84,7 +80,7 @@ def smoke(folder,command=None):
             repeated=subprocess.run(command+['start','--home',str(folder),'--no-browser'],cwd=folder,env=env,capture_output=True,timeout=15)
             assert repeated.returncode==0 and proc.poll() is None
             stop_command=command+['stop','--home',str(folder)]
-            if (folder/'IBERBAG_DEMO.exe').exists():
+            if os.name=='nt' and (folder/'PARAR_DEMO.bat').exists():
                 stop_command=[str(Path(os.environ['SystemRoot'])/'System32'/'cmd.exe'),'/d','/c',str(folder/'PARAR_DEMO.bat')]
             stopped=subprocess.run(stop_command,cwd=folder,env=env,capture_output=True,timeout=15)
             assert stopped.returncode==0
@@ -99,4 +95,13 @@ def smoke(folder,command=None):
             external.unlink()
 
 
-if __name__=='__main__':smoke(sys.argv[1])
+if __name__=='__main__':
+    import argparse
+    parser=argparse.ArgumentParser();parser.add_argument('folder',type=Path);parser.add_argument('--source',action='store_true')
+    args=parser.parse_args()
+    command=None
+    if args.source:
+        python=args.folder.resolve()/'demo-env'/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
+        entry='import sys;sys.path.insert(0,sys.argv.pop(1));from iberbag_demo.__main__ import main;raise SystemExit(main())'
+        command=[str(python),'-I','-B','-c',entry,str(args.folder.resolve())]
+    smoke(args.folder,command)

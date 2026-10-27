@@ -1,9 +1,8 @@
 """Explicit allowlist distribution. Never package repository working files or existing databases."""
 import argparse
+import hashlib
 from pathlib import Path
 import shutil
-import subprocess
-import sys
 
 ROOT=Path(__file__).resolve().parent.parent
 
@@ -22,32 +21,22 @@ def resources(target):
 
 
 def build(output,standalone=False):
-    output=Path(output).resolve();output.mkdir(parents=True,exist_ok=False)
     if standalone:
-        if sys.platform!='win32':raise RuntimeError('O executável Windows só pode ser construído num runner Windows.')
-        work=output.parent/'pyinstaller-work'
-        assets=output.parent/'demo-package-resources';assets.mkdir(exist_ok=False);resources(assets)
-        subprocess.run([sys.executable,'-m','PyInstaller','--noconfirm','--clean','--onedir','--name','IBERBAG_DEMO','--contents-directory','_runtime',
-            '--distpath',str(output.parent/'pyinstaller-dist'),'--workpath',str(work),'--specpath',str(work),
-            '--paths',str(ROOT),'--collect-data','reportlab','--collect-submodules','reportlab.pdfbase',
-            '--add-data',str(assets/'iberbag/templates')+';iberbag/templates',
-            '--add-data',str(assets/'iberbag/static')+';iberbag/static',
-            '--add-data',str(assets/'iberbag_demo/templates')+';iberbag_demo/templates',
-            '--exclude-module','sqlalchemy','--exclude-module','psycopg','--exclude-module','alembic','--exclude-module','openpyxl',
-            '--exclude-module','iberbag.database','--exclude-module','iberbag.app',str(ROOT/'scripts/demo_entry.py')],check=True)
-        source=output.parent/'pyinstaller-dist'/'IBERBAG_DEMO'
-        shutil.copytree(source,output,dirs_exist_ok=True)
-    else:
-        # Source fallback includes only these modules; cannot import an operational service.
-        (output/'iberbag').mkdir()
-        for name in ('__init__.py','commercial_pdf.py'):shutil.copyfile(ROOT/'iberbag'/name,output/'iberbag'/name)
-        resources(output)
-        for name in MODULES:shutil.copyfile(ROOT/'iberbag_demo'/name,output/'iberbag_demo'/name)
-        shutil.copyfile(ROOT/'requirements-demo.txt',output/'requirements-demo.txt')
-        shutil.copyfile(ROOT/'INSTALAR_DEMO.bat',output/'INSTALAR_DEMO.bat')
-    for name in ('INICIAR_DEMO.bat','PARAR_DEMO.bat','LEIA-ME_DEMO.txt'):shutil.copyfile(ROOT/name,output/name)
-    forbidden={'.db','.sqlite','.xls','.xlsx','.xlsm','.dump','.env'}
+        raise RuntimeError('Executável autónomo suspenso após alerta antivírus. Usar pacote de código e esclarecer a deteção com o fornecedor.')
+    output=Path(output).resolve();output.mkdir(parents=True,exist_ok=False)
+    # Source fallback includes only these modules; cannot import an operational service.
+    (output/'iberbag').mkdir()
+    for name in ('__init__.py','commercial_pdf.py'):shutil.copyfile(ROOT/'iberbag'/name,output/'iberbag'/name)
+    resources(output)
+    for name in MODULES:shutil.copyfile(ROOT/'iberbag_demo'/name,output/'iberbag_demo'/name)
+    shutil.copyfile(ROOT/'requirements-demo.txt',output/'requirements-demo.txt')
+
+    for name in ('INICIAR_DEMO.bat','PARAR_DEMO.bat','INSTALAR_DEMO.bat','LEIA-ME_DEMO.txt'):
+        shutil.copyfile(ROOT/'packaging/demo_source'/name,output/name)
+    forbidden={'.exe','.dll','.pyd','.db','.sqlite','.xls','.xlsx','.xlsm','.dump','.env'}
     if any(p.suffix.lower() in forbidden or p.suffix.lower().startswith(('.xls','.sqlite')) or p.name.startswith('.env') for p in output.rglob('*') if p.is_file()):raise RuntimeError('Ficheiro inesperado no pacote; publicação recusada.')
+    hashes=[hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.relative_to(output).as_posix() for p in sorted(output.rglob('*')) if p.is_file()]
+    (output/'MANIFESTO_SHA256.txt').write_text('\n'.join(hashes)+'\n',encoding='utf-8')
     return Path(shutil.make_archive(str(output),'zip',output))
 
 

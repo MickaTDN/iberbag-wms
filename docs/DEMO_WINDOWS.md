@@ -1,47 +1,46 @@
 # Etapa 8 — Demonstração local para Windows 11
 
-## Descarregar e iniciar, sem programação
+## Alerta e distribuição atual
+
+O utilizador reportou um bloqueio **TROJ.WIN32.TRX.XXPE50FFF110** pelo Trend Micro
+Security Agent antes de a aplicação abrir. **O executável autónomo está suspenso;
+não se concluiu que é um falso positivo.** Manter o ficheiro bloqueado/em quarentena,
+sem exclusões ou desativação do antivírus. Ver [registo do alerta](ALERTA_ANTIVIRUS_DEMO.md).
+Se o computador for gerido pela empresa, pedir revisão ao responsável pelo Agent.
+
+A alternativa atual contém código legível e scripts, sem executável PyInstaller ou
+_runtime. Não é certificação antimalware nem autorização para contornar políticas.
+
+## Descarregar e iniciar a alternativa em código
 
 1. Abrir [Actions → DEMO Windows](https://github.com/MickaTDN/iberbag-wms/actions/workflows/demo-windows.yml),
-   autenticado no GitHub com acesso ao repositório privado. Não instalar Git ou GitHub Desktop.
-2. Escolher a execução **verde** da branch `codex/windows-local-demo` (depois de integrar,
-   também pode usar `main`). No fim da página, em **Artifacts**, descarregar
-   **IBERBAG-DEMO-Windows-x64**. O GitHub entrega um ZIP com o executável e os scripts na raiz.
-3. No Explorador Windows, botão direito → **Extrair Tudo**, para uma pasta nova e
-   gravável, por exemplo `Documentos\IberbagDemo`. Extrair todos os ficheiros; conservar
-   a pasta `_runtime` junto do executável. Não executar dentro do ZIP ou de Program Files.
-4. Dar duplo clique em **INICIAR_DEMO.bat**. O navegador abre o endereço `127.0.0.1`
-   com uma porta livre. Não há credenciais, PostgreSQL, Docker, certificados ou rede a configurar.
-5. Encerrar pelo botão **Encerrar DEMO** no topo, por **PARAR_DEMO.bat** ou Ctrl+C
-   na janela do servidor. Fechar apenas o navegador não termina o servidor. Voltar a
-   executar o arranque reutiliza a mesma instância desta pasta.
+   com sessão GitHub e acesso ao repositório privado. Não instalar Git/GitHub Desktop.
+2. Numa execução verde da branch `codex/windows-local-demo`, em **Artifacts**,
+   descarregar **IBERBAG-DEMO-Codigo-Windows**. Não usar os artefactos executáveis anteriores.
+3. Escolher **Extrair Tudo**, para uma pasta NOVA e gravável, por exemplo
+   `Documentos\IberbagDemoCodigo`. Não misturar com a pasta do ficheiro assinalado.
+4. Instalar **Python 3.12 oficial**, de [python.org](https://www.python.org/downloads/windows/),
+   para o utilizador atual, incluindo o launcher `py`. Não selecionar instalação do
+   launcher para todos os utilizadores. Respeitar eventuais bloqueios/políticas.
+5. Executar **INSTALAR_DEMO.bat** uma vez: instala bibliotecas só em `demo-env` local.
+6. Executar **INICIAR_DEMO.bat**; o navegador abre `127.0.0.1` com uma porta livre.
+7. Encerrar pelo botão **Encerrar DEMO**, por **PARAR_DEMO.bat** ou Ctrl+C.
 
-O artefacto tem retenção de 30 dias; se expirar, executar novamente o workflow (ou
-uma alteração da DEMO). Nenhuma Release pública ou instalação empresarial é feita.
-Para apoio, conservar `LEIA-ME_DEMO.txt` e `VALIDACAO_PACOTE.txt` incluídos no pacote.
-O executável não tem assinatura comercial; políticas do Windows/antivírus podem exigir
-revisão local. Não se pede para desativar proteções ou executar como administrador.
+Não exige PostgreSQL, Docker, Git, rede empresarial ou configuração de firewall.
+A instalação das bibliotecas requer Internet; a simulação não envia dados a serviços.
+Dependências: FastAPI, Uvicorn, Jinja2, ReportLab e transitivas, sem SQLAlchemy,
+psycopg, Alembic ou Excel. Temporários e dados ficam na pasta DEMO. Os scripts não
+executam o binário antigo, mesmo se presente. O ZIP contém `MANIFESTO_SHA256.txt`
+para identificação de conteúdo; hashes não são prova de ausência de malware.
 
-### Dependências
-
-O ZIP autónomo é construído com Python 3.12/PyInstaller em Windows x64, em modo
-**onedir**, incluindo interpretador, bibliotecas, fontes e recursos. O utilizador
-não instala Python e não descarrega dependências durante a execução. Não há extração
-onefile para pastas temporárias externas. Usa apenas navegador e leitor PDF do Windows.
-
-A alternativa de código-fonte inclui **INSTALAR_DEMO.bat** e `requirements-demo.txt`.
-Exige Python 3.12 instalado para o utilizador e Internet apenas na instalação.
-O BAT cria `demo-env` nesta pasta, não usa o Python global para instalar pacotes,
-desativa configurações/cache de pip e põe temporários/cache dentro de `DEMO`.
-Dependências: FastAPI, Uvicorn, Jinja2, ReportLab e transitivas; não há SQLAlchemy,
-psycopg, Alembic, Excel, Docker ou ferramentas PostgreSQL. Para construir esse ZIP:
+Para suporte técnico, criar o pacote por lista explícita:
 
 ```text
-python scripts/build_demo.py --output dist/IBERBAG-DEMO-Codigo
+python scripts/build_demo.py --output dist/IBERBAG-DEMO-Codigo-Windows
 ```
 
-Não executar `INSTALAR_WINDOWS.bat`, assistente operacional, importadores ou outros
-scripts empresariais para esta demonstração.
+O construtor recusa `--standalone` até esclarecimento do alerta. Não executar scripts
+operacionais ou repor ficheiros em quarentena para usar a alternativa.
 
 ## Isolamento da aplicação operacional
 
@@ -60,7 +59,7 @@ Não se alterou a proteção que devolve 503 para movimentos operacionais em SQL
 Não há nova migração operacional: a revisão continua **0006**. A DEMO não é uma base
 que possa ser migrada/adotada como WMS real; a sua marca e esquema são diferentes.
 O construtor do pacote usa uma lista explícita de módulos/templates/estilos, não
-um ZIP do workspace. Exclui módulos operacionais e drivers PostgreSQL do executável.
+um ZIP do workspace. Não inclui os módulos operacionais nem drivers PostgreSQL.
 Não inclui bases existentes, Excel, módulos VBA, `.env`, backups ou configurações privadas.
 
 O servidor rejeita IPs remotos, Host diferente de `127.0.0.1:porta` e Origin externo;
@@ -178,17 +177,17 @@ autorização, durabilidade e auditoria empresarial. Não a utilizar em rede ou 
 python -m pytest -q demo_tests
 python -m pytest -q
 python scripts/test_postgres.py
-python scripts/build_demo.py --standalone --output dist/IBERBAG-DEMO-Windows-x64
-python scripts/smoke_demo_package.py dist/IBERBAG-DEMO-Windows-x64
+python scripts/build_demo.py --output dist/IBERBAG-DEMO-Codigo-Windows
+python scripts/smoke_demo_package.py "dist/Ensaio Código ação" --source
 ```
 
-O comando de construção autónoma exige Windows e PyInstaller 6. O workflow
-`.github/workflows/demo-windows.yml` usa **windows-2025 (Windows Server)**, Python 3.12,
-dependências mínimas sem SQLAlchemy/psycopg, testa a simulação, constrói o executável,
-copia-o para pasta com espaços/acentos e executa ensaio HTTP real. O PATH do executável
-fica limitado a System32, sem Python externo. Testa o BAT de encerramento, repetição
-de arranque, processos, PDFs e reposição. Só publica o artefacto se todos passarem.
-O artefacto é montado sem a base/controlo criados no ensaio.
+O workflow `.github/workflows/demo-windows.yml` usa **windows-2025 (Windows Server)**,
+Python 3.12 e bibliotecas mínimas sem SQLAlchemy/psycopg. Testa a simulação, cria o
+pacote em código, copia-o para uma pasta com espaços/acentos, cria um ambiente Python
+local e executa o ensaio HTTP real desse pacote. O artefacto publicado não contém
+esse ambiente de teste, bases ou executável próprio. O job PyInstaller está suspenso.
+No exemplo técnico de smoke acima, a pasta de ensaio deve ter `demo-env` criado e
+as dependências instaladas localmente. Não é um procedimento para o utilizador final.
 
 A suite da DEMO cobre localhost/Host/Origin, CSRF, configurações WMS/PG envenenadas,
 proibição de rede no carregamento, ausência de imports operacionais, ficheiros externos,
@@ -202,7 +201,7 @@ navegador, impressão A4, SmartScreen/antivírus/políticas locais, permissões 
 e encerramento da janela pela interface do sistema. O runner Windows Server não
 substitui esta aceitação. Não foi feito deploy nem alterada qualquer instalação da empresa.
 
-### Resultado da entrega
+### Resultados anteriores ao alerta — não constituem validação antimalware
 
 - **40 testes específicos da DEMO aprovados** localmente.
 - Suite integrada com PostgreSQL 17: **216 aprovados**, incluindo os 176 testes
@@ -214,7 +213,6 @@ substitui esta aceitação. Não foi feito deploy nem alterada qualquer instala�
   [execução 40479370063](https://github.com/MickaTDN/iberbag-wms/actions/runs/40479370063),
   código `2289e4b`. Inclui teste do BAT de encerramento, pasta com espaços/acentos
   e execução sem Python no PATH.
-- [Descarregar ZIP autónomo desta entrega](https://github.com/MickaTDN/iberbag-wms/actions/runs/40479370063/artifacts/12722276499)
-  (cerca de 26 MB; autenticação GitHub necessária; retenção 30 dias).
+- O artefacto executável anterior deixou de ser recomendado após o alerta.
 - Os PDFs fictícios foram também verificados em conteúdo/A4 e renderização local.
   A aceitação física Windows 11, navegador e impressora permanece pendente.

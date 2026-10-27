@@ -191,3 +191,29 @@ def test_real_loopback_start_reuse_flows_and_stop(tmp_path):
     from scripts.smoke_demo_package import smoke
     # Source invocation covers Linux/Windows; frozen binary is tested separately by the workflow.
     smoke(tmp_path,[sys.executable,'-m','iberbag_demo'])
+
+
+def test_demo_root_links_are_refused(tmp_path):
+    home=tmp_path/'home';home.mkdir();other=tmp_path/'other';other.mkdir()
+    sentinel=other/'dados.txt';sentinel.write_text('CONSERVAR')
+    try:(home/'DEMO').symlink_to(other,target_is_directory=True)
+    except OSError:pytest.skip('Criação de symlink indisponível sem privilégios nesta máquina.')
+    with pytest.raises(DemoError):Store(home)
+    assert sentinel.read_text()=='CONSERVAR' and not (other/'estado.sqlite').exists()
+
+
+def test_stop_never_terminates_an_unrelated_local_service(tmp_path):
+    from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
+    from threading import Thread
+    from iberbag_demo.__main__ import stop
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            data=b'{"application":"OUTRO_PROGRAMA"}'
+            self.send_response(200);self.end_headers();self.wfile.write(data)
+        def log_message(self,*args):pass
+        def do_POST(self):raise AssertionError('Não enviar encerramento a outro serviço')
+    server=ThreadingHTTPServer(('127.0.0.1',0),Handler);thread=Thread(target=server.serve_forever,daemon=True);thread.start()
+    folder=tmp_path/'DEMO';folder.mkdir();(folder/'servidor.json').write_text(json.dumps(dict(application=MARKER,port=server.server_port,token='f'*64)))
+    try:
+        stop(tmp_path);assert thread.is_alive()
+    finally:server.shutdown();thread.join(timeout=2);server.server_close()

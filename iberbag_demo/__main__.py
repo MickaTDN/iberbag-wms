@@ -57,10 +57,7 @@ def alive(data):
 def instance_lock(folder):
     path=safe_child(folder,'instancia.lock')
     with path.open('a+b') as stream:
-        stream.seek(0)
-        contents=stream.read()
-        if contents not in (b'',MARKER.encode()):raise DemoError('Ficheiro de bloqueio não reconhecido. Não foi alterado.')
-        if not contents:stream.write(MARKER.encode());stream.flush()
+        # Windows byte locks are mandatory: acquire before reading the locked byte.
         stream.seek(0)
         acquired=False
         try:
@@ -72,6 +69,10 @@ def instance_lock(folder):
                 import fcntl
                 try:fcntl.flock(stream.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB);acquired=True
                 except BlockingIOError:pass
+            if acquired:
+                stream.seek(0);contents=stream.read()
+                if contents not in (b'',MARKER.encode()):raise DemoError('Ficheiro de bloqueio não reconhecido. Não foi alterado.')
+                if not contents:stream.write(MARKER.encode());stream.flush()
             yield acquired
         finally:
             if acquired:

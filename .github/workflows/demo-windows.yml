@@ -6,6 +6,9 @@ on:
   pull_request:
     paths: ['iberbag_demo/**', 'iberbag/templates/base.html', 'iberbag/static/**', 'iberbag/commercial_pdf.py', 'scripts/*demo*', 'demo_tests/**', '*DEMO*', 'requirements-demo.txt', '.github/workflows/demo-windows.yml']
   workflow_dispatch:
+concurrency:
+  group: demo-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -23,8 +26,14 @@ jobs:
         run: python -m pytest -q demo_tests
       - name: Criar distribuição autónoma Windows x64
         run: python scripts/build_demo.py --standalone --output dist/IBERBAG-DEMO-Windows-x64
+      - name: Copiar para pasta de ensaio com espaços e acentos
+        shell: python
+        run: |
+          from pathlib import Path
+          import shutil
+          shutil.copytree(Path('dist/IBERBAG-DEMO-Windows-x64'),Path('dist/Ensaio DEMO ação'))
       - name: Testar executável empacotado, sem Python externo
-        run: python scripts/smoke_demo_package.py dist/IBERBAG-DEMO-Windows-x64
+        run: python scripts/smoke_demo_package.py "dist/Ensaio DEMO ação"
       - name: Remover apenas estado criado pelo ensaio do pacote
         shell: python
         run: |

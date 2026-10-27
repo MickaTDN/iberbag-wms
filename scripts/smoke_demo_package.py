@@ -83,7 +83,10 @@ def smoke(folder,command=None):
             assert original==external.read_bytes()
             repeated=subprocess.run(command+['start','--home',str(folder),'--no-browser'],cwd=folder,env=env,capture_output=True,timeout=15)
             assert repeated.returncode==0 and proc.poll() is None
-            stopped=subprocess.run(command+['stop','--home',str(folder)],cwd=folder,env=env,capture_output=True,timeout=15)
+            stop_command=command+['stop','--home',str(folder)]
+            if (folder/'IBERBAG_DEMO.exe').exists():
+                stop_command=[str(Path(os.environ['SystemRoot'])/'System32'/'cmd.exe'),'/d','/c',str(folder/'PARAR_DEMO.bat')]
+            stopped=subprocess.run(stop_command,cwd=folder,env=env,capture_output=True,timeout=15)
             assert stopped.returncode==0
             assert proc.wait(timeout=15)==0
             assert not control.exists()

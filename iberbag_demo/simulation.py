@@ -66,9 +66,9 @@ def identity(state,lote):
     return article
 
 
-def archive(state,key,title,headers,rows,notes=()):
+def archive(state,key,title,headers,rows,notes=(),sections=None):
     content=document(BANNER+' · '+title,[BANNER,'Simulação local — sem validade operacional.']+list(notes),
-        [('Registos simulados',headers,rows,'DEMONSTRAÇÃO — não utilizar no armazém.',False)],demo_watermark=True)
+        sections or [('Registos simulados',headers,rows,'DEMONSTRAÇÃO — não utilizar no armazém.',False)],demo_watermark=True)
     state['documents'][key]=base64.b64encode(content).decode('ascii')
     return key
 
@@ -118,13 +118,23 @@ def confirm_preparation(state,oid,actor):
         if short:state['pending'].append(dict(id=ident(state,'pending'),order_id=order['id'],customer=order['customer'],destination=line['destination'],
             reference=order['reference'],artigo=line['artigo'],lote=line['lote'],original=short,satisfied=0,at=now()))
     order.update(status='confirmed',actor=actor,at=now())
-    plan=sorted(current,key=lambda p:(p['destination'],p['local'].upper(),p['stock_id'])) if order['channel']=='mercadona' else sorted(current,key=lambda p:(p['local'].upper(),p['stock_id']))
-    rows=[(p['destination'] or order['customer'],p['artigo'],p['lote'],p['quantidade'],p['carga'],p['local']) for p in plan]
-    for pending in state['pending']:
-        if pending['order_id']==oid:rows.append((pending['destination'] or pending['customer'],pending['artigo'],pending['lote'],pending['original'],'PENDENTE','Não recolher'))
-    archive(state,f'order-{oid}',f'{"Mercadona" if order["channel"]=="mercadona" else "CARGA / Preparação"} #{oid}',
-        ('Cliente/destino','Artigo','Lote','Paletes','Carga','Localização'),rows,
-        [order['reference'],f'Preparou: {actor} · {order["at"]}',f'Pedidas: {sum(l["quantidade"] for l in order["lines"])} · Preparadas: {sum(p["quantidade"] for p in current)}'])
+    sections=[]
+    destinations=[d for d in state['destinations'] if any(l['destination']==d for l in order['lines'])] if order['channel']=='mercadona' else ['']
+    headers=('Lote','Artigo','Paletes','Localização / situação','Carga','Conf.')
+    for dest in destinations:
+        groups=[p for p in current if p['destination']==dest]
+        if order['channel']=='normal':groups.sort(key=lambda p:(p['local'].upper(),p['stock_id']))
+        rows=[(p['lote'],p['artigo'],p['quantidade'],p['local'],p['carga'],'') for p in groups]
+        for pending in state['pending']:
+            if pending['order_id']==oid and pending['destination']==dest:
+                rows.append((pending['lote'],pending['artigo'],pending['original'],'PENDENTE — não recolher','S/ STOCK',''))
+        asked=sum(l['quantidade'] for l in order['lines'] if l['destination']==dest)
+        prepared=sum(p['quantidade'] for p in groups)
+        sections.append(('Destino: '+dest if dest else 'CARGA — '+order['customer'],headers,rows,
+            f'Pedidas: {asked} · Preparadas: {prepared} · Pendentes: {asked-prepared}',False))
+    archive(state,f'order-{oid}',f'{"Mercadona" if order["channel"]=="mercadona" else "CARGA / Preparação"} #{oid}',headers,[],
+        [order['reference'],f'Cliente: {order["customer"]} · Preparou: {actor} · {order["at"]}',
+        f'Pedidas: {sum(l["quantidade"] for l in order["lines"])} · Preparadas: {sum(p["quantidade"] for p in current)}'],sections=sections)
     state['stock_version']+=1;event(state,'Saída',f'Preparação #{oid}: desconto simulado e faltas registadas.',actor)
     return oid
 
@@ -225,8 +235,8 @@ def submit_inventory(state,iid,actor):
     if inv['status']!='draft':return
     if len(inv['counts'])!=len(inv['scope']):raise DemoError('Existem localizações ainda não contadas. Nunca são interpretadas como vazias.')
     if inv['version']!=state['stock_version']:raise DemoError('Contagem desatualizada. Criar novo inventário simulado.')
-    archive(state,f'inventory-{iid}',f'Inventário #{iid}',('Artigo','Lote','Carga','Localização','Sistema','Físico'),
-        [(r['artigo'],r['lote'],r['carga'],r['local'],r['before'],r['after']) for r in differences(inv)],['Contagem simulada; não substitui aprovação administrativa.'])
+    archive(state,f'inventory-{iid}',f'Inventário #{iid}',('Lote','Artigo','Físico','Localização','Carga','Sistema'),
+        [(r['lote'],r['artigo'],r['after'],r['local'],r['carga'],r['before']) for r in differences(inv)],['Contagem simulada; não substitui aprovação administrativa.'])
     inv['status']='submitted';event(state,'Inventário',f'Contagem #{iid} submetida sem alterar stock.',actor)
 
 

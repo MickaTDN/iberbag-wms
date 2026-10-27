@@ -23,7 +23,7 @@ def state():return sim.seed()
 
 @pytest.fixture
 def local(tmp_path):
-    app=create_app(tmp_path,8765,'f'*64)
+    app=create_app(tmp_path,8765,secrets.token_hex(32))
     with TestClient(app,base_url='http://127.0.0.1:8765',client=('127.0.0.1',1234)) as client:
         page=client.get('/');csrf=re.search('name="csrf" value="([^"]+)"',page.text)[1]
         yield client,app.state.store,csrf
@@ -157,13 +157,13 @@ def test_existing_non_demo_database_never_overwritten(tmp_path):
 def test_simulator_imports_no_operational_database_and_ignores_env(tmp_path):
     import os
     code='''
-import socket,sys
+import socket,sys,secrets
 from pathlib import Path
 original=socket.socket.connect
 def no_network(*args,**kwargs):raise AssertionError('Ligação de rede proibida no seed')
 socket.socket.connect=no_network
 from iberbag_demo.app import create_app
-app=create_app(sys.argv[1],8877,'x'*64)
+app=create_app(sys.argv[1],8877,secrets.token_hex(32))
 assert 'iberbag.database' not in sys.modules and 'iberbag.app' not in sys.modules
 assert app.state.store.path.parent==Path(sys.argv[1])/'DEMO'
 assert app.state.store.snapshot()['marker']=='IBERBAG_LOCAL_DEMO_V1'
@@ -213,7 +213,7 @@ def test_stop_never_terminates_an_unrelated_local_service(tmp_path):
         def log_message(self,*args):pass
         def do_POST(self):raise AssertionError('Não enviar encerramento a outro serviço')
     server=ThreadingHTTPServer(('127.0.0.1',0),Handler);thread=Thread(target=server.serve_forever,daemon=True);thread.start()
-    folder=tmp_path/'DEMO';folder.mkdir();(folder/'servidor.json').write_text(json.dumps(dict(application=MARKER,port=server.server_port,token='f'*64)))
+    folder=tmp_path/'DEMO';folder.mkdir();(folder/'servidor.json').write_text(json.dumps(dict(application=MARKER,port=server.server_port,token=secrets.token_hex(32))))
     try:
         stop(tmp_path);assert thread.is_alive()
     finally:server.shutdown();thread.join(timeout=2);server.server_close()

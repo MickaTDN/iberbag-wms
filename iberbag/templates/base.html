@@ -49,7 +49,7 @@
       <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="logout" type="submit">{{ 'Mudar para Operador' if demo_mode else 'Sair' }}</button></form></div>
     </header>
     <main>{% block content %}{% endblock %}</main>
-    <footer>IBERBAG WMS · Versão 2.3 de desenvolvimento · Dados centralizados · Para testes antes de utilização operacional</footer>
+    <footer>{% if demo_mode %}DEMONSTRAÇÃO LOCAL — DADOS FICTÍCIOS · Sem validade operacional{% else %}IBERBAG WMS · Versão 2.3 de desenvolvimento · Dados centralizados · Para testes antes de utilização operacional{% endif %}</footer>
   </div>
 </div>
 {% else %}

@@ -12,7 +12,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, LongTable, TableStyle, KeepTogether
 
 
-def document(title,subtitle,sections,closing=()):
+def document(title,subtitle,sections,closing=(),demo_watermark=False):
     if 'WMSVera' not in pdfmetrics.getRegisteredFontNames():
         pdfmetrics.registerFont(TTFont('WMSVera',str(Path(reportlab.__file__).parent/'fonts'/'Vera.ttf')))
     style=ParagraphStyle('commercial',fontName='WMSVera',fontSize=8,leading=11,wordWrap='CJK')
@@ -33,7 +33,7 @@ def document(title,subtitle,sections,closing=()):
     story.extend(p(line) for line in closing)
     buffer=BytesIO()
     def footer(canvas,doc):
-        canvas.setFont('WMSVera',8);canvas.drawRightString(195*mm,10*mm,f'IBERBAG WMS · Página {doc.page}')
+        canvas.setFont('WMSVera',8);canvas.drawRightString(195*mm,10*mm,f'{"DEMONSTRAÇÃO — DADOS FICTÍCIOS" if demo_watermark else "IBERBAG WMS"} · Página {doc.page}')
     SimpleDocTemplate(buffer,pagesize=A4,leftMargin=16*mm,rightMargin=16*mm,topMargin=16*mm,bottomMargin=18*mm,
         title=title,author='Iberbag WMS').build(story,onFirstPage=footer,onLaterPages=footer)
     return buffer.getvalue()

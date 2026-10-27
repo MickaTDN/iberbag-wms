@@ -72,3 +72,13 @@ Revisão 0006 sem alteração de stock legado, atualização com backup/restauro
 Paletes incompletas têm apenas estrutura documental de composição, sem lote sintético,
 conversões ou operação física. Ver [guia Etapa 7](ETAPA7_PENDENTES_E_PROCESSOS_EXCEL.md)
 e [análise VBA](ANALISE_VBA_ETAPA7.md), que identificam o que permanece por confirmar.
+
+## Etapa 8 — demonstração local isolada
+
+`iberbag_demo` reproduz ecrãs e resultados dos processos com dados fictícios, sem
+importar a aplicação/serviços operacionais. SQLite é só estado da simulação,
+sem remover a recusa de movimentos operacionais SQLite. Não há nova migração,
+ligação PostgreSQL, Excel, rede empresarial, credenciais reais ou deploy.
+Distribuição Windows autónoma por GitHub Actions, apenas 127.0.0.1, marca permanente
+e reposição explícita. Ver [DEMO_WINDOWS.md](DEMO_WINDOWS.md) para funcionalidades,
+diferenças e aceitação física Windows 11 ainda necessária.

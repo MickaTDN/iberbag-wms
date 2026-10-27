@@ -1,0 +1,71 @@
+IBERBAG WMS — DEMONSTRAÇÃO EM CÓDIGO — DADOS FICTÍCIOS
+
+ALERTA ANTIVÍRUS AINDA POR ESCLARECER
+Foi reportado um bloqueio do executável autónomo pelo Trend Micro Security Agent,
+com a deteção TROJ.WIN32.TRX.XXPE50FFF110, antes de a aplicação abrir.
+Não se concluiu que é falso positivo nem se certificou esse executável como seguro.
+Mantenha-o bloqueado/em quarentena e não desative o antivírus ou crie exclusões.
+Se este computador for gerido pela empresa, peça revisão ao responsável pelo Agent
+antes de instalar/executar software. Não enviar ficheiros empresariais ao fornecedor
+sem respeitar os procedimentos de confidencialidade da organização.
+
+SOBRE ESTE PACOTE
+Contém o código legível da DEMO e os scripts. Não inclui IBERBAG_DEMO.exe,
+_runtime, executável PyInstaller, bases existentes, Excel, dados reais ou credenciais.
+Os scripts deste pacote não procuram nem executam o executável assinalado.
+Esta alternativa não é uma certificação antimalware. Mantenha as proteções ativas.
+O ficheiro MANIFESTO_SHA256.txt identifica os ficheiros produzidos pelo workflow;
+hashes permitem comparar integridade, não provam ausência de código malicioso.
+
+CORREÇÃO DOS FORMULÁRIOS — 27/10/2026
+Este pacote corrige o erro "Origem externa recusada" ao confirmar operações no
+Chrome/Edge. Mantém o acesso apenas por 127.0.0.1 e a proteção CSRF.
+Antes de o usar, encerrar a DEMO anterior com o seu PARAR_DEMO.bat e FECHAR todos
+os separadores antigos. Extrair este ZIP para uma pasta NOVA e seguir os passos
+abaixo; não copiar bases ou configurações da instalação definitiva.
+Usar o endereço novo apresentado no arranque, cuja porta pode ser diferente.
+Não é necessário alterar o antivírus, a firewall ou as proteções do navegador.
+
+INSTALAÇÃO (SEM COMANDOS)
+1. Extrair Tudo para uma pasta NOVA, por exemplo Documentos\IberbagDemoCodigo.
+   Não misturar com a pasta do executável assinalado ou com o WMS definitivo.
+2. Instalar Python 3.12 de https://www.python.org/downloads/windows/.
+   Usar o instalador oficial para Windows 64 bits, da Python Software Foundation.
+   Escolher instalação apenas para o utilizador atual, incluindo o launcher "py";
+   não selecionar instalação do launcher para todos os utilizadores.
+   Não ignorar qualquer alerta do antivírus/política da organização durante a instalação.
+3. Dar duplo clique em INSTALAR_DEMO.bat. Requer Internet para obter bibliotecas
+   Python de demonstração e instala-as só na pasta demo-env deste pacote.
+4. Dar duplo clique em INICIAR_DEMO.bat. O navegador abre automaticamente.
+5. Encerrar em "Encerrar DEMO", PARAR_DEMO.bat ou Ctrl+C na janela do servidor.
+
+Não instalar PostgreSQL, Docker, Git ou GitHub Desktop. Não precisa de configurar
+rede ou firewall. A execução usa apenas 127.0.0.1 e dados fictícios; o programa
+não lê configurações de produção ou Excel, nem liga a PostgreSQL.
+
+EXPERIMENTAR
+- Stock e mapa: artigo, lote, localização, Chão e corredores A–S.
+- Saídas: CLIENTE DEMO GAMA, LOTE-DEMO-A, 12 paletes; rever FIFO e confirmar.
+- Entradas: carga nova, data fictícia, ART-DEMO-SACO / LOTE-DEMO-B / 4.
+  Rever a atribuição aos clientes; só o excedente vai para arrumação normal.
+- Arrumação e transferências: uma palete por posição; Chão ilimitado.
+- Mercadona: preparar lotes para destinos fictícios e abrir PDF por destino.
+- Inventário: contar por localização; não contado é diferente de contado vazio.
+  Só Administrador demonstrativo aprova ajustes, com motivo fictício.
+- Pendentes: consultar originais/satisfeitos/saldos; recolha não desconta novamente.
+- Repor dados de demonstração: confirmação visível no topo, apenas dados desta DEMO.
+
+LIMITES
+Perfis alternáveis são demonstrativos; não existe autenticação empresarial.
+A simulação pessoal não oferece garantias PostgreSQL multiutilizador.
+Geometria é fixa; paletes mistas, compensações e reconciliação avançada são apenas
+ilustrativas. Há um atalho de contagem completa EXCLUSIVO DEMO, explicitamente
+confirmado, que não representa contagem física e não existe no programa operacional.
+PDFs fictícios ficam arquivados; reimprimir não movimenta stock.
+Dados ficam na subpasta DEMO. Reposição não apaga outros ficheiros.
+
+VALIDAÇÃO
+O workflow testa o código e o pacote em Windows Server, não num Windows 11 pessoal.
+Aceitação física Windows 11, navegador, impressão e avaliação do alerta pelo fornecedor
+continuam pendentes. Consulte docs/DEMO_WINDOWS.md e docs/ALERTA_ANTIVIRUS_DEMO.md
+no repositório. Não houve deploy, merge ou alteração de dados/instalações reais.

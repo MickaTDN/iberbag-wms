@@ -17,3 +17,10 @@ Caddyfile
 ensaios/
 backup-*/
 migration-*/
+
+# Isolated local demo runtime/build outputs
+/DEMO/
+/demo-env/
+/dist/
+/build/
+*.spec

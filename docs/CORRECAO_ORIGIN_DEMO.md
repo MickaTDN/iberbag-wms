@@ -77,12 +77,30 @@ python scripts/test_demo_browser.py --channel chrome
 python scripts/test_demo_browser.py --channel msedge
 ```
 
+### Resultados desta revisão
+
+- **74 testes DEMO aprovados**; incluem 31 novos casos de cabeçalhos/fluxos.
+- Suite completa com PostgreSQL 17 descartável: **250 aprovados** (176 anteriores + 74 DEMO).
+- Execução SQLite: **105 aprovados, 145 omitidos** por exigirem PostgreSQL/Docker.
+- Chromium real: falha anterior reproduzida e **13 formulários nativos locais
+  aprovados**, CSRF ausente e origem externa recusados; repetido com o código do ZIP.
+- `pip check`, manifesto/conteúdo do ZIP e `git diff --check` sem erros.
+- O [workflow desta correção](https://github.com/MickaTDN/iberbag-wms/actions/runs/40555970571)
+  não iniciou os jobs: GitHub indicou falha de pagamentos/limite da conta.
+  **Chrome/Edge Windows Server e Windows 11 permanecem pendentes nesta revisão.**
+
+Sem artefacto desse workflow e com o upload de Release recusado pelo ambiente,
+o [ZIP em código e respetivo SHA-256](../downloads/README.md) foram incluídos na
+branch para descarregar e rever. O rascunho vazio de Release foi removido.
+O ZIP foi produzido localmente; não é apresentado como pacote validado em Windows.
+
 ## Instalar o ZIP corrigido e testar no escritório
 
 1. Encerrar a DEMO antiga pelo seu `PARAR_DEMO.bat` e fechar todos os seus separadores
    no Chrome e no Edge. Uma página antiga conserva a política antiga até ser recarregada.
-2. Descarregar **IBERBAG-DEMO-Codigo-Windows** de uma execução verde atualizada do
-   workflow [DEMO Windows](https://github.com/MickaTDN/iberbag-wms/actions/workflows/demo-windows.yml),
+2. Enquanto a CI estiver bloqueada, descarregar o [ZIP desta correção](../downloads/README.md).
+   Depois de a conta permitir os jobs, poderá usar **IBERBAG-DEMO-Codigo-Windows**
+   de uma execução verde atualizada do workflow [DEMO Windows](https://github.com/MickaTDN/iberbag-wms/actions/workflows/demo-windows.yml),
    na branch `codex/windows-local-demo` do [PR #8](https://github.com/MickaTDN/iberbag-wms/pull/8).
 3. Escolher **Extrair Tudo** para uma pasta nova. Não substituir a instalação
    operacional, copiar bases existentes ou restaurar ficheiros em quarentena.

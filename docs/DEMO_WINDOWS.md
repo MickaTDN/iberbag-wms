@@ -17,6 +17,9 @@ _runtime. Não é certificação antimalware nem autorização para contornar po
 provocado por `Referrer-Policy: no-referrer` nos POSTs de navegadores Chromium.
 Usar o pacote atualizado, encerrar a instância anterior e fechar os separadores antigos.
 Ver [causa, proteções e guia de ensaio](CORRECAO_ORIGIN_DEMO.md).
+Nesta revisão o GitHub bloqueou os jobs por faturação/limite: o [ZIP em código
+disponível para revisão](../downloads/README.md) foi gerado e testado localmente,
+com validação Windows desta correção ainda pendente.
 
 1. Abrir [Actions → DEMO Windows](https://github.com/MickaTDN/iberbag-wms/actions/workflows/demo-windows.yml),
    com sessão GitHub e acesso ao repositório privado. Não instalar Git/GitHub Desktop.

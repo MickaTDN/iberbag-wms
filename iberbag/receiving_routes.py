@@ -5,7 +5,8 @@ from fastapi import APIRouter, Request, Depends, HTTPException
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import Session
 from .app import database, identity, render, context, redirect, valid_csrf, forbidden
-from .database import Receipt, ReceiptLine, Putaway
+from .database import Receipt, ReceiptLine, Putaway, PendingAllocation, ReceiptDocument
+from . import commercial
 from . import receiving as service
 
 router = APIRouter()
@@ -107,8 +108,12 @@ def receipt_detail(receipt_id: int, request: Request, db: Session = Depends(data
     lines = db.scalars(select(ReceiptLine).where(ReceiptLine.receipt_id == receipt.id).order_by(ReceiptLine.id)).all()
     events = db.scalars(select(Putaway).join(ReceiptLine).where(ReceiptLine.receipt_id == receipt.id,
         Putaway.status == 'confirmed').order_by(Putaway.id)).all()
+    preview=[];preview_error=None
+    if receipt.status=='draft':
+        try:preview=commercial.incoming_plan(db,receipt.id)
+        except service.ReceivingError as error:preview_error=str(error)
     return render(request, 'receipt_detail.html', context(request, user, sess, receipt=receipt,
-        lines=lines, pending={line.id: service.remaining(db, line) for line in lines}, events=events))
+        lines=lines,preview=preview,preview_error=preview_error,allocations=commercial.allocations(db,receipt.id),document=db.get(ReceiptDocument,receipt.id),pending={line.id: service.remaining(db, line) for line in lines}, events=events))
 
 
 @router.post('/receipts/{receipt_id}/confirm')
@@ -128,9 +133,10 @@ def pending_putaway(request: Request, page: int = 1, db: Session = Depends(datab
         return redirect('/login')
     totals = select(Putaway.line_id, func.sum(Putaway.quantidade).label('placed')).where(
         Putaway.status == 'confirmed').group_by(Putaway.line_id).subquery()
-    balance = ReceiptLine.quantidade - func.coalesce(totals.c.placed, 0)
+    allocations=select(PendingAllocation.receipt_line_id,func.sum(PendingAllocation.quantidade).label('allocated')).group_by(PendingAllocation.receipt_line_id).subquery()
+    balance = ReceiptLine.quantidade - func.coalesce(totals.c.placed, 0)-func.coalesce(allocations.c.allocated,0)
     query = select(ReceiptLine, Receipt, balance.label('pending')).join(Receipt).outerjoin(
-        totals, totals.c.line_id == ReceiptLine.id).where(Receipt.status == 'confirmed', balance > 0)
+        totals, totals.c.line_id == ReceiptLine.id).outerjoin(allocations,allocations.c.receipt_line_id==ReceiptLine.id).where(Receipt.status == 'confirmed', balance > 0)
     count = db.scalar(select(func.count()).select_from(query.subquery()))
     page = max(1, page)
     rows = db.execute(query.order_by(Receipt.received_on, ReceiptLine.id).offset((page - 1) * 50).limit(50)).all()
@@ -171,3 +177,22 @@ def confirm_putaway(operation_id: int, request: Request, data: dict = Depends(re
         return redirect(f'/putaway/{operation_id}')
     except service.ReceivingError as error:
         return failure(request, user, sess, error)
+
+
+@router.get('/receipts/{receipt_id}/document.pdf')
+def receipt_pdf(receipt_id:int,request:Request,db:Session=Depends(database)):
+    from fastapi.responses import Response
+    user,sess=identity(request,db)
+    if not user:return redirect('/login')
+    receipt=db.get(Receipt,receipt_id);doc=db.get(ReceiptDocument,receipt_id)
+    if not receipt or receipt.status!='confirmed' or not doc:raise HTTPException(404,'Documento não disponível.')
+    return Response(doc.pdf,media_type='application/pdf',headers={'Content-Disposition':f'inline; filename="entrada-{receipt_id}.pdf"','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'})
+
+
+@router.post('/receipts/{receipt_id}/archive-document')
+def receipt_archive(receipt_id:int,request:Request,data:dict=Depends(receiving_form),db:Session=Depends(database)):
+    user,sess=form_actor(request,db,data)
+    try:
+        commercial.archive_legacy_receipt(db,user.id,receipt_id)
+        return redirect(f'/receipts/{receipt_id}')
+    except service.ReceivingError as error:return failure(request,user,sess,error)

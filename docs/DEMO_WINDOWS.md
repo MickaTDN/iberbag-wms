@@ -201,3 +201,20 @@ Validação física ainda necessária: Windows 11 pessoal, duplo clique/associa�
 navegador, impressão A4, SmartScreen/antivírus/políticas locais, permissões da pasta
 e encerramento da janela pela interface do sistema. O runner Windows Server não
 substitui esta aceitação. Não foi feito deploy nem alterada qualquer instalação da empresa.
+
+### Resultado da entrega
+
+- **40 testes específicos da DEMO aprovados** localmente.
+- Suite integrada com PostgreSQL 17: **216 aprovados**, incluindo os 176 testes
+  operacionais anteriores e os 40 da DEMO.
+- Suite SQLite: **71 aprovados, 145 omitidos** por exigirem PostgreSQL/Docker.
+- `pip check` e `git diff --check` sem erros; permanece o aviso anterior de
+  depreciação Starlette/httpx.
+- Construção e ensaio do executável autónomo **aprovados em Windows Server**:
+  [execução 40479370063](https://github.com/MickaTDN/iberbag-wms/actions/runs/40479370063),
+  código `2289e4b`. Inclui teste do BAT de encerramento, pasta com espaços/acentos
+  e execução sem Python no PATH.
+- [Descarregar ZIP autónomo desta entrega](https://github.com/MickaTDN/iberbag-wms/actions/runs/40479370063/artifacts/12722276499)
+  (cerca de 26 MB; autenticação GitHub necessária; retenção 30 dias).
+- Os PDFs fictícios foram também verificados em conteúdo/A4 e renderização local.
+  A aceitação física Windows 11, navegador e impressora permanece pendente.

@@ -66,6 +66,10 @@ def save_order(db, actor, key, reference, rows, order_id=None, version=None):
 
 
 def fifo(db, line):
+    from .lots import resolve
+    article = resolve(db,line.lote,required=False)
+    if article is not None and article != line.artigo:
+        raise DispatchError('Artigo/lote contraditório. Exige reconciliação administrativa.')
     rows = db.execute(select(Stock, Carga).outerjoin(Carga, Carga.codigo == Stock.carga).where(
         Stock.artigo == line.artigo, Stock.lote == line.lote, Stock.quantidade > 0).order_by(
         Carga.entrada, Carga.id, Stock.id).with_for_update(of=Stock)).all()
@@ -178,3 +182,110 @@ def confirm_order(db, actor, order_id):
     order.status, order.confirmed_by, order.confirmed_at = 'confirmed', actor.username, now_utc()
     db.add(Audit(username=actor.username, action='CONFIRMAR_SAIDA', details=f'Pedido {order.id}; grupos e quantidades no histórico imutável.'))
     return order.id
+
+
+@operation
+def save_preparation(db, actor, key, reference, lot_rows, order_id=None, version=None):
+    from .lots import resolve
+    rows = [(resolve(db, required(lote, 'Lote')), required(lote, 'Lote'), quantidade) for lote, quantidade in lot_rows]
+    # Reuse the validated draft writer inside this same transaction, without nested commit.
+    if order_id:
+        order = db.get(DispatchOrder, order_id); owned(order, actor)
+        if not order.office or order.status != 'draft' or order.version != version:
+            raise DispatchError('Rascunho desatualizado ou legado. Não foi alterado.')
+        from sqlalchemy import delete
+        db.execute(delete(DispatchPick).where(DispatchPick.line_id.in_(select(DispatchLine.id).where(DispatchLine.order_id == order_id))))
+        order.reviewed_at = None
+    ident = save_order.__wrapped__(db, actor, key, reference, rows, order_id, version)
+    db.get(DispatchOrder, ident).office = True
+    return ident
+
+
+@operation
+def review_preparation(db, actor, order_id, version):
+    from sqlalchemy import delete
+    from .lots import resolve
+    order = db.get(DispatchOrder, order_id); owned(order, actor)
+    if not order.office or order.version != version or order.status != 'draft':
+        raise DispatchError('Preparação não editável ou versão desatualizada.')
+    db.execute(delete(DispatchPick).where(DispatchPick.line_id.in_(select(DispatchLine.id).where(DispatchLine.order_id == order_id))))
+    for line in lines(db, order_id):
+        if resolve(db, line.lote) != line.artigo:
+            raise DispatchError('A associação do lote mudou. Rever o rascunho.')
+        if other_active(db, line, order_id): raise DispatchError('Existem reservas antigas para este lote; resolução administrativa necessária.')
+        for stock, entrada, qty in fifo(db, line):
+            db.add(DispatchPick(line_id=line.id,stock_id=stock.id,quantidade=qty,carga=stock.carga,local=stock.local,entrada=entrada))
+    order.reviewed_at = now_utc()
+    db.add(Audit(username=actor.username,action='REVER_PREPARACAO',details=f'Preparação {order.id}; sem reserva temporária.'))
+    return order.id
+
+
+@operation
+def confirm_preparation(db, actor, order_id):
+    from .lots import resolve
+    from .database import DispatchDocument
+    from .inventorying import clock
+    from .preparation_pdf import render_pdf
+    order = db.get(DispatchOrder, order_id); owned(order, actor)
+    if order.status == 'confirmed': return order.id
+    if not order.office or order.status != 'draft' or not order.reviewed_at:
+        raise DispatchError('Rever a preparação antes de confirmar. Pedidos cancelados não descontam stock.')
+    plan = picks(db, order_id)
+    if not plan: raise DispatchError('Lista FIFO vazia.')
+    by_line = {line.id: line for line in lines(db, order_id)}
+    for line in by_line.values():
+        if resolve(db,line.lote) != line.artigo or other_active(db,line,order_id):
+            raise DispatchError('Lote em conflito ou com reservas antigas; requer reconciliação.')
+        current = fifo(db,line)
+        expected=[(s.id,s.carga,s.local,day,qty) for s,day,qty in current]
+        recorded=[(p.stock_id,p.carga,p.local,p.entrada,p.quantidade) for p in plan if p.line_id==line.id]
+        if expected != recorded:
+            raise DispatchError('Stock/FIFO mudou desde a revisão. Atualizar e rever novamente, sem desconto.')
+    for pick in plan: db.get(Stock,pick.stock_id).quantidade -= pick.quantidade
+    order.status, order.confirmed_by, order.confirmed_at = 'confirmed', actor.username, now_utc()
+    # Compatibility fields describe the office validation, not a warehouse collection.
+    order.checked_by, order.checked_at = actor.username, order.confirmed_at
+    db.flush()
+    rows=[dict(lote=by_line[p.line_id].lote,artigo=by_line[p.line_id].artigo,
+               quantidade=p.quantidade,carga=p.carga,local=p.local) for p in plan]
+    pdf=render_pdf(order,rows)
+    versions={p.local:clock(db,p.local) for p in plan}
+    db.add(DispatchDocument(order_id=order.id,pdf=pdf,sha256=hashlib.sha256(pdf).hexdigest(),stock_versions=json.dumps(versions)))
+    db.add(Audit(username=actor.username,action='CONFIRMAR_PREPARACAO',details=f'Preparação {order.id}; stock descontado; PDF arquivado.'))
+    return order.id
+
+
+@operation
+def cancel_order(db, actor, order_id, reason, returned=False):
+    if actor.role != 'admin': raise DispatchError('Só Administrador pode cancelar pedidos.',403)
+    from .receiving import required_note
+    reason=required_note(reason,'Motivo')
+    order=db.get(DispatchOrder,order_id)
+    if order is None: raise DispatchError('Pedido inexistente.',404)
+    if order.status=='confirmed': raise DispatchError('Preparação confirmada: usar ocorrência/inventário ou compensação, nunca cancelar o original.')
+    if order.status=='cancelled': return order.id
+    if order.status in ACTIVE and not returned:
+        raise DispatchError('Confirmar que não há paletes em recolha ou que foram devolvidas antes de libertar a reserva.')
+    if order.status in ACTIVE:
+        from .inventorying import touch_location
+        for local in {pick.local for pick in picks(db,order.id)}: touch_location(db,local)
+    order.status='cancelled'; order.cancellation_reason=reason
+    order.cancelled_by,order.cancelled_at=actor.username,now_utc()
+    db.add(Audit(username=actor.username,action='CANCELAR_PEDIDO',details=f'Pedido {order.id}; {reason}; reservas libertadas.'))
+    return order.id
+
+
+@operation
+def archive_legacy_document(db,actor,order_id):
+    from .database import DispatchDocument
+    from .preparation_pdf import render_pdf
+    order=db.get(DispatchOrder,order_id)
+    if not order or order.status!='confirmed':raise DispatchError('Só emitir documento de saída confirmada.')
+    if db.get(DispatchDocument,order_id):return order_id
+    by_line={line.id:line for line in lines(db,order_id)}
+    rows=[dict(artigo=by_line[p.line_id].artigo,lote=by_line[p.line_id].lote,carga=p.carga,local=p.local,quantidade=p.quantidade) for p in picks(db,order_id)]
+    if not rows:raise DispatchError('Sem seleção histórica comprovada para emitir documento.')
+    content=render_pdf(order,rows)
+    db.add(DispatchDocument(order_id=order_id,pdf=content,sha256=hashlib.sha256(content).hexdigest(),stock_versions='{}'))
+    db.add(Audit(username=actor.username,action='DOCUMENTO_LEGADO',details=f'Pedido {order_id}; seleção histórica, sem recalcular ou descontar stock.'))
+    return order_id

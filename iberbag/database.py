@@ -2,7 +2,7 @@
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from sqlalchemy import select, text, create_engine, String, Integer, DateTime, Boolean, ForeignKey, CheckConstraint, UniqueConstraint, Index, Text
+from sqlalchemy import select, text, create_engine, String, Integer, DateTime, Boolean, BigInteger, LargeBinary, ForeignKey, CheckConstraint, UniqueConstraint, Index, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, relationship
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -223,6 +223,10 @@ class Putaway(Base):
 
 class DispatchOrder(Base):
     __tablename__ = 'dispatch_orders'
+    office: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'), nullable=False)
+    cancellation_reason: Mapped[str | None] = mapped_column(Text)
+    cancelled_by: Mapped[str | None] = mapped_column(String(60))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime)
     id: Mapped[int] = mapped_column(primary_key=True)
     request_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -238,8 +242,8 @@ class DispatchOrder(Base):
     confirmed_by: Mapped[str | None] = mapped_column(String(60))
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime)
     __table_args__ = (
-        CheckConstraint("status IN ('draft','ready','checked','blocked','confirmed')", name='dispatch_state_valid'),
-        CheckConstraint("status = 'draft' OR reviewed_at IS NOT NULL", name='dispatch_review_valid'),
+        CheckConstraint("status IN ('draft','ready','checked','blocked','confirmed','cancelled')", name='dispatch_state_valid'),
+        CheckConstraint("status IN ('draft','cancelled') OR reviewed_at IS NOT NULL", name='dispatch_review_valid'),
         CheckConstraint("status NOT IN ('checked','blocked','confirmed') OR (checked_at IS NOT NULL AND checked_by IS NOT NULL)", name='dispatch_check_valid'),
         CheckConstraint("status <> 'blocked' OR discrepancy IS NOT NULL", name='dispatch_discrepancy_required'),
         CheckConstraint("(status = 'confirmed' AND confirmed_by IS NOT NULL AND confirmed_at IS NOT NULL) OR (status <> 'confirmed' AND confirmed_by IS NULL AND confirmed_at IS NULL)", name='dispatch_confirmation_valid'),
@@ -300,3 +304,128 @@ class StockTransfer(Base):
         CheckConstraint("status IN ('draft','confirmed')", name='transfer_status_valid'),
         CheckConstraint("(status = 'draft' AND destination_stock_id IS NULL AND confirmed_by IS NULL AND confirmed_at IS NULL) OR (status = 'confirmed' AND destination_stock_id IS NOT NULL AND confirmed_by IS NOT NULL AND confirmed_at IS NOT NULL)", name='transfer_confirmation_valid'),
     )
+
+
+class LotResolution(Base):
+    __tablename__ = 'lot_resolutions'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lote: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    artigo: Mapped[str] = mapped_column(String(120), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    actor: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+
+
+class DispatchDocument(Base):
+    __tablename__ = 'dispatch_documents'
+    order_id: Mapped[int] = mapped_column(ForeignKey('dispatch_orders.id'), primary_key=True)
+    pdf: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    stock_versions: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class PreparationCompletion(Base):
+    __tablename__ = 'preparation_completions'
+    order_id: Mapped[int] = mapped_column(ForeignKey('dispatch_orders.id'), primary_key=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    actor: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+
+
+class LocationClock(Base):
+    __tablename__ = 'location_clocks'
+    local: Mapped[str] = mapped_column(String(120), primary_key=True)
+    version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+
+class PhysicalInventory(Base):
+    __tablename__ = 'physical_inventories'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    reference: Mapped[str] = mapped_column(String(120), nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default='draft', nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+    submitted_by: Mapped[str | None] = mapped_column(String(60))
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    applied_by: Mapped[str | None] = mapped_column(String(60))
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime)
+    reason: Mapped[str | None] = mapped_column(Text)
+    __table_args__ = (CheckConstraint("kind IN ('partial','full')", name='inventory_kind'),
+        CheckConstraint("status IN ('draft','submitted','applied')", name='inventory_status'))
+
+
+class InventoryScope(Base):
+    __tablename__ = 'inventory_scopes'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    inventory_id: Mapped[int] = mapped_column(ForeignKey('physical_inventories.id'), nullable=False, index=True)
+    local: Mapped[str] = mapped_column(String(120), nullable=False)
+    baseline: Mapped[str] = mapped_column(Text, nullable=False)
+    clock: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    counted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    counted_by: Mapped[str | None] = mapped_column(String(60))
+    counted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    note: Mapped[str | None] = mapped_column(Text)
+    __table_args__ = (UniqueConstraint('inventory_id', 'local', name='inventory_scope_unique'),)
+
+
+class InventoryCount(Base):
+    __tablename__ = 'inventory_counts'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scope_id: Mapped[int] = mapped_column(ForeignKey('inventory_scopes.id'), nullable=False, index=True)
+    artigo: Mapped[str | None] = mapped_column(String(120))
+    lote: Mapped[str | None] = mapped_column(String(120))
+    carga: Mapped[str | None] = mapped_column(String(120))
+    quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
+    pending: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    __table_args__ = (CheckConstraint('quantidade > 0', name='inventory_count_positive'),)
+
+
+class StockIncident(Base):
+    __tablename__ = 'stock_incidents'
+    observation: Mapped[str | None] = mapped_column(Text)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    pick_id: Mapped[int | None] = mapped_column(ForeignKey('dispatch_picks.id'), index=True)
+    scope_id: Mapped[int | None] = mapped_column(ForeignKey('inventory_scopes.id'), index=True)
+    quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    actor: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default='open', nullable=False)
+    resolution: Mapped[str | None] = mapped_column(Text)
+    resolved_by: Mapped[str | None] = mapped_column(String(60))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
+    inventory_id: Mapped[int | None] = mapped_column(ForeignKey('physical_inventories.id'))
+    __table_args__ = (CheckConstraint('quantidade > 0', name='incident_positive'),
+        CheckConstraint('(pick_id IS NOT NULL) OR (scope_id IS NOT NULL)', name='incident_origin'))
+
+
+class StockAdjustment(Base):
+    __tablename__ = 'stock_adjustments'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    inventory_id: Mapped[int] = mapped_column(ForeignKey('physical_inventories.id'), nullable=False, index=True)
+    stock_id: Mapped[int] = mapped_column(ForeignKey('stock.id'), nullable=False, index=True)
+    artigo: Mapped[str] = mapped_column(String(120), nullable=False)
+    lote: Mapped[str] = mapped_column(String(120), nullable=False)
+    carga: Mapped[str] = mapped_column(String(120), nullable=False)
+    local: Mapped[str] = mapped_column(String(120), nullable=False)
+    before: Mapped[int] = mapped_column(Integer, nullable=False)
+    after: Mapped[int] = mapped_column(Integer, nullable=False)
+    delta: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    actor: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+    __table_args__ = (UniqueConstraint('inventory_id','stock_id',name='adjustment_unique'),
+        CheckConstraint('"before" >= 0 AND "after" >= 0 AND delta = "after" - "before"', name='adjustment_values'))
+
+
+class PreparationCompensation(Base):
+    __tablename__ = 'preparation_compensations'
+    order_id: Mapped[int] = mapped_column(ForeignKey('dispatch_orders.id'), primary_key=True)
+    inventory_id: Mapped[int] = mapped_column(ForeignKey('physical_inventories.id'), nullable=False, unique=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    actor: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)

@@ -277,7 +277,7 @@ def test_backup_snapshot_excludes_concurrent_change_and_restore_failure_is_atomi
     assert manifest['inventory']['paletes'] == 8
     backup.restore(restored, folder, runner=docker_client)
     assert transfer.reconcile(bundle, restored)['status'] == 'reconciled'
-    assert transfer.reconcile(bundle, origin)['different_tables'] == ['stock']
+    assert set(transfer.reconcile(bundle, origin)['different_tables']) == {'stock','location_clocks'}
     # A checksum-valid but truncated archive must fail without partial tables.
     archive = folder / 'database.dump'
     archive.write_bytes(archive.read_bytes()[:2000])

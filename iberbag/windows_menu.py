@@ -39,7 +39,7 @@ def main():
 7 Ensaiar restauro numa OUTRA base VAZIA
 8 Preparar base SEM migração (instalação vazia)
 9 Criar administrador (instalação vazia)
-10 Pré-visualizar atualização 0001/0002/0003 para 0004
+10 Pré-visualizar atualização 0001–0004 para 0005
 11 Aplicar atualização com backup/restauro verificado
 0 Sair
 ''')

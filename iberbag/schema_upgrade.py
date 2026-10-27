@@ -14,8 +14,9 @@ def revision(connection):
 def preview(engine):
     with engine.connect().execution_options(isolation_level='REPEATABLE READ') as connection:
         old = revision(connection)
-        changes = [] if old == REVISION else ['stock_transfers', 'locations.active (existing positions remain active)',
-            'immutable transfer history trigger (PostgreSQL)']
+        changes = [] if old == REVISION else ['inventories, adjustments, incidents, PDF archive, location clocks, office preparations']
+        if old in ('0001','0002','0003'):
+            changes += ['stock_transfers','locations.active']
         if old in ('0001', '0002'):
             changes = ['dispatch_orders', 'dispatch_lines', 'dispatch_picks', 'stock >= 0; historical rows retained'] + changes
         if old == '0001':
@@ -46,8 +47,8 @@ def apply_upgrade(engine, folder):
         old = revision(connection)
         if old == REVISION:
             return {'status': 'already_current', 'revision': REVISION}
-        if old not in ('0001', '0002', '0003'):
-            raise ValueError('É suportada a atualização 0001/0002/0003 → 0004.')
+        if old not in ('0001', '0002', '0003', '0004'):
+            raise ValueError('É suportada a atualização 0001/0002/0003/0004 → 0005.')
         before = inventory(read_data(connection))
         if before != manifest['inventory']:
             raise ValueError('A base mudou desde o backup. Parar aplicação, fazer novo backup e ensaiar restauro.')

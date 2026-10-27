@@ -431,3 +431,6 @@ app.include_router(dispatch_router)
 
 from .transfer_routes import router as transfer_router
 app.include_router(transfer_router)
+
+from .inventory_routes import router as inventory_router
+app.include_router(inventory_router)

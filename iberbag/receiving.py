@@ -50,6 +50,13 @@ def required(value, label):
     return value
 
 
+def required_note(value,label='Motivo'):
+    value=(value or '').strip()
+    if not value or len(value)>2000:
+        raise ReceivingError(label+': indicar 1–2000 caracteres.',400)
+    return value
+
+
 def quantity(value):
     if not re.fullmatch(r'[0-9]{1,10}', str(value)) or not 1 <= int(value) <= MAX_INT:
         raise ReceivingError('Indica uma quantidade inteira positiva de paletes.', 400)
@@ -88,6 +95,13 @@ def owned(record, actor):
 def save_receipt(db, actor, key, code, received_on, rows, receipt_id=None, version=None):
     key = request_key(key)
     code, received, lines, digest = receipt_payload(code, received_on, rows)
+    from .lots import assert_lot
+    seen = {}
+    for artigo, lote, qty in lines:
+        assert_lot(db, lote, artigo)
+        if lote in seen and seen[lote] != artigo:
+            raise ReceivingError('Um lote não pode pertencer a artigos diferentes.')
+        seen[lote] = artigo
     if receipt_id is None:
         record = db.scalar(select(Receipt).where(Receipt.request_key == key))
         if record:
@@ -127,6 +141,9 @@ def confirm_receipt(db, actor, receipt_id, version):
     # A legacy stock code without a Carga row is also occupied; never attach new history to it.
     if db.scalar(select(Stock.id).where(Stock.carga == record.code)) is not None:
         raise ReceivingError('Há stock antigo com este código de carga. Requer reconciliação prévia.')
+    from .lots import assert_lot
+    for line in db.scalars(select(ReceiptLine).where(ReceiptLine.receipt_id == record.id)):
+        assert_lot(db, line.lote, line.artigo)
     carga = Carga(codigo=record.code, entrada=record.received_on, funcionario=None)
     db.add(carga)
     db.flush()
@@ -175,6 +192,8 @@ def confirmed_line(db, line_id):
     receipt = db.get(Receipt, line.receipt_id)
     if receipt.status != 'confirmed':
         raise ReceivingError('A receção ainda não foi confirmada.')
+    from .lots import assert_lot
+    assert_lot(db, line.lote, line.artigo)
     return line, receipt
 
 

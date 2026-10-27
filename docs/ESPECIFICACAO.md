@@ -56,3 +56,7 @@ A Etapa 3 implementa receção confirmada, pendentes e arrumação transacional 
 A Etapa 4 implementa pedidos, listas automáticas FIFO, conferência e confirmação atómica em PostgreSQL. Empates usam data, ID de carga e ID do grupo. Datas desconhecidas e divergências bloqueiam o pedido; não existe bypass de FIFO. Ver [SAIDAS_E_FIFO.md](SAIDAS_E_FIFO.md).
 
 A Etapa 5 acrescenta transferências atómicas, revisão, histórico e catálogo ativo/inativo. Preserva carga/data e bloqueia operações sobre artigo/lote com saída ativa. Ver [TRANSFERENCIAS.md](TRANSFERENCIAS.md).
+
+## Etapa 6 — regras atuais confirmadas
+
+Utilização principal no escritório. Preparações recebem lote e paletes; o artigo é identificado de forma unívoca e FIFO é automático. A confirmação desconta imediatamente e arquiva PDF, sem recolha obrigatória por operadores. Inventários distinguem desconhecido de zero; ajustes e resolução são administrativos/auditados. Pedidos legados são preservados e canceláveis antes de confirmação. Ver [ETAPA6_ESCRITORIO_E_INVENTARIO.md](ETAPA6_ESCRITORIO_E_INVENTARIO.md), que prevalece sobre o fluxo de recolha anterior.

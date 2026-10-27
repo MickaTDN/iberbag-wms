@@ -21,6 +21,8 @@ def source_stock(db, stock_id, qty):
 
 
 def protect_dispatches(db, stock):
+    from .lots import assert_lot
+    assert_lot(db, stock.lote, stock.artigo)
     # Even a group outside the present plan can affect the deterministic FIFO selection.
     active = db.scalar(select(DispatchOrder.id).join(DispatchLine).where(
         DispatchLine.artigo == stock.artigo, DispatchLine.lote == stock.lote,

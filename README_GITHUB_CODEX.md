@@ -1,3 +1,5 @@
+Etapa 6: [Preparação no escritório e inventário](docs/ETAPA6_ESCRITORIO_E_INVENTARIO.md). Entrada apenas por lote/paletes, desconto imediato, PDF arquivado, contagens e ajustes administrativos.
+
 Etapa 5: [Transferências entre localizações](docs/TRANSFERENCIAS.md), incluindo migração 0004, reservas e ensaio da interface.
 
 Etapa 4: [Saídas de mercadoria e FIFO](docs/SAIDAS_E_FIFO.md), com migração 0003, reservas, limitações e ensaio da interface.

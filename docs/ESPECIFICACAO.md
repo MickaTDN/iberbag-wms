@@ -60,3 +60,15 @@ A Etapa 5 acrescenta transferências atómicas, revisão, histórico e catálogo
 ## Etapa 6 — regras atuais confirmadas
 
 Utilização principal no escritório. Preparações recebem lote e paletes; o artigo é identificado de forma unívoca e FIFO é automático. A confirmação desconta imediatamente e arquiva PDF, sem recolha obrigatória por operadores. Inventários distinguem desconhecido de zero; ajustes e resolução são administrativos/auditados. Pedidos legados são preservados e canceláveis antes de confirmação. Ver [ETAPA6_ESCRITORIO_E_INVENTARIO.md](ETAPA6_ESCRITORIO_E_INVENTARIO.md), que prevalece sobre o fluxo de recolha anterior.
+
+## Etapa 7 — pendentes comerciais e documentos verificados no VBA
+
+Preparações novas identificam cliente/fluxo e permitem stock parcialmente disponível:
+desconto imediato do selecionado por FIFO, falta original auditada. Entradas satisfazem
+pendentes por antiguidade e destinam só o excedente à arrumação; contabilisticamente
+carregadas para clientes não voltam a ser descontadas na recolha física. Mercadona
+usa destinos configuráveis; CARGA imprime por localização. PDFs ficam arquivados.
+Revisão 0006 sem alteração de stock legado, atualização com backup/restauro verificados.
+Paletes incompletas têm apenas estrutura documental de composição, sem lote sintético,
+conversões ou operação física. Ver [guia Etapa 7](ETAPA7_PENDENTES_E_PROCESSOS_EXCEL.md)
+e [análise VBA](ANALISE_VBA_ETAPA7.md), que identificam o que permanece por confirmar.

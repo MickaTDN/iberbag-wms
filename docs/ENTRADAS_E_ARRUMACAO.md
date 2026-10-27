@@ -1,3 +1,5 @@
+> Etapa 7: revisão atual 0006, pendentes comerciais, entradas com atribuição automática e documentos Mercadona/CARGA. Ver [guia atual](ETAPA7_PENDENTES_E_PROCESSOS_EXCEL.md). As revisões e limitações das etapas abaixo são históricas.
+
 > Etapa 6: o fluxo atual é de escritório, com preparação por lote e desconto imediato, PDF e inventário; revisão 0005. Consultar [ETAPA6_ESCRITORIO_E_INVENTARIO.md](ETAPA6_ESCRITORIO_E_INVENTARIO.md). Regras de recolha/reservas e revisões abaixo são históricas.
 
 > Etapa 5: revisão atual 0004, com transferências e catálogo ativo/inativo. Consultar [TRANSFERENCIAS.md](TRANSFERENCIAS.md). As referências a revisões abaixo descrevem etapas anteriores.

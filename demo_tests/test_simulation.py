@@ -217,3 +217,19 @@ def test_stop_never_terminates_an_unrelated_local_service(tmp_path):
     try:
         stop(tmp_path);assert thread.is_alive()
     finally:server.shutdown();thread.join(timeout=2);server.server_close()
+
+
+def test_demo_rejects_additional_operational_tables(tmp_path):
+    import sqlite3
+    store=Store(tmp_path)
+    with sqlite3.connect(store.path) as conn:conn.execute('CREATE TABLE stock(id INTEGER)')
+    before=store.path.read_bytes()
+    with pytest.raises(DemoError,match='exclusiva'):Store(tmp_path)
+    assert store.path.read_bytes()==before
+
+
+def test_fallback_isolated_entry_uses_only_its_package(tmp_path):
+    from scripts.build_demo import build
+    folder=tmp_path/'Pacote fonte ação';build(folder)
+    code="import sys;sys.path.insert(0,sys.argv[1]);from iberbag_demo.app import create_app;app=create_app(sys.argv[1],8877,__import__('secrets').token_hex(32));assert 'iberbag.database' not in sys.modules;assert 'iberbag.app' not in sys.modules"
+    subprocess.run([sys.executable,'-I','-B','-c',code,str(folder)],cwd=folder,check=True,capture_output=True,timeout=20)

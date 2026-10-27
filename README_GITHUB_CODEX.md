@@ -1,3 +1,5 @@
+Etapa 8: [Demonstração local Windows, sem PostgreSQL](docs/DEMO_WINDOWS.md). ZIP autónomo no workflow [DEMO Windows](https://github.com/MickaTDN/iberbag-wms/actions/workflows/demo-windows.yml), com dados fictícios e reposição.
+
 Etapa 7: [Pendentes, entradas, Mercadona e CARGA](docs/ETAPA7_PENDENTES_E_PROCESSOS_EXCEL.md), revisão 0006. [Análise do VBA fornecido](docs/ANALISE_VBA_ETAPA7.md). Paletes incompletas apenas em dossiês documentais, sem conversões/movimentos.
 
 Etapa 6: [Preparação no escritório e inventário](docs/ETAPA6_ESCRITORIO_E_INVENTARIO.md). Entrada apenas por lote/paletes, desconto imediato, PDF arquivado, contagens e ajustes administrativos.

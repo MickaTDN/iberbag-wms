@@ -44,10 +44,12 @@ class Store:
 
     def read(self, conn):
         try:
+            objects=set(conn.execute("SELECT name,type FROM sqlite_master WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%'"))
+            if objects!={('demo_state','table')}:raise DemoError('Esquema não reconhecido como DEMO exclusiva. Não foi alterado.')
             row=conn.execute('SELECT marker,payload FROM demo_state WHERE id=1').fetchone()
             if not row or row[0]!=MARKER:raise DemoError('Base sem identificação de demonstração. Não foi alterada.')
             state=json.loads(row[1])
-            if state.get('marker')!=MARKER or state.get('version')!=1:raise DemoError('Versão DEMO incompatível. Conservar a pasta para análise.')
+            if not isinstance(state,dict) or state.get('marker')!=MARKER or state.get('version')!=1:raise DemoError('Versão DEMO incompatível. Conservar a pasta para análise.')
             return state
         except (sqlite3.DatabaseError,json.JSONDecodeError) as error:
             raise DemoError('Ficheiro existente não reconhecido como DEMO. Não foi substituído.') from error

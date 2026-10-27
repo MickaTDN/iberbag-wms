@@ -163,7 +163,7 @@ def receive(state,key,code,day,rows,actor):
             if qty:
                 p['satisfied']+=qty;line['remaining']-=qty
                 state['allocations'].append(dict(id=ident(state,'allocations'),pending_id=p['id'],receipt_id=rid,line=index,quantidade=qty,customer=p['customer'],destination=p['destination'],lote=line['lote'],collected=False))
-                doc.append((line['artigo'],line['lote'],qty,p['customer']+' / '+p['destination'],'Separar — já carregadas contabilisticamente'))
+                doc.append((line['artigo'],line['lote'],qty,p['customer']+(' / '+p['destination'] if p['destination'] else ''),'Separar — já carregadas contabilisticamente'))
         if line['remaining']:doc.append((line['artigo'],line['lote'],line['remaining'],'Stock normal','Registar arrumação simulada'))
     archive(state,f'receipt-{rid}',f'Entrada / Arrumação · {code}',('Artigo','Lote','Paletes','Destino','Instrução'),doc,[f'Data: {day} · Recebeu: {actor}'])
     state['stock_version']+=1;event(state,'Entrada',f'{code}: atribuição simulada aos pendentes; excedente por arrumar.',actor)
@@ -235,8 +235,12 @@ def submit_inventory(state,iid,actor):
     if inv['status']!='draft':return
     if len(inv['counts'])!=len(inv['scope']):raise DemoError('Existem localizações ainda não contadas. Nunca são interpretadas como vazias.')
     if inv['version']!=state['stock_version']:raise DemoError('Contagem desatualizada. Criar novo inventário simulado.')
-    archive(state,f'inventory-{iid}',f'Inventário #{iid}',('Lote','Artigo','Físico','Localização','Carga','Sistema'),
-        [(r['lote'],r['artigo'],r['after'],r['local'],r['carga'],r['before']) for r in differences(inv)],['Contagem simulada; não substitui aprovação administrativa.'])
+    comparison=sorted(differences(inv),key=lambda r:(r['local'],r['lote'],r['carga']))
+    rows=[(r['lote'],r['artigo'],r['after'],r['local'],r['carga'],r['before']) for r in comparison]
+    if not rows:rows=[('—','Sem grupos de stock',0,'Âmbito contado','—',0)]
+    archive(state,f'inventory-{iid}',f'Inventário #{iid}',('Lote','Artigo','Físico','Localização','Carga','Sistema'),rows,
+        ['Contagem simulada; não substitui aprovação administrativa.',
+         f'Localizações contadas: {len(inv["counts"])} · Vazias: {sum(not r for r in inv["counts"].values())} · Por contar: 0'])
     inv['status']='submitted';event(state,'Inventário',f'Contagem #{iid} submetida sem alterar stock.',actor)
 
 
@@ -263,14 +267,17 @@ def approve(state,iid,reason,actor):
 
 def seed():
     state=dict(marker=MARKER,version=1,stock_version=0,locations=locations(),inactive=[],lots={
-        'LOTE-DEMO-A':'ART-DEMO-SACO','LOTE-DEMO-B':'ART-DEMO-SACO','LOTE-DEMO-C':'ART-DEMO-FILME','LOTE-DEMO-D':'ART-DEMO-CAIXA'},
+        'LOTE-DEMO-A':'ART-DEMO-SACO','LOTE-DEMO-B':'ART-DEMO-SACO','LOTE-DEMO-C':'ART-DEMO-FILME','LOTE-DEMO-D':'ART-DEMO-CAIXA',
+        'LOTE-DEMO-E':'ART-DEMO-SACO','LOTE-DEMO-F':'ART-DEMO-FILME','LOTE-DEMO-G':'ART-DEMO-CAIXA'},
         loads={'DEMO-ANTIGA':'2020-01-02','DEMO-NOVA':'2021-03-04','DEMO-FILME':'2022-04-01','DEMO-CAIXA':'2023-01-03'},
         stock=[],orders=[],receipts=[],pending=[],allocations=[],inventories=[],adjustments=[],events=[],documents={},commands=[],destinations=['DESTINO DEMO NORTE','DESTINO DEMO SUL'])
     actor='Escritório Fictício'
     for lot,load,local,qty in [('LOTE-DEMO-A','DEMO-ANTIGA','A101',1),('LOTE-DEMO-A','DEMO-ANTIGA','Chão',3),
         ('LOTE-DEMO-A','DEMO-NOVA','B202',1),('LOTE-DEMO-A','DEMO-NOVA','Chão',4),('LOTE-DEMO-B','DEMO-NOVA','C214',1),
         ('LOTE-DEMO-B','DEMO-NOVA','Chão',3),('LOTE-DEMO-C','DEMO-FILME','L501',1),('LOTE-DEMO-C','DEMO-FILME','Chão',5),
-        ('LOTE-DEMO-D','DEMO-CAIXA','S427',1),('LOTE-DEMO-D','DEMO-CAIXA','Chão',2)]:add_stock(state,state['lots'][lot],lot,load,local,qty,actor)
+        ('LOTE-DEMO-D','DEMO-CAIXA','S427',1),('LOTE-DEMO-D','DEMO-CAIXA','Chão',2),('LOTE-DEMO-E','DEMO-NOVA','C215',1),
+        ('LOTE-DEMO-E','DEMO-NOVA','Chão',2),('LOTE-DEMO-F','DEMO-FILME','L502',1),('LOTE-DEMO-F','DEMO-FILME','M501',1),
+        ('LOTE-DEMO-G','DEMO-CAIXA','S401',1),('LOTE-DEMO-G','DEMO-CAIXA','Q201',1)]:add_stock(state,state['lots'][lot],lot,load,local,qty,actor)
     oid=save_preparation(state,'seed-order','CLIENTE DEMO ALFA','normal','ENCOMENDA DEMO INCOMPLETA',[('LOTE-DEMO-B','7','')],actor)
     confirm_preparation(state,oid,actor)
     receive(state,'seed-receipt','DEMO-RECEBIDA','2024-01-02',[('ART-DEMO-SACO','LOTE-DEMO-B','2'),('ART-DEMO-CAIXA','LOTE-DEMO-D','3')],actor)

@@ -20,7 +20,8 @@ RECEIVING_TABLES = {'receipts', 'receipt_lines', 'putaways'}
 DISPATCH_TABLES = {'dispatch_orders', 'dispatch_lines', 'dispatch_picks'}
 TRANSFER_TABLES = {'stock_transfers'}
 INVENTORY_TABLES = {'lot_resolutions','dispatch_documents','preparation_completions','location_clocks','physical_inventories','inventory_scopes','inventory_counts','stock_incidents','stock_adjustments','preparation_compensations'}
-OPERATIONAL_TABLES = RECEIVING_TABLES | DISPATCH_TABLES | TRANSFER_TABLES | INVENTORY_TABLES
+COMMERCIAL_TABLES = {'mercadona_destinations','commercial_preparations','customer_pending','pending_allocations','allocation_collections','receipt_documents','incomplete_compositions'}
+OPERATIONAL_TABLES = RECEIVING_TABLES | DISPATCH_TABLES | TRANSFER_TABLES | INVENTORY_TABLES | COMMERCIAL_TABLES
 
 
 def digest_file(path):
@@ -46,7 +47,11 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
-    legacy_revision = {frozenset(OPERATIONAL_TABLES): '0001', frozenset(DISPATCH_TABLES | TRANSFER_TABLES | INVENTORY_TABLES): '0002', frozenset(TRANSFER_TABLES | INVENTORY_TABLES): '0003', frozenset(INVENTORY_TABLES): '0004', frozenset(): REVISION}.get(frozenset(missing))
+    legacy_revision = {frozenset(OPERATIONAL_TABLES): '0001',
+        frozenset(DISPATCH_TABLES | TRANSFER_TABLES | INVENTORY_TABLES | COMMERCIAL_TABLES): '0002',
+        frozenset(TRANSFER_TABLES | INVENTORY_TABLES | COMMERCIAL_TABLES): '0003',
+        frozenset(INVENTORY_TABLES | COMMERCIAL_TABLES): '0004',
+        frozenset(COMMERCIAL_TABLES): '0005', frozenset(): REVISION}.get(frozenset(missing))
     if names - expected - {'alembic_version'} or legacy_revision is None or inspector.get_view_names():
         raise ValueError('Esquema diferente da v2.3: tabelas em falta, adicionais ou vistas. Rever manualmente.')
     if 'alembic_version' in names:
@@ -65,14 +70,16 @@ def read_data(connection):
             continue
         columns = {c['name'] for c in inspector.get_columns(table.name)}
         legacy_locations = table.name == 'locations' and legacy_revision in ('0001','0002','0003') and columns == set(table.columns.keys()) - {'active'}
-        legacy_dispatch = table.name=='dispatch_orders' and legacy_revision != REVISION and columns == set(table.columns.keys()) - {'office','cancellation_reason','cancelled_by','cancelled_at'}
-        if columns != set(table.columns.keys()) and not legacy_locations and not legacy_dispatch:
+        defaults={}
+        if table.name=='dispatch_orders' and legacy_revision in ('0001','0002','0003','0004'):
+            defaults=dict(office=False,cancellation_reason=None,cancelled_by=None,cancelled_at=None)
+        if table.name=='dispatch_lines' and legacy_revision!='0006':
+            defaults=dict(destination='',destination_order=0,destination_highlight=False)
+        if columns != set(table.columns.keys())-set(defaults) and not legacy_locations:
             raise ValueError(f'Colunas incompatíveis: {table.name}.')
         query = select(*(col for col in table.columns if col.name in columns)).order_by(*table.primary_key.columns)
         result[table.name] = [dict(row) for row in connection.execute(query).mappings()]
-        if legacy_dispatch:
-            for row in result[table.name]:
-                row.update(office=False,cancellation_reason=None,cancelled_by=None,cancelled_at=None)
+        for row in result[table.name]:row.update(defaults)
         if legacy_locations:
             for row in result[table.name]:
                 row['active'] = True  # All catalogue positions were implicitly active before 0004.

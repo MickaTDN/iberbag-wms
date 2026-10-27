@@ -1,3 +1,5 @@
+> Etapa 7: revisão atual 0006, pendentes comerciais, entradas com atribuição automática e documentos Mercadona/CARGA. Ver [guia atual](ETAPA7_PENDENTES_E_PROCESSOS_EXCEL.md). As revisões e limitações das etapas abaixo são históricas.
+
 # Etapa 6 — Preparação no escritório, inventário e reconciliação
 
 ## 1. O que muda no trabalho diário

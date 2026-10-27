@@ -225,7 +225,7 @@ def test_dispatch_ui_and_hidden_exhausted_stock(warehouse):
             assert client.get('/dispatches',follow_redirects=False).status_code==303
             client.post('/login',data={'username':'operador','password':accounts['operador'][1]})
             page=client.get('/dispatches/new'); csrf=field(page,'csrf')
-            data=dict(csrf=csrf,request_key=field(page,'request_key'),reference='UI-ORDER',artigo_0='A',lote_0='L',quantidade_0='1',stock_id='999',carga='FORGED')
+            data=dict(csrf=csrf,request_key=field(page,'request_key'),reference='UI-ORDER',customer='CLIENTE FICTÍCIO',channel='normal',artigo_0='A',lote_0='L',quantidade_0='1',stock_id='999',carga='FORGED')
             response=client.post('/dispatches/save',data=data); url=str(response.url).split('testserver')[1]
             assert 'Stock registado' in response.text
             assert client.post(url+'/review',data={'version':'1'}).status_code==403
@@ -272,7 +272,7 @@ def test_upgrade_0002_preserves_history_and_positive_stock(warehouse,pg_database
     assert preview(legacy)['from']=='0002'
     folder=tmp_path/'upgrade-backup'; backup.backup(legacy,folder,runner=docker_client)
     backup.restore(restored,folder,runner=docker_client)
-    assert apply_upgrade(legacy,folder)['revision']=='0005'
+    assert apply_upgrade(legacy,folder)['revision']=='0006'
     assert preview(legacy)['data']==preview(restored)['data']
 
 

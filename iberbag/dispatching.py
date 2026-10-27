@@ -65,7 +65,7 @@ def save_order(db, actor, key, reference, rows, order_id=None, version=None):
     return order.id
 
 
-def fifo(db, line):
+def fifo(db, line, allow_shortage=False, consumed=None):
     from .lots import resolve
     article = resolve(db,line.lote,required=False)
     if article is not None and article != line.artigo:
@@ -77,16 +77,20 @@ def fifo(db, line):
     if unknown:
         raise DispatchError('FIFO bloqueado: data de entrada desconhecida ou carga em falta para '
                             + line.artigo + '/' + line.lote + ' (carga ' + unknown[0] + '). Requer resolução administrativa.')
-    if sum(stock.quantidade for stock, carga in rows) < line.quantidade:
+    consumed = consumed if consumed is not None else {}
+    if not allow_shortage and sum(stock.quantidade-consumed.get(stock.id,0) for stock, carga in rows) < line.quantidade:
         raise DispatchError('Stock insuficiente para ' + line.artigo + '/' + line.lote + '.')
     plan, needed = [], line.quantidade
     for stock, carga in rows:
         if not needed: break
+        free=stock.quantidade-consumed.get(stock.id,0)
+        if free<=0:continue
         if is_unassigned(stock.local) or db.scalar(select(Location.id).where(Location.codigo == stock.local)) is None:
             raise DispatchError('Localização FIFO não identificada no catálogo: requer resolução administrativa.')
-        qty = min(needed, stock.quantidade)
+        qty = min(needed, free)
         plan.append((stock, carga.entrada, qty))
         needed -= qty
+        consumed[stock.id]=consumed.get(stock.id,0)+qty
     return plan
 
 
@@ -209,11 +213,14 @@ def review_preparation(db, actor, order_id, version):
     if not order.office or order.version != version or order.status != 'draft':
         raise DispatchError('Preparação não editável ou versão desatualizada.')
     db.execute(delete(DispatchPick).where(DispatchPick.line_id.in_(select(DispatchLine.id).where(DispatchLine.order_id == order_id))))
+    from .commercial import context
+    commercial=context(db,order_id)
+    consumed={}
     for line in lines(db, order_id):
         if resolve(db, line.lote) != line.artigo:
             raise DispatchError('A associação do lote mudou. Rever o rascunho.')
         if other_active(db, line, order_id): raise DispatchError('Existem reservas antigas para este lote; resolução administrativa necessária.')
-        for stock, entrada, qty in fifo(db, line):
+        for stock, entrada, qty in fifo(db, line,allow_shortage=bool(commercial),consumed=consumed):
             db.add(DispatchPick(line_id=line.id,stock_id=stock.id,quantidade=qty,carga=stock.carga,local=stock.local,entrada=entrada))
     order.reviewed_at = now_utc()
     db.add(Audit(username=actor.username,action='REVER_PREPARACAO',details=f'Preparação {order.id}; sem reserva temporária.'))
@@ -230,13 +237,17 @@ def confirm_preparation(db, actor, order_id):
     if order.status == 'confirmed': return order.id
     if not order.office or order.status != 'draft' or not order.reviewed_at:
         raise DispatchError('Rever a preparação antes de confirmar. Pedidos cancelados não descontam stock.')
+    from .commercial import context
+    commercial=context(db,order_id)
     plan = picks(db, order_id)
-    if not plan: raise DispatchError('Lista FIFO vazia.')
+    if not plan and not commercial: raise DispatchError('Lista FIFO vazia.')
+    consumed={}
     by_line = {line.id: line for line in lines(db, order_id)}
+    if not by_line:raise DispatchError('Preparação sem linhas.')
     for line in by_line.values():
         if resolve(db,line.lote) != line.artigo or other_active(db,line,order_id):
             raise DispatchError('Lote em conflito ou com reservas antigas; requer reconciliação.')
-        current = fifo(db,line)
+        current = fifo(db,line,allow_shortage=bool(commercial),consumed=consumed)
         expected=[(s.id,s.carga,s.local,day,qty) for s,day,qty in current]
         recorded=[(p.stock_id,p.carga,p.local,p.entrada,p.quantidade) for p in plan if p.line_id==line.id]
         if expected != recorded:
@@ -248,7 +259,15 @@ def confirm_preparation(db, actor, order_id):
     db.flush()
     rows=[dict(lote=by_line[p.line_id].lote,artigo=by_line[p.line_id].artigo,
                quantidade=p.quantidade,carga=p.carga,local=p.local) for p in plan]
-    pdf=render_pdf(order,rows)
+    if commercial:
+        from .database import CustomerPending
+        from .commercial_pdf import render_preparation
+        for line in by_line.values():
+            missing=line.quantidade-sum(p.quantidade for p in plan if p.line_id==line.id)
+            if missing:db.add(CustomerPending(line_id=line.id,quantidade=missing,created_at=order.confirmed_at,actor=actor.username))
+        pdf=render_preparation(order,commercial,list(by_line.values()),plan)
+    else:
+        pdf=render_pdf(order,rows)
     versions={p.local:clock(db,p.local) for p in plan}
     db.add(DispatchDocument(order_id=order.id,pdf=pdf,sha256=hashlib.sha256(pdf).hexdigest(),stock_versions=json.dumps(versions)))
     db.add(Audit(username=actor.username,action='CONFIRMAR_PREPARACAO',details=f'Preparação {order.id}; stock descontado; PDF arquivado.'))

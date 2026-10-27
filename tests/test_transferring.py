@@ -258,7 +258,7 @@ def test_upgrade_0003_requires_verified_backup_and_preserves_stock(warehouse,pg_
     assert preview(legacy)['from']=='0003'
     with pytest.raises(ValueError,match='restauro'): apply_upgrade(legacy,folder)
     backup.restore(restored,folder,runner=docker_client)
-    assert apply_upgrade(legacy,folder)['revision']=='0005'
+    assert apply_upgrade(legacy,folder)['revision']=='0006'
     assert apply_upgrade(legacy,folder)['status']=='already_current'
     assert preview(legacy)['data']==preview(restored)['data']
     with Session(legacy) as db: assert all(db.scalars(select(Location.active)).all())

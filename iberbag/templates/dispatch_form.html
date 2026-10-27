@@ -3,9 +3,11 @@
 <p>Indicar apenas lotes e paletes inteiras. Os artigos e o stock são identificados automaticamente ao guardar. O sistema selecionará as cargas e localizações por FIFO.</p>
 <form method="post" action="/dispatches/save" class="panel"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="request_key" value="{{ request_key }}">
 {% if order %}<input type="hidden" name="order_id" value="{{ order.id }}"><input type="hidden" name="version" value="{{ order.version }}">{% endif %}
+<input type="hidden" name="channel" value="{{ channel }}"><p>Fluxo: {{ 'Mercadona' if channel=='mercadona' else 'Outros clientes / CARGA' }}. <a href="/dispatches/new?channel=mercadona">Nova Mercadona</a> · <a href="/dispatches/new">Nova para outros clientes</a></p>
+<label>Cliente <input name="customer" maxlength="120" required value="{{ 'Mercadona' if channel=='mercadona' else commercial.customer if commercial else '' }}" {{ 'readonly' if channel=='mercadona' else '' }}></label>
 <label>Referência <input name="reference" maxlength="120" value="{{ order.reference if order else '' }}"></label>
-<datalist id="known-lots">{% for option in lot_options %}<option value="{{ option.lote }}">{{ option.label }}</option>{% endfor %}</datalist><table><thead><tr><th>Lote</th><th>Paletes</th></tr></thead><tbody>{% for i in range(20) %}{% set line = lines[i] if i < lines|length else none %}<tr>
+<datalist id="known-lots">{% for option in lot_options %}<option value="{{ option.lote }}">{{ option.label }}</option>{% endfor %}</datalist><table><thead><tr><th>Lote</th><th>Paletes</th>{% if channel=='mercadona' %}<th>Destino</th>{% endif %}</tr></thead><tbody>{% for i in range(20) %}{% set line = lines[i] if i < lines|length else none %}<tr>
 
 <td><input name="lote_{{ i }}" list="known-lots" aria-label="Lote {{ i+1 }}" maxlength="120" value="{{ line.lote if line else '' }}"></td>
-<td><input name="quantidade_{{ i }}" aria-label="Paletes {{ i+1 }}" type="number" min="1" step="1" max="2147483647" value="{{ line.quantidade if line else '' }}"></td></tr>{% endfor %}</tbody></table>
+<td><input name="quantidade_{{ i }}" aria-label="Paletes {{ i+1 }}" type="number" min="1" step="1" max="2147483647" value="{{ line.quantidade if line else '' }}"></td>{% if channel=='mercadona' %}<td><select name="destination_{{ i }}" aria-label="Destino {{ i+1 }}"><option value="">Escolher destino</option>{% for d in destinations %}<option value="{{ d.name }}" {{ 'selected' if line and line.destination==d.name else '' }}>{{ d.name }}</option>{% endfor %}</select></td>{% endif %}</tr>{% endfor %}</tbody></table>
 <button class="btn" type="submit">Identificar artigos e stock / guardar rascunho</button></form>{% endblock %}

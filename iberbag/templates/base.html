@@ -18,6 +18,8 @@
       <a href="/receipts" class="{% if request.url.path.startswith('/receipts') %}active{% endif %}">Entradas</a>
       <a href="/putaway" class="{% if request.url.path.startswith('/putaway') %}active{% endif %}">Arrumação</a>
       <a href="/dispatches" class="{% if request.url.path.startswith('/dispatches') %}active{% endif %}">Saídas</a>
+      <a href="/pending" class="{{ 'active' if request.url.path.startswith('/pending') else '' }}">Pendentes</a>
+      <a href="/compositions">Composições em rascunho</a>
       <a href="/transfers" class="{% if request.url.path.startswith('/transfers') %}active{% endif %}">Transferências</a>
       <a href="/inventory" class="{% if request.url.path.startswith('/inventory') %}active{% endif %}">Inventário</a>
       <a href="/stock" class="{% if request.url.path.startswith('/stock') %}active{% endif %}">▤ &nbsp; Consulta de stock</a>
@@ -30,6 +32,7 @@
       {% if request.url.path.startswith('/settings') or request.url.path in ['/users','/audit'] %}
       <div class="side-subnav" aria-label="Submenus de Definições">
         <a href="/settings/locations" class="{% if request.url.path.startswith('/settings/locations') or request.url.path.startswith('/settings/corridors') %}active{% endif %}">Localizações</a>
+        <a href="/settings/mercadona">Destinos Mercadona</a>
         <a href="/users" class="{% if request.url.path == '/users' %}active{% endif %}">Utilizadores</a>
         <a href="/audit" class="{% if request.url.path == '/audit' %}active{% endif %}">Registo de atividade</a>
       </div>

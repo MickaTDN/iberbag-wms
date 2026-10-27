@@ -283,7 +283,7 @@ def test_inventory_ui_and_office_pdf_without_operator_confirmation(warehouse):
             client.post('/login',data={'username':'admin','password':accounts['admin'][1]})
             form=client.get('/dispatches/new');csrf=field(form,'csrf')
             assert 'name="artigo_0"' not in form.text
-            saved=client.post('/dispatches/save',data=dict(csrf=csrf,request_key=field(form,'request_key'),lote_0='L',quantidade_0='1'))
+            saved=client.post('/dispatches/save',data=dict(csrf=csrf,request_key=field(form,'request_key'),customer='CLIENTE FICTÍCIO',channel='normal',lote_0='L',quantidade_0='1'))
             url=str(saved.url).split('testserver')[1]
             client.post(url+'/review',data={'csrf':csrf,'version':'1'})
             assert client.post(url+'/check',data={'csrf':csrf}).status_code==409
@@ -444,7 +444,7 @@ def test_upgrade_0004_keeps_legacy_confirmed_records(warehouse,pg_databases,tmp_
         db.execute(text("UPDATE dispatch_orders SET status='confirmed',reviewed_at=:day,checked_by='legado',checked_at=:day,confirmed_by='legado',confirmed_at=:day WHERE id=:id"),dict(day=stamp,id=order_id));db.commit()
     folder=tmp_path/'legacy';backup.backup(legacy,folder,runner=docker_client);backup.restore(restored,folder,runner=docker_client)
     assert preview(legacy)['from']=='0004'
-    assert apply_upgrade(legacy,folder)['revision']=='0005'
+    assert apply_upgrade(legacy,folder)['revision']=='0006'
     with Session(legacy) as db:
         assert db.get(DispatchOrder,order_id).status=='confirmed' and not db.get(DispatchOrder,order_id).office
         prep.archive_legacy_document(db,actor,order_id)

@@ -179,6 +179,9 @@ def approve_inventory(db,actor,inventory_id,reason,compensate_order=None):
         from .dispatching import picks,lines
         order=db.get(DispatchOrder,compensate_order); doc=db.get(DispatchDocument,compensate_order)
         if not order or order.status!='confirmed' or not order.office or not doc: raise InventoryError('Sem documento/versões originais para reversão segura. Exige reconciliação.')
+        from .database import CustomerPending, DispatchLine
+        if db.scalar(select(CustomerPending.id).join(DispatchLine).where(DispatchLine.order_id==order.id).limit(1)):
+            raise InventoryError('Preparação com pendentes comerciais: compensação automática bloqueada; reconciliar encomenda e direitos dos clientes administrativamente.')
         if db.get(PreparationCompensation,order.id): raise InventoryError('Preparação já compensada.')
         versions=json.loads(doc.stock_versions)
         pick_locations=set(p.local for p in picks(db,order.id))
@@ -196,6 +199,9 @@ def approve_inventory(db,actor,inventory_id,reason,compensate_order=None):
     for row in changes:
         protect_reservations(db,row['artigo'],row['lote'])
         if row['delta']>0:
+            from .commercial import outstanding_group
+            if outstanding_group(db,row['artigo'],row['lote'],row['carga']):
+                raise InventoryError('Há paletes carregadas contabilisticamente para clientes a aguardar recolha. Não repor como stock livre.')
             assert_lot(db,row['lote'],row['artigo'])
             carga=db.scalar(select(Carga).where(Carga.codigo==row['carga']))
             if carga is None or carga.entrada is None: raise InventoryError('Ajuste positivo exige carga real e data conhecida; esclarecer sem criar stock.')

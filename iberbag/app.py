@@ -1,4 +1,4 @@
-"""Iberbag WMS: stock consultation, reception and putaway; no dispatch operations."""
+"""Iberbag WMS: office preparations, incoming allocation, inventory and warehouse consultation."""
 import hmac, os, re
 from contextlib import asynccontextmanager
 from datetime import timedelta
@@ -434,3 +434,6 @@ app.include_router(transfer_router)
 
 from .inventory_routes import router as inventory_router
 app.include_router(inventory_router)
+
+from .commercial_routes import router as commercial_router
+app.include_router(commercial_router)

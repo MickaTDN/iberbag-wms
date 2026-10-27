@@ -7,6 +7,8 @@ from .app import database, identity, render, context, redirect
 from .receiving_routes import receiving_form, form_actor, failure, integer
 from .database import DispatchOrder, DispatchDocument, PreparationCompletion, PreparationCompensation, Stock
 from . import dispatching as service
+from . import commercial
+from .database import MercadonaDestination, CommercialPreparation, DispatchLine
 
 router = APIRouter()
 
@@ -32,32 +34,39 @@ def lot_options(db):
     return options
 
 
+def destinations(db):
+    return db.scalars(select(MercadonaDestination).where(MercadonaDestination.active.is_(True)).order_by(MercadonaDestination.sort_order,MercadonaDestination.name)).all()
+
+
 @router.get('/dispatches')
-def index(request: Request, page: int = 1, db: Session = Depends(database)):
+def index(request: Request, page: int = 1, customer: str = '', destination: str = '', channel: str = '', db: Session = Depends(database)):
     user, sess = identity(request, db)
     if not user: return redirect('/login')
-    query = select(DispatchOrder).where(or_(DispatchOrder.status != 'draft', DispatchOrder.created_by == user.id))
+    query = select(DispatchOrder).outerjoin(CommercialPreparation).where(or_(DispatchOrder.status != 'draft', DispatchOrder.created_by == user.id))
+    if customer:query=query.where(CommercialPreparation.customer.ilike('%'+customer+'%'))
+    if channel in ('normal','mercadona'):query=query.where(CommercialPreparation.channel==channel)
+    if destination:query=query.where(DispatchOrder.id.in_(select(DispatchLine.order_id).where(DispatchLine.destination==destination)))
     count = db.scalar(select(func.count()).select_from(query.subquery()))
     page = max(1, min(page, 100000))
     orders = db.scalars(query.order_by(DispatchOrder.id.desc()).offset((page - 1) * 50).limit(50)).all()
     return render(request, 'dispatches.html', context(request, user, sess, orders=orders,
-        page=page, total_pages=max(1, (count + 49) // 50)))
+        page=page, total_pages=max(1, (count + 49) // 50),customer=customer,destination=destination,channel=channel,commercial={o.id:commercial.context(db,o.id) for o in orders}))
 
 
 @router.get('/dispatches/new')
-def new(request: Request, db: Session = Depends(database)):
+def new(request: Request, channel: str = 'normal', db: Session = Depends(database)):
     user, sess = identity(request, db)
     if not user: return redirect('/login')
-    return render(request, 'dispatch_form.html', context(request, user, sess, order=None, lines=[], request_key=secrets.token_hex(16),lot_options=lot_options(db)))
+    return render(request, 'dispatch_form.html', context(request, user, sess, order=None, lines=[], request_key=secrets.token_hex(16),lot_options=lot_options(db),commercial=None,channel=channel if channel in ('normal','mercadona') else 'normal',destinations=destinations(db)))
 
 
 @router.post('/dispatches/save')
 def save(request: Request, data: dict = Depends(receiving_form), db: Session = Depends(database)):
     user, sess = form_actor(request, db, data)
     try:
-        rows = [(data.get(f'lote_{i}', ''), data.get(f'quantidade_{i}', '')) for i in range(20)]
+        rows = [(data.get(f'lote_{i}', ''), data.get(f'quantidade_{i}', ''),data.get(f'destination_{i}','')) for i in range(20)]
         rows = [row for row in rows if any(v.strip() for v in row)]
-        ident = service.save_preparation(db, user.id, data.get('request_key'), data.get('reference') or 'Preparação de escritório', rows,
+        ident = commercial.save_preparation(db, user.id, data.get('request_key'), data.get('reference') or 'Preparação de escritório', data.get('customer'),data.get('channel'),rows,
             integer(data['order_id']) if data.get('order_id') else None,
             integer(data['version']) if data.get('version') else None)
         return redirect(f'/dispatches/{ident}')
@@ -72,7 +81,7 @@ def edit(ident: int, request: Request, db: Session = Depends(database)):
     if not order.office: raise HTTPException(409,'Pedido legado: cancelar administrativamente e recriar uma preparação por lote.')
     if order.status != 'draft' or order.created_by != user.id: raise HTTPException(403)
     return render(request, 'dispatch_form.html', context(request, user, sess, order=order,
-        lines=service.lines(db, ident), request_key=order.request_key,lot_options=lot_options(db)))
+        lines=service.lines(db, ident), request_key=order.request_key,lot_options=lot_options(db),commercial=commercial.context(db,ident),channel=commercial.context(db,ident).channel if commercial.context(db,ident) else 'normal',destinations=destinations(db)))
 
 
 @router.get('/dispatches/{ident}')
@@ -82,6 +91,7 @@ def detail(ident: int, request: Request, db: Session = Depends(database)):
     order = visible(db, ident, user)
     lines = service.lines(db, ident)
     return render(request, 'office_detail.html' if order.office else 'dispatch_detail.html', context(request, user, sess, order=order, lines=lines,
+        commercial=commercial.context(db,ident),prepared={l.id:commercial.line_prepared(db,l.id) for l in lines},
         incident_key=secrets.token_hex(16), document=db.get(DispatchDocument,order.id), completion=db.get(PreparationCompletion,order.id), compensation=db.get(PreparationCompensation,order.id),
         picks=service.picks(db, ident), by_line={l.id: l for l in lines},
         available={l.id: service.availability(db, l.artigo, l.lote) for l in lines}))

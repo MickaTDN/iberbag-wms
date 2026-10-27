@@ -2,10 +2,11 @@
 import base64
 import hmac
 import hashlib
+import logging
 import secrets
 from pathlib import Path
 from types import SimpleNamespace as R
-from urllib.parse import parse_qs,quote
+from urllib.parse import parse_qs,quote,urlsplit
 from fastapi import FastAPI,Request,HTTPException
 from fastapi.responses import Response,RedirectResponse,JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,6 +16,26 @@ import iberbag
 from . import MARKER,BANNER
 from .store import Store,DemoError
 from . import simulation as sim
+
+
+security_log=logging.getLogger('iberbag_demo.security')
+
+
+def header_kind(headers,name,expected):
+    """Classify only; never put raw headers, URLs, cookies or tokens in diagnostics."""
+    values=headers.getlist(name)
+    if not values:return 'ausente'
+    if len(values)!=1:return 'repetido'
+    value=values[0]
+    if name=='origin' and value=='null':return 'null'
+    if name!='referer':return 'local' if value==expected else 'externo-ou-invalido'
+    try:
+        # Referrer paths/queries may contain secrets. Inspect the origin, never log the URL.
+        if any(ord(c)<=32 for c in value) or '\\' in value:return 'externo-ou-invalido'
+        parsed=urlsplit(value)
+        if parsed.fragment or parsed.username is not None or parsed.password is not None:return 'externo-ou-invalido'
+        return 'local' if f'{parsed.scheme}://{parsed.netloc}'==expected else 'externo-ou-invalido'
+    except ValueError:return 'externo-ou-invalido'
 
 
 def create_app(home,port,control_token,stop_callback=lambda:None):
@@ -31,9 +52,18 @@ def create_app(home,port,control_token,stop_callback=lambda:None):
     @app.middleware('http')
     async def local_only(request,call_next):
         # No proxy trust, CORS, DNS names or network clients. Reject DNS rebinding/foreign origins.
-        if not request.client or request.client.host!='127.0.0.1' or request.headers.get('host')!=f'127.0.0.1:{port}':
-            return JSONResponse({'detail':'DEMO acessível apenas no próprio computador.'},403)
-        if request.headers.get('origin') not in (None,origin):return JSONResponse({'detail':'Origem externa recusada.'},403)
+        kinds={name:header_kind(request.headers,name,expected) for name,expected in
+            (('host',f'127.0.0.1:{port}'),('origin',origin),('referer',origin))}
+        reason=None
+        if not request.client or request.client.host!='127.0.0.1' or kinds['host']!='local':
+            reason='acesso-local';detail='DEMO acessível apenas no próprio computador.'
+        elif kinds['origin'] not in ('ausente','local') or kinds['referer'] not in ('ausente','local'):
+            reason='origem';detail='Origem externa recusada.'
+            if kinds['origin']=='null':
+                detail='Origem não identificada (Origin: null). Feche os separadores antigos e volte a abrir a DEMO pelo endereço 127.0.0.1 apresentado na janela.'
+        if reason:
+            security_log.warning('Pedido DEMO recusado: motivo=%s; Host=%s; Origin=%s; Referer=%s',reason,kinds['host'],kinds['origin'],kinds['referer'])
+            return JSONResponse({'detail':detail},403)
         session_id=request.cookies.get('iberbag_demo')
         fresh=session_id not in sessions
         if fresh:
@@ -42,7 +72,9 @@ def create_app(home,port,control_token,stop_callback=lambda:None):
         request.state.session=sessions[session_id]
         response=await call_next(request)
         if fresh:response.set_cookie('iberbag_demo',session_id,httponly=True,samesite='strict')
-        response.headers.update({'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer',
+        # no-referrer makes Chromium send Origin: null on same-origin form POSTs.
+        # same-origin preserves local Origin/Referer without sending a referrer externally.
+        response.headers.update({'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'same-origin',
             'Content-Security-Policy':"default-src 'self'; script-src 'none'; style-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'"})
         return response
 

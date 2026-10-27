@@ -13,6 +13,11 @@ _runtime. Não é certificação antimalware nem autorização para contornar po
 
 ## Descarregar e iniciar a alternativa em código
 
+**Correção de formulários (27/10/2026):** resolvido o bloqueio `Origem externa recusada`
+provocado por `Referrer-Policy: no-referrer` nos POSTs de navegadores Chromium.
+Usar o pacote atualizado, encerrar a instância anterior e fechar os separadores antigos.
+Ver [causa, proteções e guia de ensaio](CORRECAO_ORIGIN_DEMO.md).
+
 1. Abrir [Actions → DEMO Windows](https://github.com/MickaTDN/iberbag-wms/actions/workflows/demo-windows.yml),
    com sessão GitHub e acesso ao repositório privado. Não instalar Git/GitHub Desktop.
 2. Numa execução verde da branch `codex/windows-local-demo`, em **Artifacts**,
@@ -64,6 +69,9 @@ Não inclui bases existentes, Excel, módulos VBA, `.env`, backups ou configura�
 
 O servidor rejeita IPs remotos, Host diferente de `127.0.0.1:porta` e Origin externo;
 não confia em cabeçalhos de proxy e não permite CORS. Não existe opção `--host`.
+Origin `null` continua recusado; Referer, quando presente, tem de ser da mesma origem.
+`Referrer-Policy: same-origin` permite os formulários locais sem enviar Referer externo.
+Os diagnósticos de recusa contêm só classificações, nunca cabeçalhos brutos ou segredos.
 Sessões efémeras usam cookies HttpOnly/SameSite e tokens CSRF em todas as mutações
 da interface. Encerramento técnico usa um segredo aleatório por processo, não um PID.
 Os testes de encerramento verificam que outro serviço local não recebe comandos.
@@ -184,7 +192,9 @@ python scripts/smoke_demo_package.py "dist/Ensaio Código ação" --source
 O workflow `.github/workflows/demo-windows.yml` usa **windows-2025 (Windows Server)**,
 Python 3.12 e bibliotecas mínimas sem SQLAlchemy/psycopg. Testa a simulação, cria o
 pacote em código, copia-o para uma pasta com espaços/acentos, cria um ambiente Python
-local e executa o ensaio HTTP real desse pacote. O artefacto publicado não contém
+local e executa o ensaio HTTP real e formulários nativos no Chrome/Edge desse pacote.
+Playwright é só ferramenta de teste, sem inclusão no ZIP/dependências da DEMO.
+O artefacto publicado não contém
 esse ambiente de teste, bases ou executável próprio. O job PyInstaller está suspenso.
 No exemplo técnico de smoke acima, a pasta de ensaio deve ter `demo-env` criado e
 as dependências instaladas localmente. Não é um procedimento para o utilizador final.

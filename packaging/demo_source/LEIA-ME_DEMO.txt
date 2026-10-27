@@ -17,6 +17,15 @@ Esta alternativa não é uma certificação antimalware. Mantenha as proteções
 O ficheiro MANIFESTO_SHA256.txt identifica os ficheiros produzidos pelo workflow;
 hashes permitem comparar integridade, não provam ausência de código malicioso.
 
+CORREÇÃO DOS FORMULÁRIOS — 27/10/2026
+Este pacote corrige o erro "Origem externa recusada" ao confirmar operações no
+Chrome/Edge. Mantém o acesso apenas por 127.0.0.1 e a proteção CSRF.
+Antes de o usar, encerrar a DEMO anterior com o seu PARAR_DEMO.bat e FECHAR todos
+os separadores antigos. Extrair este ZIP para uma pasta NOVA e seguir os passos
+abaixo; não copiar bases ou configurações da instalação definitiva.
+Usar o endereço novo apresentado no arranque, cuja porta pode ser diferente.
+Não é necessário alterar o antivírus, a firewall ou as proteções do navegador.
+
 INSTALAÇÃO (SEM COMANDOS)
 1. Extrair Tudo para uma pasta NOVA, por exemplo Documentos\IberbagDemoCodigo.
    Não misturar com a pasta do executável assinalado ou com o WMS definitivo.

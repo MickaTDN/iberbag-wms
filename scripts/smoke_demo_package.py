@@ -1,4 +1,4 @@
-"""End-to-end test of an extracted/frozen package over real loopback HTTP, without PostgreSQL."""
+"""End-to-end source-package test over loopback HTTP, without PostgreSQL."""
 import base64
 import hashlib
 import http.cookiejar
@@ -44,9 +44,12 @@ def smoke(folder,command=None):
             else:raise AssertionError('DEMO não ficou disponível em 40 segundos.')
             base=f'http://127.0.0.1:{data["port"]}'
             def get(url):
-                with opener.open(base+url,timeout=5) as r:return r.read()
+                with opener.open(base+url,timeout=5) as r:
+                    assert r.headers['Referrer-Policy']=='same-origin'
+                    return r.read()
             def post(url,fields):
-                req=urllib.request.Request(base+url,data=urllib.parse.urlencode(fields).encode())
+                req=urllib.request.Request(base+url,data=urllib.parse.urlencode(fields).encode(),
+                    headers={'Origin':base,'Referer':base+url})
                 with opener.open(req,timeout=10) as r:return r.geturl(),r.read()
             page=get('/').decode();assert 'DEMONSTRAÇÃO — DADOS FICTÍCIOS' in page
             csrf=re.search('name="csrf" value="([^"]+)"',page)[1]
@@ -59,6 +62,11 @@ def smoke(folder,command=None):
             path=urllib.parse.urlsplit(url).path
             post(path+'/confirm',dict(csrf=csrf));first=get('/documents/order-'+path.rsplit('/',1)[1]+'.pdf')
             post(path+'/confirm',dict(csrf=csrf));assert get('/documents/order-'+path.rsplit('/',1)[1]+'.pdf')==first
+            url,_=post('/dispatches/save',dict(csrf=csrf,key='f'*32,customer='Mercadona Fictícia',channel='mercadona',
+                reference='ENSAIO MERCADONA',lote_0='LOTE-DEMO-C',quantidade_0='1',destination_0='DESTINO DEMO NORTE'))
+            mpath=urllib.parse.urlsplit(url).path
+            post(mpath+'/confirm',dict(csrf=csrf))
+            assert get('/documents/order-'+mpath.rsplit('/',1)[1]+'.pdf').startswith(b'%PDF')
             fields=dict(csrf=csrf,key='b'*32,code='DEMO-PACOTE-ENTRADA',day='2025-01-02',artigo_0='ART-DEMO-SACO',lote_0='LOTE-DEMO-B',quantidade_0='4')
             assert b'CLIENTE DEMO' in post('/receipts/review',fields)[1]
             receipt_url,_=post('/receipts/confirm',fields);rid=int(urllib.parse.urlsplit(receipt_url).path.rsplit('/',1)[1])
@@ -86,7 +94,7 @@ def smoke(folder,command=None):
             assert stopped.returncode==0
             assert proc.wait(timeout=15)==0
             assert not control.exists()
-            print('Pacote: arranque local, navegação, FIFO/pendentes, entradas, arrumação, transferência, inventário, PDFs, reposição e encerramento verificados.')
+            print('Pacote: arranque local, navegação, cabeçalhos de formulário local, FIFO/pendentes, Mercadona, entradas, arrumação, transferência, inventário, PDFs, reposição e encerramento verificados.')
         finally:
             if proc and proc.poll() is None:
                 subprocess.run(command+['stop','--home',str(folder)],cwd=folder,env=env,capture_output=True,timeout=10)

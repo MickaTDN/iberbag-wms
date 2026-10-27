@@ -189,7 +189,7 @@ def test_fallback_package_allowlist(tmp_path):
 
 def test_real_loopback_start_reuse_flows_and_stop(tmp_path):
     from scripts.smoke_demo_package import smoke
-    # Source invocation covers Linux/Windows; frozen binary is tested separately by the workflow.
+    # Source invocation covers Linux/Windows; custom executable execution remains suspended.
     smoke(tmp_path,[sys.executable,'-m','iberbag_demo'])
 
 

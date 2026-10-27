@@ -149,6 +149,9 @@ def confirm_receipt(db, actor, receipt_id, version):
     db.flush()
     record.carga_id, record.receiver = carga.id, actor.username
     record.status, record.confirmed_at = 'confirmed', now_utc()
+    db.flush()
+    from .commercial import allocate_incoming
+    allocate_incoming(db,actor,record)
     db.add(Audit(username=actor.username, action='CONFIRMAR_ENTRADA', details=f'Entrada {record.id}; carga {record.code}.'))
     return record.id
 
@@ -156,7 +159,8 @@ def confirm_receipt(db, actor, receipt_id, version):
 def remaining(db, line):
     placed = db.scalar(select(func.coalesce(func.sum(Putaway.quantidade), 0)).where(
         Putaway.line_id == line.id, Putaway.status == 'confirmed'))
-    return line.quantidade - placed
+    from .commercial import allocated
+    return line.quantidade - placed - allocated(db,line.id)
 
 
 def canonical_location(db, value):

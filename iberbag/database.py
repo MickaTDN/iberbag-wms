@@ -252,13 +252,16 @@ class DispatchOrder(Base):
 
 class DispatchLine(Base):
     __tablename__ = 'dispatch_lines'
+    destination: Mapped[str] = mapped_column(String(120), nullable=False, default='', server_default='')
+    destination_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
+    destination_highlight: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
     id: Mapped[int] = mapped_column(primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey('dispatch_orders.id'), nullable=False, index=True)
     artigo: Mapped[str] = mapped_column(String(120), nullable=False)
     lote: Mapped[str] = mapped_column(String(120), nullable=False)
     quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
     __table_args__ = (
-        UniqueConstraint('order_id', 'artigo', 'lote', name='dispatch_line_unique'),
+        UniqueConstraint('order_id', 'artigo', 'lote', 'destination', name='dispatch_line_unique'),
         CheckConstraint('quantidade > 0', name='dispatch_line_positive'),
     )
 
@@ -429,3 +432,72 @@ class PreparationCompensation(Base):
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     actor: Mapped[str] = mapped_column(String(60), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+
+
+class MercadonaDestination(Base):
+    __tablename__ = 'mercadona_destinations'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    highlighted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class CommercialPreparation(Base):
+    __tablename__ = 'commercial_preparations'
+    order_id: Mapped[int] = mapped_column(ForeignKey('dispatch_orders.id'), primary_key=True)
+    customer: Mapped[str] = mapped_column(String(120), nullable=False)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    __table_args__ = (CheckConstraint("channel IN ('normal','mercadona')", name='commercial_channel'),)
+
+
+class CustomerPending(Base):
+    __tablename__ = 'customer_pending'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    line_id: Mapped[int] = mapped_column(ForeignKey('dispatch_lines.id'), unique=True, nullable=False)
+    quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False, index=True)
+    actor: Mapped[str] = mapped_column(String(60), nullable=False)
+    __table_args__ = (CheckConstraint('quantidade > 0', name='customer_pending_positive'),)
+
+
+class PendingAllocation(Base):
+    __tablename__ = 'pending_allocations'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pending_id: Mapped[int] = mapped_column(ForeignKey('customer_pending.id'), nullable=False, index=True)
+    receipt_line_id: Mapped[int] = mapped_column(ForeignKey('receipt_lines.id'), nullable=False, index=True)
+    quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
+    actor: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+    __table_args__ = (UniqueConstraint('pending_id','receipt_line_id',name='pending_allocation_unique'),
+                     CheckConstraint('quantidade > 0', name='pending_allocation_positive'))
+
+
+class AllocationCollection(Base):
+    __tablename__ = 'allocation_collections'
+    allocation_id: Mapped[int] = mapped_column(ForeignKey('pending_allocations.id'), primary_key=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    actor: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+
+
+class ReceiptDocument(Base):
+    __tablename__ = 'receipt_documents'
+    receipt_id: Mapped[int] = mapped_column(ForeignKey('receipts.id'), primary_key=True)
+    pdf: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class IncompleteComposition(Base):
+    """Documentary draft only: not a pallet identity or a stock movement."""
+    __tablename__ = 'incomplete_compositions'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    receipt_line_id: Mapped[int | None] = mapped_column(ForeignKey('receipt_lines.id'), unique=True)
+    reference: Mapped[str] = mapped_column(String(120), nullable=False)
+    components: Mapped[str] = mapped_column(Text, nullable=False)
+    observation: Mapped[str] = mapped_column(Text, nullable=False)
+    physical_pallets: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    actor: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+    __table_args__ = (CheckConstraint('physical_pallets = 1', name='composition_one_physical_pallet'),)

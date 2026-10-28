@@ -1,3 +1,5 @@
+from conftest import BACKUP_PASSWORD
+from conftest import login_data
 """Etapa 7: exclusively synthetic PostgreSQL warehouse/accounting scenarios."""
 import json
 import re
@@ -297,7 +299,7 @@ def test_composition_draft_preserves_boxes_no_stock_and_no_normal_pallet_ids(war
 
 
 def login(client,role,accounts):
-    assert client.post('/login',data={'username':role,'password':accounts[role][1]},follow_redirects=False).status_code==303
+    assert client.post('/login',data=login_data(client, {'username':role,'password':accounts[role][1]}),follow_redirects=False).status_code==303
     return re.search('name="csrf" value="([^"]+)"',client.get('/').text)[1]
 
 
@@ -340,8 +342,8 @@ def test_stage7_backup_restore_and_0005_upgrade(warehouse,pg_databases,tmp_path,
     with Session(engine) as db:
         biz.save_composition(db,actor,secrets.token_hex(16),'FICTÍCIO',[('M','3')],'A esclarecer')
         biz.save_destination(db,actor,'DESTINO FICTÍCIO',1)
-    folder=tmp_path/'backup7';backup.backup(engine,folder,runner=docker_client)
-    target=pg_databases(restricted=True);assert backup.restore(target,folder,runner=docker_client)['status']=='reconciled'
+    folder=tmp_path/'backup7';backup.backup(engine,folder,runner=docker_client, passphrase=BACKUP_PASSWORD)
+    target=pg_databases(restricted=True);assert backup.restore(target,folder,runner=docker_client, passphrase=BACKUP_PASSWORD)['status']=='reconciled'
     with Session(engine) as original,Session(target) as restored:
         assert restored.get(ReceiptDocument,receipt_id).pdf==original.get(ReceiptDocument,receipt_id).pdf
         assert restored.get(DispatchDocument,order).pdf==original.get(DispatchDocument,order).pdf
@@ -350,8 +352,8 @@ def test_stage7_backup_restore_and_0005_upgrade(warehouse,pg_databases,tmp_path,
     with legacy.begin() as conn:
         cfg=config();cfg.attributes['connection']=conn;command.upgrade(cfg,'0005')
         conn.execute(text("INSERT INTO app_config(key,value) VALUES ('warehouse_layout_seeded_vba','1')"))
-    old_folder=tmp_path/'old5';backup.backup(legacy,old_folder,runner=docker_client)
-    restore=pg_databases(restricted=True);backup.restore(restore,old_folder,runner=docker_client)
+    old_folder=tmp_path/'old5';backup.backup(legacy,old_folder,runner=docker_client, passphrase=BACKUP_PASSWORD)
+    restore=pg_databases(restricted=True);backup.restore(restore,old_folder,runner=docker_client, passphrase=BACKUP_PASSWORD)
     from iberbag.schema_upgrade import apply_upgrade,preview
     assert preview(legacy)['from']=='0005' and apply_upgrade(legacy,old_folder)['revision']==REVISION
     with legacy.connect() as conn,restore.connect() as old_conn:
@@ -434,7 +436,7 @@ def test_0005_upgrade_preserves_confirmed_office_stock_pdf_and_identity(warehous
         doc=Table('dispatch_documents',MetaData(),autoload_with=conn)
         import hashlib
         conn.execute(doc.insert().values(order_id=order,pdf=pdf,sha256=hashlib.sha256(pdf).hexdigest(),stock_versions='{}'))
-    folder=tmp_path/'legacy5-populated';backup.backup(old,folder,runner=docker_client);backup.restore(restored,folder,runner=docker_client)
+    folder=tmp_path/'legacy5-populated';backup.backup(old,folder,runner=docker_client, passphrase=BACKUP_PASSWORD);backup.restore(restored,folder,runner=docker_client, passphrase=BACKUP_PASSWORD)
     with pytest.raises(ValueError,match='restauro'):
         # A folder with archive/manifest alone is insufficient; the real proof remains required.
         import shutil

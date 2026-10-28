@@ -14,7 +14,7 @@ def main():
     try:
         subprocess.run(['docker', 'run', '--detach', '--rm', '--name', name,
                         '-e', 'POSTGRES_PASSWORD=' + password, '-e', 'POSTGRES_DB=iberbag_test',
-                        '-p', '127.0.0.1::5432', 'postgres:17'], check=True, stdout=subprocess.DEVNULL)
+                        '-p', '127.0.0.1::5432', 'postgres:17@sha256:b8faeff7712663c2773a190181e1246e37e364b887611c04658c28b44e2408fe'], check=True, stdout=subprocess.DEVNULL)
         for attempt in range(60):
             if subprocess.run(['docker', 'exec', name, 'pg_isready', '-U', 'postgres'],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:

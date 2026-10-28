@@ -1,3 +1,5 @@
+from conftest import BACKUP_PASSWORD
+from conftest import login_data
 import re
 import secrets
 from concurrent.futures import ThreadPoolExecutor
@@ -205,7 +207,7 @@ def test_interface_permissions_csrf_stock_and_map(warehouse):
         with TestClient(app) as client,TestClient(app) as admin:
             assert client.get('/transfers',follow_redirects=False).status_code==303
             for c,role in ((client,'operador'),(admin,'admin')):
-                assert c.post('/login',data={'username':role,'password':accounts[role][1]},follow_redirects=False).status_code==303
+                assert c.post('/login',data=login_data(c, {'username':role,'password':accounts[role][1]}),follow_redirects=False).status_code==303
             form=client.get('/transfers/new?source=Chão'); csrf=field(form,'csrf')
             assert 'UI-LOAD' in form.text
             data=dict(csrf=csrf,request_key=field(form,'request_key'),stock_id=field(form,'stock_id'),destination='A101',quantidade='1')
@@ -230,8 +232,8 @@ def test_transfer_history_backup_restore_and_test_migration(warehouse,pg_databas
     engine,accounts=warehouse; actor=accounts['admin'][0]
     stock=add_stock(engine,'ONE'); ident=review(engine,actor,stock,'A101'); confirm(engine,actor,ident)
     restored=pg_databases(restricted=True); folder=tmp_path/'backup'
-    backup.backup(engine,folder,runner=docker_client)
-    assert backup.restore(restored,folder,runner=docker_client)['status']=='reconciled'
+    backup.backup(engine,folder,runner=docker_client, passphrase=BACKUP_PASSWORD)
+    assert backup.restore(restored,folder,runner=docker_client, passphrase=BACKUP_PASSWORD)['status']=='reconciled'
     with Session(restored) as db: assert db.get(StockTransfer,ident).confirmed_by=='admin'
     with restored.begin() as conn,pytest.raises(IntegrityError): conn.execute(text('DELETE FROM stock_transfers'))
     with engine.connect() as conn: data=transfer.read_data(conn)
@@ -254,11 +256,11 @@ def test_upgrade_0003_requires_verified_backup_and_preserves_stock(warehouse,pg_
         cfg=config(); cfg.attributes['connection']=conn; command.upgrade(cfg,'0003')
     with Session(legacy) as db: seed_legacy_catalogue(db)
     add_stock(legacy,'LEGACY',qty=3)
-    folder=tmp_path/'backup'; backup.backup(legacy,folder,runner=docker_client)
+    folder=tmp_path/'backup'; backup.backup(legacy,folder,runner=docker_client, passphrase=BACKUP_PASSWORD)
     assert preview(legacy)['from']=='0003'
     with pytest.raises(ValueError,match='restauro'): apply_upgrade(legacy,folder)
-    backup.restore(restored,folder,runner=docker_client)
-    assert apply_upgrade(legacy,folder)['revision']=='0006'
+    backup.restore(restored,folder,runner=docker_client, passphrase=BACKUP_PASSWORD)
+    assert apply_upgrade(legacy,folder)['revision']=='0007'
     assert apply_upgrade(legacy,folder)['status']=='already_current'
     assert preview(legacy)['data']==preview(restored)['data']
     with Session(legacy) as db: assert all(db.scalars(select(Location.active)).all())

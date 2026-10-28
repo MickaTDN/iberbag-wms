@@ -51,8 +51,11 @@ def main():
         check_database()
         from .database import engine
         from .privileges import validate_runtime
-        with engine.connect() as connection:
-            validate_runtime(connection)
+        try:
+            with engine.connect() as connection:
+                validate_runtime(connection)
+        except ValueError as error:
+            raise SystemExit('Arranque recusado: configurar conta web restrita. '+str(error)) from None
         import uvicorn
         uvicorn.run('iberbag.app:app', host='127.0.0.1', port=8000, workers=2,
                     proxy_headers=True, forwarded_allow_ips='127.0.0.1')

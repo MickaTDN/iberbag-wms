@@ -126,7 +126,7 @@ dos YAMLs nesta branch não prova que os serviços administrativos estejam ativo
   com as alterações operacionais sobrepostas; nenhum merge efetuado.
 - Instalação Linux pelos locks com hashes e `pip check`; disponibilidade de wheels
   Python 3.12 Windows x64 verificada por download com hashes, sem executar binários.
-- PyPI: sem vulnerabilidades conhecidas no lock de produção, incluindo cryptography
+- PyPI: sem vulnerabilidades conhecidas nos locks de produção e segurança (inclui ferramentas/testes), incluindo cryptography
   50.0.2. Bandit: sem ocorrências médias/altas; avisos baixos restantes são triados
   (subprocess sem shell e escape XML para composição de PDFs).
 - Testes: login legítimo/malicioso e várias sessões, ambiente herdado envenenado,

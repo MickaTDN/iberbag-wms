@@ -21,8 +21,11 @@ def windows_acl(path, create):
     api.SetFileSecurityW.argtypes=[w.LPCWSTR,w.DWORD,pointer];api.SetFileSecurityW.restype=w.BOOL
     api.GetFileSecurityW.argtypes=[w.LPCWSTR,w.DWORD,pointer,w.DWORD,c.POINTER(w.DWORD)];api.GetFileSecurityW.restype=w.BOOL
     api.GetSecurityDescriptorControl.argtypes=[pointer,c.POINTER(w.WORD),c.POINTER(w.DWORD)];api.GetSecurityDescriptorControl.restype=w.BOOL
-    api.ConvertSecurityDescriptorToStringSecurityDescriptorW.argtypes=[pointer,w.DWORD,w.DWORD,c.POINTER(pointer),c.POINTER(w.DWORD)]
-    api.ConvertSecurityDescriptorToStringSecurityDescriptorW.restype=w.BOOL
+    api.ConvertStringSidToSidW.argtypes=[w.LPCWSTR,c.POINTER(pointer)];api.ConvertStringSidToSidW.restype=w.BOOL
+    api.GetSecurityDescriptorDacl.argtypes=[pointer,c.POINTER(w.BOOL),c.POINTER(pointer),c.POINTER(w.BOOL)];api.GetSecurityDescriptorDacl.restype=w.BOOL
+    api.GetAclInformation.argtypes=[pointer,pointer,w.DWORD,c.c_int];api.GetAclInformation.restype=w.BOOL
+    api.GetAce.argtypes=[pointer,w.DWORD,c.POINTER(pointer)];api.GetAce.restype=w.BOOL
+    api.EqualSid.argtypes=[pointer,pointer];api.EqualSid.restype=w.BOOL
 
     def check(result):
         if not result:
@@ -60,22 +63,30 @@ def windows_acl(path, create):
     control=w.WORD();revision=w.DWORD()
     check(api.GetSecurityDescriptorControl(descriptor,c.byref(control),c.byref(revision)))
     if not control.value & 0x1000:raise ValueError('ACL Windows privada: herança não protegida.')
-    result=pointer()
-    check(api.ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor,1,4,c.byref(result),None))
-    try:sddl=c.wstring_at(result)
-    finally:kernel.LocalFree(result)
-    import re
-    expected={sid,'S-1-5-18'};actual=set()
-    for ace in re.findall(r'\(([^()]*)\)',sddl):
-        fields=ace.split(';')
-        if (len(fields)!=6 or fields[0]!='A' or fields[2] not in ('FA','0x1f01ff')
-                or 'OI' not in fields[1] or 'CI' not in fields[1] or 'ID' in fields[1]
-                or fields[3] or fields[4]):
-            raise ValueError('ACL Windows privada: regra inesperada.')
-        identity='S-1-5-18' if fields[5]=='SY' else fields[5]
-        if identity not in expected:raise ValueError('ACL Windows privada: acesso de terceiros recusado.')
-        actual.add(identity)
-    if actual!=expected:raise ValueError('ACL Windows privada: permissões obrigatórias em falta.')
+    # Compare binary SIDs. SDDL aliases (e.g. local Administrator) are not
+    # stable textual identities and must not be mistaken for additional users.
+    present=w.BOOL();defaulted=w.BOOL();dacl=pointer()
+    check(api.GetSecurityDescriptorDacl(descriptor,c.byref(present),c.byref(dacl),c.byref(defaulted)))
+    if not present.value or not dacl.value:raise ValueError('ACL Windows privada: DACL obrigatória em falta.')
+    class AclSize(c.Structure):
+        _fields_=[('count',w.DWORD),('used',w.DWORD),('free',w.DWORD)]
+    info=AclSize();check(api.GetAclInformation(dacl,c.byref(info),c.sizeof(info),2))
+    if not 1<=info.count<=2:raise ValueError('ACL Windows privada: número de regras inesperado.')
+    system=pointer();check(api.ConvertStringSidToSidW('S-1-5-18',c.byref(system)))
+    try:
+        found_user=found_system=False
+        for i in range(info.count):
+            ace=pointer();check(api.GetAce(dacl,i,c.byref(ace)))
+            header=c.cast(ace,c.POINTER(c.c_ubyte))
+            mask=c.cast(ace.value+4,c.POINTER(w.DWORD))[0]
+            if header[0]!=0 or header[1]!=3 or mask!=0x1f01ff:
+                raise ValueError('ACL Windows privada: regra inesperada.')
+            identity=pointer(ace.value+8)  # ACCESS_ALLOWED_ACE.SidStart
+            is_user=bool(api.EqualSid(identity,sid_pointer));is_system=bool(api.EqualSid(identity,system))
+            if not is_user and not is_system:raise ValueError('ACL Windows privada: acesso de terceiros recusado.')
+            found_user|=is_user;found_system|=is_system
+        if not found_user or not found_system:raise ValueError('ACL Windows privada: permissões obrigatórias em falta.')
+    finally:kernel.LocalFree(system)
 
 
 def private_folder(folder,create=False):

@@ -5,7 +5,7 @@ from alembic.config import Config
 from sqlalchemy import inspect, text
 from .database import engine, SessionLocal, AppConfig, seed_warehouse_layout
 
-REVISION = "0006"
+REVISION = "0007"
 
 def config():
     cfg = Config()

@@ -1,3 +1,5 @@
+from conftest import BACKUP_PASSWORD
+from conftest import login_data
 from legacy_catalogue import seed_legacy_catalogue
 import re
 import secrets
@@ -166,7 +168,7 @@ def test_ui_permissions_and_stock_traceability(warehouse):
         with TestClient(app) as client, TestClient(app) as other:
             assert client.get('/receipts', follow_redirects=False).status_code == 303
             for c, role in [(client, 'operador'), (other, 'other')]:
-                assert c.post('/login', data={'username': role, 'password': accounts[role][1]}, follow_redirects=False).status_code == 303
+                assert c.post('/login', data=login_data(c, {'username': role, 'password': accounts[role][1]}), follow_redirects=False).status_code == 303
             form = client.get('/receipts/new'); csrf = field(form, 'csrf')
             data = dict(csrf=csrf, request_key=field(form, 'request_key'), code='UI-CARGA', received_on='2026-01-10', artigo_0='UI-ART', lote_0='UI-LOT', quantidade_0='2')
             response = client.post('/receipts/review', data=data)
@@ -207,9 +209,9 @@ def test_verified_upgrade_preserves_legacy_data(warehouse, pg_databases, tmp_pat
     from iberbag.schema_upgrade import preview, apply_upgrade
     assert preview(legacy)['from'] == '0001'
     folder = tmp_path / 'backup'
-    backup.backup(legacy, folder, runner=docker_client)
+    backup.backup(legacy, folder, runner=docker_client, passphrase=BACKUP_PASSWORD)
     with pytest.raises(ValueError, match='restauro'): apply_upgrade(legacy, folder)
-    backup.restore(restored, folder, runner=docker_client)
+    backup.restore(restored, folder, runner=docker_client, passphrase=BACKUP_PASSWORD)
     assert apply_upgrade(legacy, folder)['status'] == 'upgraded'
     assert apply_upgrade(legacy, folder)['status'] == 'already_current'
     assert preview(legacy)['data'] == preview(restored)['data']
@@ -250,9 +252,9 @@ def test_confirmed_history_backup_restore_and_legacy_upgrade_data(warehouse, pg_
     ident = draft(engine, actor, line, 'Chão', 2)
     with Session(engine) as db: ops.confirm_putaway(db, actor, ident)
     folder = tmp_path / 'operational-backup'
-    backup.backup(engine, folder, runner=docker_client)
+    backup.backup(engine, folder, runner=docker_client, passphrase=BACKUP_PASSWORD)
     restored = pg_databases(restricted=True)
-    assert backup.restore(restored, folder, runner=docker_client)['status'] == 'reconciled'
+    assert backup.restore(restored, folder, runner=docker_client, passphrase=BACKUP_PASSWORD)['status'] == 'reconciled'
     with Session(restored) as db:
         assert db.get(Putaway, ident).arranger == 'admin'
         assert ops.remaining(db, db.get(ReceiptLine, line)) == 0

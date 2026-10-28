@@ -17,3 +17,9 @@ Caddyfile
 ensaios/
 backup-*/
 migration-*/
+
+# Private backup/access keys must never be versioned
+*.key
+*.pfx
+*.p12
+*.pem

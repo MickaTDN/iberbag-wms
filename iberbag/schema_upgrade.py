@@ -14,7 +14,8 @@ def revision(connection):
 def preview(engine):
     with engine.connect().execution_options(isolation_level='REPEATABLE READ') as connection:
         old = revision(connection)
-        changes = [] if old == REVISION else ['commercial pending, incoming allocations, receipt PDF archive, destination snapshots, incomplete composition drafts']
+        changes = [] if old == REVISION else ['append-only administrative audit']
+        if old not in (REVISION, '0006'): changes += ['commercial pending, incoming allocations, receipt PDF archive, destination snapshots, incomplete composition drafts']
         if old in ('0001','0002','0003','0004'):
             changes += ['inventories, adjustments, incidents, PDF archive, location clocks, office preparations']
         if old in ('0001','0002','0003'):
@@ -32,7 +33,7 @@ def apply_upgrade(engine, folder):
         raise ValueError('Atualização operacional exige PostgreSQL.')
     folder = Path(folder)
     manifest = json.loads((folder / 'manifest.json').read_text(encoding='utf-8'))
-    if manifest.get('format') != 1 or digest_file(folder / 'database.dump') != manifest['archive_sha256']:
+    if manifest.get('format') not in (1, 2) or digest_file(folder / 'database.dump') != manifest['archive_sha256']:
         raise ValueError('Backup inválido ou alterado.')
     verified = False
     for path in folder.glob('restore-*.json'):
@@ -49,8 +50,8 @@ def apply_upgrade(engine, folder):
         old = revision(connection)
         if old == REVISION:
             return {'status': 'already_current', 'revision': REVISION}
-        if old not in ('0001', '0002', '0003', '0004', '0005'):
-            raise ValueError('É suportada a atualização 0001/0002/0003/0004/0005 → 0006.')
+        if old not in ('0001', '0002', '0003', '0004', '0005', '0006'):
+            raise ValueError('É suportada a atualização 0001/0002/0003/0004/0005/0006 → 0007.')
         before = inventory(read_data(connection))
         if before != manifest['inventory']:
             raise ValueError('A base mudou desde o backup. Parar aplicação, fazer novo backup e ensaiar restauro.')

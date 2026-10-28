@@ -9,7 +9,8 @@ def main():
     name = input('Nome da base de TESTE [iberbag_ensaio_test]: ').strip() or 'iberbag_ensaio_test'
     if not name.endswith('_test') or not name.replace('_', '').isalnum():
         raise SystemExit('Usar letras, números, _ e nome terminado em _test.')
-    env = dict(os.environ, WMS_DB_NAME=name)
+    env = {k:v for k,v in os.environ.items() if not k.startswith(('WMS_', 'PG'))}
+    env['WMS_DB_NAME'] = name
     # The assisted test menu must not accidentally inherit a production URL.
     env.pop('WMS_DATABASE_URL', None)
     env['WMS_DB_HOST'] = '127.0.0.1'

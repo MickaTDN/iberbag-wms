@@ -55,7 +55,8 @@ def read_data(connection):
     if names - expected - {'alembic_version'} or legacy_revision is None or inspector.get_view_names():
         raise ValueError('Esquema diferente da v2.3: tabelas em falta, adicionais ou vistas. Rever manualmente.')
     if 'alembic_version' in names:
-        if connection.execute(text('SELECT version_num FROM alembic_version')).scalars().all() != [legacy_revision]:
+        versions = connection.execute(text('SELECT version_num FROM alembic_version')).scalars().all()
+        if versions not in ([[legacy_revision], ['0006']] if not missing else [[legacy_revision]]):
             raise ValueError('Revisão incompatível.')
     if connection.dialect.name == 'sqlite':
         if connection.scalar(text('SELECT count(*) FROM users WHERE active NOT IN (0, 1) OR active IS NULL')):
@@ -73,7 +74,7 @@ def read_data(connection):
         defaults={}
         if table.name=='dispatch_orders' and legacy_revision in ('0001','0002','0003','0004'):
             defaults=dict(office=False,cancellation_reason=None,cancelled_by=None,cancelled_at=None)
-        if table.name=='dispatch_lines' and legacy_revision!='0006':
+        if table.name=='dispatch_lines' and legacy_revision in ('0001','0002','0003','0004','0005'):
             defaults=dict(destination='',destination_order=0,destination_highlight=False)
         if columns != set(table.columns.keys())-set(defaults) and not legacy_locations:
             raise ValueError(f'Colunas incompatíveis: {table.name}.')

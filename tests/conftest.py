@@ -36,3 +36,12 @@ def cleanup_database():
         with _admin.begin() as conn:
             conn.exec_driver_sql(f'DROP SCHEMA {_schema} CASCADE')
         _admin.dispose()
+
+
+def login_data(client, data):
+    import re
+    token = re.search('name="login_csrf" value="([^"]+)"', client.get('/login').text)[1]
+    return dict(data, login_csrf=token)
+
+import secrets
+BACKUP_PASSWORD = secrets.token_urlsafe(32)

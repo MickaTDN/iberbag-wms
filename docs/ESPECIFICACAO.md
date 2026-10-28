@@ -1,3 +1,5 @@
+> Atualização de segurança: revisão 0007, conta web separada, login CSRF e backups cifrados. Antes de seguir os exemplos históricos abaixo, consultar [Correções de segurança](CORRECOES_SEGURANCA_2026_10.md).
+
 # Iberbag WMS — Especificação para desenvolvimento
 
 ## Infraestrutura

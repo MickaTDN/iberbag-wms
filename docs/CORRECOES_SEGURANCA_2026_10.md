@@ -136,6 +136,6 @@ dos YAMLs nesta branch não prova que os serviços administrativos estejam ativo
 
 Os resultados locais não substituem Windows 11 físico, PostgreSQL nativo no Windows,
 permissões da instalação empresarial, senhas/chaves de recuperação e impressão.
-A CI Windows verificará a ACL com PowerShell e a regressão SQLite; a sua conclusão
+A CI Windows verificará a ACL pelas APIs nativas Windows e a regressão SQLite; a sua conclusão
 será indicada no PR. Não afirmar configurações administrativas resolvidas com base
 apenas em ficheiros ou quando a API devolve 403.

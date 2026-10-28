@@ -1,5 +1,7 @@
 name: Tests
 on: [push, pull_request]
+env:
+  PYTHONUTF8: '1'
 permissions:
   contents: read
 jobs:

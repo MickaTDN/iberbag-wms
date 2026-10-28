@@ -16,6 +16,7 @@ import iberbag
 from . import MARKER,BANNER
 from .store import Store,DemoError
 from . import simulation as sim
+from .inventory_print import inventory_map_pdf
 
 
 security_log=logging.getLogger('iberbag_demo.security')
@@ -214,6 +215,15 @@ def create_app(home,port,control_token,stop_callback=lambda:None):
         data=await form(request)
         store.change(lambda s:sim.move(s,int_value(data.get('stock_id')),data.get('local'),data.get('quantidade'),key(data),actor(request)))
         return redirect('/transfers')
+
+    @app.get('/inventory/mapa-verificacao.pdf')
+    def inventory_print(request:Request, corredor:str='A', formato:str='compacto'):
+        try:
+            content=inventory_map_pdf(store.snapshot(),corredor,formato)
+        except ValueError:
+            raise HTTPException(400,'Selecionar um corredor e formato validos.')
+        return Response(content,media_type='application/pdf',
+                        headers={'Content-Disposition':'inline; filename="inventario-demo-'+corredor.upper()+'-'+formato+'.pdf"'})
 
     @app.get('/inventory')
     def inventories(request:Request):return render(request,'demo_inventory.html',inv=None,request_key=secrets.token_hex(16),rows=[])

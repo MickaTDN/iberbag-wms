@@ -1,5 +1,6 @@
 """Restrict new backup folders before any sensitive file is written."""
 import os
+import re
 from pathlib import Path
 import subprocess
 
@@ -15,13 +16,18 @@ if ($env:IBERBAG_SET_ACL -eq '1') {
  $stage='descriptor'
  # Preserve owner/group and modify ONLY the DACL of this new owned folder.
  $acl=Get-Acl -LiteralPath $p
+ $stage='protect'
  $acl.SetAccessRuleProtection($true,$false)
+ $stage='remove-rules'
  foreach ($r in $acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])) {
   $acl.RemoveAccessRuleSpecific($r)
  }
  foreach ($id in @($sid,'S-1-5-18')) {
-  $identity=New-Object System.Security.Principal.SecurityIdentifier($id)
-  $rule=New-Object System.Security.AccessControl.FileSystemAccessRule($identity,'FullControl','ContainerInherit,ObjectInherit','None','Allow')
+  $stage='build-rule'
+  $identity=[System.Security.Principal.SecurityIdentifier]::new($id)
+  $flags=[System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
+  $rule=[System.Security.AccessControl.FileSystemAccessRule]::new($identity,[System.Security.AccessControl.FileSystemRights]::FullControl,$flags,[System.Security.AccessControl.PropagationFlags]::None,[System.Security.AccessControl.AccessControlType]::Allow)
+  $stage='add-rule'
   $acl.AddAccessRule($rule)
  }
  $stage='set-acl'
@@ -49,9 +55,9 @@ def private_folder(folder,create=False):
             stage='unknown'; kind='permission-error'
             for value in result.stderr.decode('ascii',errors='ignore').splitlines():
                 error=value.removeprefix('IBERBAG_ACL_ERROR=')
-                if error in ('UnauthorizedAccessException','PrivilegeNotHeldException','ArgumentException','IOException','IdentityNotMappedException','SecurityException'): kind=error
+                if re.fullmatch(r'[A-Za-z]{1,80}(?:Exception|Error)',error): kind=error
                 candidate=value.removeprefix('IBERBAG_ACL_STAGE=')
-                if candidate in ('identity','path','descriptor','set-acl','verify'): stage=candidate
+                if candidate in ('identity','path','descriptor','protect','remove-rules','build-rule','add-rule','set-acl','verify'): stage=candidate
             raise ValueError('ACL Windows privada não confirmada ('+stage+'; '+kind+'). Nenhum backup/restauro iniciado.')
     elif path.stat().st_uid!=os.getuid() or path.stat().st_mode & 0o077:
         raise ValueError('Pasta privada deve pertencer ao utilizador e ter permissões 0700.')

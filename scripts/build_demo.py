@@ -7,7 +7,7 @@ import shutil
 ROOT=Path(__file__).resolve().parent.parent
 
 
-MODULES=('__init__.py','__main__.py','app.py','store.py','simulation.py')
+MODULES=('__init__.py','__main__.py','app.py','store.py','simulation.py','inventory_print.py')
 TEMPLATES=('demo_dashboard.html','demo_dispatches.html','demo_inventory.html','demo_map.html','demo_message.html',
     'demo_pending.html','demo_putaway.html','demo_receipt_review.html','demo_receipts.html','demo_reset.html',
     'demo_settings.html','demo_stock.html','demo_transfers.html')

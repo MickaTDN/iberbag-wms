@@ -16,7 +16,7 @@ def main():
                         '-e', 'POSTGRES_PASSWORD=' + password, '-e', 'POSTGRES_DB=iberbag_test',
                         '-p', '127.0.0.1::5432', 'postgres:17'], check=True, stdout=subprocess.DEVNULL)
         for attempt in range(60):
-            if subprocess.run(['docker', 'exec', name, 'pg_isready', '-U', 'postgres'],
+            if subprocess.run(['docker', 'exec', name, 'pg_isready', '-h', '127.0.0.1', '-U', 'postgres'],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
                 break
             time.sleep(0.5)
@@ -28,7 +28,7 @@ def main():
                          host='127.0.0.1', port=port, database='iberbag_test')
         env = dict(os.environ, WMS_TEST_POSTGRES_URL=url.render_as_string(hide_password=False),
                    WMS_TEST_PG_CONTAINER=name)
-        result = subprocess.run([sys.executable, '-m', 'pytest', '-q'], env=env,
+        result = subprocess.run([sys.executable, '-m', 'pytest', '-q', *sys.argv[1:]], env=env,
                                 cwd=Path(__file__).resolve().parent.parent)
     finally:
         subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

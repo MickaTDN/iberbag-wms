@@ -4,7 +4,7 @@
 <h1>{{ 'Corrigir rascunho' if receipt else 'Nova carga recebida' }}</h1>
 <p>O responsável pela receção será o utilizador que confirmar: <strong>{{ user.display_name }} ({{ user.username }})</strong>.</p>
 <form method="post" action="/receipts/review" class="panel">
-<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="request_key" value="{{ request_key }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="context_id" value="{{ active_context_id }}"><input type="hidden" name="request_key" value="{{ request_key }}">
 {% if receipt %}<input type="hidden" name="receipt_id" value="{{ receipt.id }}"><input type="hidden" name="version" value="{{ receipt.version }}">{% endif %}
 <label>Código da carga <input required maxlength="120" name="code" value="{{ receipt.code if receipt else '' }}"></label>
 <label>Data de entrada <input required type="date" name="received_on" value="{{ receipt.received_on.strftime('%Y-%m-%d') if receipt else '' }}"></label>

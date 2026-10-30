@@ -2,8 +2,8 @@
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from sqlalchemy import select, text, create_engine, String, Integer, DateTime, Boolean, BigInteger, LargeBinary, ForeignKey, CheckConstraint, UniqueConstraint, Index, Text
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, relationship
+from sqlalchemy import select, text, create_engine, String, Integer, DateTime, Boolean, BigInteger, LargeBinary, ForeignKey, CheckConstraint, UniqueConstraint, Index, Text, ForeignKeyConstraint, event, inspect as sa_inspect, PrimaryKeyConstraint
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, relationship, Session, with_loader_criteria
 
 ROOT = Path(__file__).resolve().parent.parent
 DATABASE_URL = os.getenv('WMS_DATABASE_URL', f'sqlite:///{ROOT / "iberbag-dev.db"}')
@@ -16,6 +16,37 @@ def now_utc():
 
 class Base(DeclarativeBase):
     pass
+
+
+class Warehouse(Base):
+    __tablename__ = 'warehouses'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+class Client(Base):
+    """Stock owner; distinct from the commercial consignee on an order."""
+    __tablename__ = 'clients'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    tracking: Mapped[str | None] = mapped_column(String(40))
+    unit: Mapped[str | None] = mapped_column(String(40))
+    pallet_operations: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+class StorageContext(Base):
+    __tablename__ = 'storage_contexts'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    client_id: Mapped[int] = mapped_column(ForeignKey('clients.id'), nullable=False)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey('warehouses.id'), nullable=False)
+    area: Mapped[str] = mapped_column(String(120), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    __table_args__ = (UniqueConstraint('warehouse_id', 'area', name='warehouse_area_unique'),
+                     UniqueConstraint('client_id', 'warehouse_id', name='client_warehouse_unique'))
+
+class Scoped:
+    context_id: Mapped[int] = mapped_column(ForeignKey('storage_contexts.id'), nullable=False,
+                                           default=1, server_default='1', index=True)
 
 class User(Base):
     __tablename__ = 'users'
@@ -45,7 +76,7 @@ class FailedLogin(Base):
     remote_ip: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
 
-class Stock(Base):
+class Stock(Scoped, Base):
     __tablename__ = 'stock'
     id: Mapped[int] = mapped_column(primary_key=True)
     artigo: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -59,14 +90,14 @@ class Stock(Base):
         Index('ix_stock_article_lot_location', 'artigo', 'lote', 'local'),
     )
 
-class Carga(Base):
+class Carga(Scoped, Base):
     __tablename__ = 'cargas'
     id: Mapped[int] = mapped_column(primary_key=True)
     codigo: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     entrada: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     funcionario: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
-class Location(Base):
+class Location(Scoped, Base):
     __tablename__ = 'locations'
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text('true'), nullable=False)
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -74,7 +105,7 @@ class Location(Base):
     capacidade: Mapped[int | None] = mapped_column(Integer, nullable=True)
     __table_args__ = (CheckConstraint('capacidade IS NULL OR capacidade > 0', name='positive_capacity'),)
 
-class Corridor(Base):
+class Corridor(Scoped, Base):
     __tablename__ = 'corridors'
     id: Mapped[int] = mapped_column(primary_key=True)
     codigo: Mapped[str] = mapped_column(String(1), unique=True, nullable=False)
@@ -85,12 +116,12 @@ class Corridor(Base):
         CheckConstraint('posicoes BETWEEN 1 AND 99', name='valid_corridor_slots'),
     )
 
-class AppConfig(Base):
+class AppConfig(Scoped, Base):
     __tablename__ = 'app_config'
     key: Mapped[str] = mapped_column(String(80), primary_key=True)
     value: Mapped[str] = mapped_column(String(200), nullable=False)
 
-class Audit(Base):
+class Audit(Scoped, Base):
     __tablename__ = 'audit'
     id: Mapped[int] = mapped_column(primary_key=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
@@ -98,7 +129,7 @@ class Audit(Base):
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     details: Mapped[str] = mapped_column(Text, nullable=False, default='')
 
-class ImportBatch(Base):
+class ImportBatch(Scoped, Base):
     __tablename__ = 'imports'
     id: Mapped[int] = mapped_column(primary_key=True)
     source_sha256: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
@@ -108,20 +139,12 @@ class ImportBatch(Base):
 
 
 def sync_location_policy(db):
-    """Idempotent policy migration for existing v2 databases. Does not move stock."""
-    from .location_rules import FLOOR_LABEL, capacity_for, is_floor
+    """Ensure floor exists, preserving configured capacities and all stock."""
+    from .location_rules import FLOOR_LABEL, is_floor
     known = db.scalars(select(Location)).all()
     if not any(is_floor(loc.codigo) for loc in known):
         db.add(Location(codigo=FLOOR_LABEL, capacidade=None))
-    changed = 0
-    for loc in known:
-        target = capacity_for(loc.codigo)
-        if loc.capacidade != target:
-            loc.capacidade = target
-            changed += 1
-    if changed:
-        db.add(Audit(username='sistema', action='REGRA_CAPACIDADE',
-                     details=f'Política automática: posições físicas = 1 palete; Chão ilimitado. {changed} localizações atualizadas.'))
+    changed = 0  # Capacities are now explicit catalogue settings; never overwrite them.
     db.commit()
     return changed
 
@@ -133,7 +156,9 @@ def seed_warehouse_layout(db):
     Existing stock is never modified, moved or deleted.
     """
     from .location_rules import FLOOR_LABEL
-    if db.get(AppConfig, 'warehouse_layout_seeded_vba'):
+    from .contexts import seed_contexts
+    seed_contexts(db)
+    if db.scalar(select(AppConfig).where(AppConfig.key == 'warehouse_layout_seeded_vba')):
         return 0
     existing = set(db.scalars(select(Location.codigo)).all())
     new = []
@@ -164,11 +189,13 @@ def init_db():
     from sqlalchemy import select
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
+        from .contexts import seed_contexts
+        seed_contexts(db)
         sync_location_policy(db)
         seed_warehouse_layout(db)
 
 
-class Receipt(Base):
+class Receipt(Scoped, Base):
     __tablename__ = 'receipts'
     id: Mapped[int] = mapped_column(primary_key=True)
     request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
@@ -188,7 +215,7 @@ class Receipt(Base):
     )
 
 
-class ReceiptLine(Base):
+class ReceiptLine(Scoped, Base):
     __tablename__ = 'receipt_lines'
     id: Mapped[int] = mapped_column(primary_key=True)
     receipt_id: Mapped[int] = mapped_column(ForeignKey('receipts.id'), nullable=False, index=True)
@@ -201,7 +228,7 @@ class ReceiptLine(Base):
     )
 
 
-class Putaway(Base):
+class Putaway(Scoped, Base):
     __tablename__ = 'putaways'
     id: Mapped[int] = mapped_column(primary_key=True)
     request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
@@ -221,7 +248,7 @@ class Putaway(Base):
     )
 
 
-class DispatchOrder(Base):
+class DispatchOrder(Scoped, Base):
     __tablename__ = 'dispatch_orders'
     office: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'), nullable=False)
     cancellation_reason: Mapped[str | None] = mapped_column(Text)
@@ -250,7 +277,7 @@ class DispatchOrder(Base):
     )
 
 
-class DispatchLine(Base):
+class DispatchLine(Scoped, Base):
     __tablename__ = 'dispatch_lines'
     destination: Mapped[str] = mapped_column(String(120), nullable=False, default='', server_default='')
     destination_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
@@ -266,7 +293,7 @@ class DispatchLine(Base):
     )
 
 
-class DispatchPick(Base):
+class DispatchPick(Scoped, Base):
     __tablename__ = 'dispatch_picks'
     id: Mapped[int] = mapped_column(primary_key=True)
     line_id: Mapped[int] = mapped_column(ForeignKey('dispatch_lines.id'), nullable=False, index=True)
@@ -283,7 +310,7 @@ class DispatchPick(Base):
     )
 
 
-class StockTransfer(Base):
+class StockTransfer(Scoped, Base):
     __tablename__ = 'stock_transfers'
     id: Mapped[int] = mapped_column(primary_key=True)
     request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
@@ -309,7 +336,7 @@ class StockTransfer(Base):
     )
 
 
-class LotResolution(Base):
+class LotResolution(Scoped, Base):
     __tablename__ = 'lot_resolutions'
     id: Mapped[int] = mapped_column(primary_key=True)
     lote: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
@@ -319,7 +346,7 @@ class LotResolution(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
 
 
-class DispatchDocument(Base):
+class DispatchDocument(Scoped, Base):
     __tablename__ = 'dispatch_documents'
     order_id: Mapped[int] = mapped_column(ForeignKey('dispatch_orders.id'), primary_key=True)
     pdf: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
@@ -327,7 +354,7 @@ class DispatchDocument(Base):
     stock_versions: Mapped[str] = mapped_column(Text, nullable=False)
 
 
-class PreparationCompletion(Base):
+class PreparationCompletion(Scoped, Base):
     __tablename__ = 'preparation_completions'
     order_id: Mapped[int] = mapped_column(ForeignKey('dispatch_orders.id'), primary_key=True)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
@@ -335,13 +362,13 @@ class PreparationCompletion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
 
 
-class LocationClock(Base):
+class LocationClock(Scoped, Base):
     __tablename__ = 'location_clocks'
     local: Mapped[str] = mapped_column(String(120), primary_key=True)
     version: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
 
 
-class PhysicalInventory(Base):
+class PhysicalInventory(Scoped, Base):
     __tablename__ = 'physical_inventories'
     id: Mapped[int] = mapped_column(primary_key=True)
     request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
@@ -359,7 +386,7 @@ class PhysicalInventory(Base):
         CheckConstraint("status IN ('draft','submitted','applied')", name='inventory_status'))
 
 
-class InventoryScope(Base):
+class InventoryScope(Scoped, Base):
     __tablename__ = 'inventory_scopes'
     id: Mapped[int] = mapped_column(primary_key=True)
     inventory_id: Mapped[int] = mapped_column(ForeignKey('physical_inventories.id'), nullable=False, index=True)
@@ -374,7 +401,7 @@ class InventoryScope(Base):
     __table_args__ = (UniqueConstraint('inventory_id', 'local', name='inventory_scope_unique'),)
 
 
-class InventoryCount(Base):
+class InventoryCount(Scoped, Base):
     __tablename__ = 'inventory_counts'
     id: Mapped[int] = mapped_column(primary_key=True)
     scope_id: Mapped[int] = mapped_column(ForeignKey('inventory_scopes.id'), nullable=False, index=True)
@@ -386,7 +413,7 @@ class InventoryCount(Base):
     __table_args__ = (CheckConstraint('quantidade > 0', name='inventory_count_positive'),)
 
 
-class StockIncident(Base):
+class StockIncident(Scoped, Base):
     __tablename__ = 'stock_incidents'
     observation: Mapped[str | None] = mapped_column(Text)
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -406,7 +433,7 @@ class StockIncident(Base):
         CheckConstraint('(pick_id IS NOT NULL) OR (scope_id IS NOT NULL)', name='incident_origin'))
 
 
-class StockAdjustment(Base):
+class StockAdjustment(Scoped, Base):
     __tablename__ = 'stock_adjustments'
     id: Mapped[int] = mapped_column(primary_key=True)
     inventory_id: Mapped[int] = mapped_column(ForeignKey('physical_inventories.id'), nullable=False, index=True)
@@ -425,7 +452,7 @@ class StockAdjustment(Base):
         CheckConstraint('"before" >= 0 AND "after" >= 0 AND delta = "after" - "before"', name='adjustment_values'))
 
 
-class PreparationCompensation(Base):
+class PreparationCompensation(Scoped, Base):
     __tablename__ = 'preparation_compensations'
     order_id: Mapped[int] = mapped_column(ForeignKey('dispatch_orders.id'), primary_key=True)
     inventory_id: Mapped[int] = mapped_column(ForeignKey('physical_inventories.id'), nullable=False, unique=True)
@@ -434,7 +461,7 @@ class PreparationCompensation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
 
 
-class MercadonaDestination(Base):
+class MercadonaDestination(Scoped, Base):
     __tablename__ = 'mercadona_destinations'
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
@@ -443,7 +470,7 @@ class MercadonaDestination(Base):
     highlighted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
-class CommercialPreparation(Base):
+class CommercialPreparation(Scoped, Base):
     __tablename__ = 'commercial_preparations'
     order_id: Mapped[int] = mapped_column(ForeignKey('dispatch_orders.id'), primary_key=True)
     customer: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -451,7 +478,7 @@ class CommercialPreparation(Base):
     __table_args__ = (CheckConstraint("channel IN ('normal','mercadona')", name='commercial_channel'),)
 
 
-class CustomerPending(Base):
+class CustomerPending(Scoped, Base):
     __tablename__ = 'customer_pending'
     id: Mapped[int] = mapped_column(primary_key=True)
     line_id: Mapped[int] = mapped_column(ForeignKey('dispatch_lines.id'), unique=True, nullable=False)
@@ -461,7 +488,7 @@ class CustomerPending(Base):
     __table_args__ = (CheckConstraint('quantidade > 0', name='customer_pending_positive'),)
 
 
-class PendingAllocation(Base):
+class PendingAllocation(Scoped, Base):
     __tablename__ = 'pending_allocations'
     id: Mapped[int] = mapped_column(primary_key=True)
     pending_id: Mapped[int] = mapped_column(ForeignKey('customer_pending.id'), nullable=False, index=True)
@@ -473,7 +500,7 @@ class PendingAllocation(Base):
                      CheckConstraint('quantidade > 0', name='pending_allocation_positive'))
 
 
-class AllocationCollection(Base):
+class AllocationCollection(Scoped, Base):
     __tablename__ = 'allocation_collections'
     allocation_id: Mapped[int] = mapped_column(ForeignKey('pending_allocations.id'), primary_key=True)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
@@ -481,14 +508,14 @@ class AllocationCollection(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
 
 
-class ReceiptDocument(Base):
+class ReceiptDocument(Scoped, Base):
     __tablename__ = 'receipt_documents'
     receipt_id: Mapped[int] = mapped_column(ForeignKey('receipts.id'), primary_key=True)
     pdf: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
-class IncompleteComposition(Base):
+class IncompleteComposition(Scoped, Base):
     """Documentary draft only: not a pallet identity or a stock movement."""
     __tablename__ = 'incomplete_compositions'
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -501,3 +528,64 @@ class IncompleteComposition(Base):
     actor: Mapped[str] = mapped_column(String(60), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
     __table_args__ = (CheckConstraint('physical_pallets = 1', name='composition_one_physical_pallet'),)
+
+
+# Every business key lives inside an immutable client/warehouse context. IDs stay
+# globally unique, preserving all historical references and archived documents.
+for _table in list(Base.metadata.tables.values()):
+    if 'context_id' not in _table.c:
+        continue
+    for _unique in list(_table.constraints):
+        if isinstance(_unique, UniqueConstraint) and 'context_id' not in _unique.columns:
+            _cols = [c.name for c in _unique.columns]
+            _table.constraints.remove(_unique)
+            _table.append_constraint(UniqueConstraint('context_id', *_cols, name=_unique.name))
+    _pk = [c.name for c in _table.primary_key.columns]
+    if _table.name in ('app_config', 'location_clocks'):
+        # These two legacy text keys may repeat between contexts.
+        _table.c.context_id.primary_key = True
+        _table.append_constraint(PrimaryKeyConstraint('context_id', *_pk))
+    else:
+        _table.append_constraint(UniqueConstraint('context_id', *_pk, name='uq_ctx_' + _table.name))
+for _table in list(Base.metadata.tables.values()):
+    if 'context_id' not in _table.c:
+        continue
+    for _fk in list(_table.foreign_key_constraints):
+        if len(_fk.elements) != 1:
+            continue
+        _edge = _fk.elements[0]
+        _target = _edge.column.table
+        if 'context_id' in _target.c:
+            _table.constraints.remove(_fk)
+            _edge.parent.foreign_keys.discard(_edge)
+            _table.foreign_keys.discard(_edge)
+            _table.append_constraint(ForeignKeyConstraint(
+                ['context_id', _edge.parent.name],
+                [_target.name + '.context_id', _target.name + '.' + _edge.column.name],
+                name='fk_ctx_' + _table.name + '_' + _edge.parent.name))
+
+
+def context_id(db):
+    value = db.info.get('ddn_context', 1)
+    fixed = db.info.setdefault('ddn_context_fixed', value)
+    if value != fixed or not isinstance(value, int) or value < 1:
+        raise ValueError('O contexto da sessão é imutável. Abrir uma nova sessão.')
+    return value
+
+@event.listens_for(Session, 'do_orm_execute')
+def _scope_queries(state):
+    scope = context_id(state.session)
+    if state.is_select or state.is_update or state.is_delete:
+        state.statement = state.statement.options(with_loader_criteria(
+            Scoped, lambda model: model.context_id == scope, include_aliases=True))
+
+@event.listens_for(Session, 'before_flush')
+def _scope_writes(db, flush_context, instances):
+    scope = context_id(db)
+    for record in db.new | db.dirty | db.deleted:
+        if not isinstance(record, Scoped):
+            continue
+        if record in db.new and record.context_id is None:
+            record.context_id = scope
+        if record.context_id != scope or (record not in db.new and sa_inspect(record).attrs.context_id.history.has_changes()):
+            raise ValueError('Registo fora do contexto ou tentativa de mudar o proprietário/armazém.')

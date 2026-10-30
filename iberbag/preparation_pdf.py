@@ -19,8 +19,8 @@ def render_pdf(order, rows):
     styles = getSampleStyleSheet()
     style = ParagraphStyle('WMS', fontName='WMSVera', fontSize=9, leading=12, wordWrap='CJK')
     def p(value): return Paragraph(escape(str(value)), style)
-    content = [p(f'IBERBAG WMS — Preparação #{order.id}'), Spacer(1, 4*mm),
-        p(order.reference), p(f'Confirmada: {order.confirmed_at} UTC · Preparou: {order.confirmed_by}'),
+    content = [p(f'DDN WMS — Preparação #{order.id}'), Spacer(1, 4*mm),
+        p(getattr(order,'ddn_label','DDN WMS')), p(order.reference), p(f'Confirmada: {order.confirmed_at} UTC · Preparou: {order.confirmed_by}'),
         p('Stock já descontado. Recolher apenas os grupos abaixo; comunicar divergências ao escritório.'), Spacer(1, 5*mm)]
     data = [[p(v) for v in ('Lote','Artigo','Paletes','Carga','Localização')]]
     for row in rows:
@@ -33,5 +33,5 @@ def render_pdf(order, rows):
     def footer(canvas, doc):
         canvas.setFont('WMSVera',8); canvas.drawRightString(195*mm,10*mm,f'Preparação #{order.id} · Página {doc.page}')
     SimpleDocTemplate(buffer,pagesize=A4,rightMargin=16*mm,leftMargin=16*mm,
-        topMargin=16*mm,bottomMargin=18*mm,title=f'Preparação {order.id}',author='Iberbag WMS').build(content,onFirstPage=footer,onLaterPages=footer)
+        topMargin=16*mm,bottomMargin=18*mm,title=f'Preparação {order.id}',author='DDN WMS').build(content,onFirstPage=footer,onLaterPages=footer)
     return buffer.getvalue()

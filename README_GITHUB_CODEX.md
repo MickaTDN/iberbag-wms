@@ -1,3 +1,7 @@
+# DDN WMS — Distribuição David Neto
+
+Fase 1 multicliente e multi-armazém: [arquitetura, migração e testes](docs/DDN_FASE1_MULTICLIENTE.md). O repositório e pacote `iberbag` conservam o nome por compatibilidade. PRs #8 e #9 são independentes e não estão integrados nesta branch.
+
 Etapa 7: [Pendentes, entradas, Mercadona e CARGA](docs/ETAPA7_PENDENTES_E_PROCESSOS_EXCEL.md), revisão 0006. [Análise do VBA fornecido](docs/ANALISE_VBA_ETAPA7.md). Paletes incompletas apenas em dossiês documentais, sem conversões/movimentos.
 
 Etapa 6: [Preparação no escritório e inventário](docs/ETAPA6_ESCRITORIO_E_INVENTARIO.md). Entrada apenas por lote/paletes, desconto imediato, PDF arquivado, contagens e ajustes administrativos.

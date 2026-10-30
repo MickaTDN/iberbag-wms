@@ -415,7 +415,7 @@ def test_upgrade_0004_keeps_legacy_confirmed_records(warehouse,pg_databases,tmp_
     from sqlalchemy import Table,MetaData
     from alembic import command
     from datetime import datetime
-    from iberbag.migrations import config
+    from iberbag.migrations import config, REVISION
     from iberbag.security import set_password
     from iberbag.schema_upgrade import preview,apply_upgrade
     from legacy_catalogue import seed_legacy_catalogue
@@ -427,13 +427,13 @@ def test_upgrade_0004_keeps_legacy_confirmed_records(warehouse,pg_databases,tmp_
         seed_legacy_catalogue(db)
         user=User(username='legado',display_name='Fictício',role='admin',active=True)
         set_password(user,secrets.token_urlsafe(24));db.add(user);db.flush();actor=user.id
-        carga=Carga(codigo='LEGADO',entrada=stamp,funcionario=None);db.add(carga);db.flush()
-        a=Stock(artigo='A',lote='L',carga='LEGADO',local='Chão',quantidade=0)
-        b=Stock(artigo='A',lote='L',carga='LEGADO',local='A101',quantidade=0)
-        db.add_all([a,b]);db.flush()
         def insert(name,values):
             table=Table(name,MetaData(),autoload_with=db.connection())
             return db.execute(table.insert().values(**values).returning(table.c.id)).scalar_one()
+        insert('cargas',dict(codigo='LEGADO',entrada=stamp,funcionario=None))
+        from types import SimpleNamespace
+        a=SimpleNamespace(id=insert('stock',dict(artigo='A',lote='L',carga='LEGADO',local='Chão',quantidade=0)))
+        b=SimpleNamespace(id=insert('stock',dict(artigo='A',lote='L',carga='LEGADO',local='A101',quantidade=0)))
         insert('stock_transfers',dict(request_key=secrets.token_hex(16),source_stock_id=a.id,destination_stock_id=b.id,
             artigo='A',lote='L',carga='LEGADO',entrada=stamp,source_local='Chão',destination_local='A101',quantidade=1,
             created_by=actor,created_at=stamp,status='confirmed',confirmed_by='legado',confirmed_at=stamp))
@@ -444,7 +444,7 @@ def test_upgrade_0004_keeps_legacy_confirmed_records(warehouse,pg_databases,tmp_
         db.execute(text("UPDATE dispatch_orders SET status='confirmed',reviewed_at=:day,checked_by='legado',checked_at=:day,confirmed_by='legado',confirmed_at=:day WHERE id=:id"),dict(day=stamp,id=order_id));db.commit()
     folder=tmp_path/'legacy';backup.backup(legacy,folder,runner=docker_client);backup.restore(restored,folder,runner=docker_client)
     assert preview(legacy)['from']=='0004'
-    assert apply_upgrade(legacy,folder)['revision']=='0006'
+    assert apply_upgrade(legacy,folder)['revision']==REVISION
     with Session(legacy) as db:
         assert db.get(DispatchOrder,order_id).status=='confirmed' and not db.get(DispatchOrder,order_id).office
         prep.archive_legacy_document(db,actor,order_id)

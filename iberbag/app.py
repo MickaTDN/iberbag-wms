@@ -1,4 +1,4 @@
-"""Iberbag WMS: office preparations, incoming allocation, inventory and warehouse consultation."""
+"""DDN WMS: office preparations, incoming allocation, inventory and warehouse consultation."""
 import hmac, os, re
 from contextlib import asynccontextmanager
 from datetime import timedelta
@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from pathlib import Path
 from .database import (SessionLocal, init_db, User, LoginSession, FailedLogin, Stock,
                        Carga, Location, Audit, now_utc)
-from .location_rules import capacity_for, is_floor, is_unassigned
+from .location_rules import is_floor, is_unassigned
 from .database import Corridor
 from .warehouse_settings import (WarehouseError, add_corridor, update_corridor, remove_corridor,
                                  add_location, remove_location, rename_location, corridor_locations)
@@ -25,14 +25,26 @@ async def lifespan(_app):
     init_db()
     yield
 
-app = FastAPI(title='Iberbag WMS', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+app = FastAPI(title='DDN WMS', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 BASE = Path(__file__).parent
 app.mount('/static', StaticFiles(directory=BASE / 'static'), name='static')
 templates = Jinja2Templates(directory=BASE / 'templates')
 COOKIE_SECURE = os.environ.get('WMS_COOKIE_SECURE', '0') == '1'
 
-def database():
-    with SessionLocal() as db:
+def database(request: Request):
+    from .contexts import require_context, available
+    try:
+        ident = int(request.cookies.get('ddn_context', '1'))
+        if ident < 1: raise ValueError()
+    except ValueError:
+        raise HTTPException(400, 'Contexto cliente/armazém inválido.')
+    with SessionLocal(info={'ddn_context': ident}) as db:
+        try:
+            ctx, owner, warehouse = require_context(db)
+        except ValueError as error:
+            raise HTTPException(409, str(error)) from error
+        request.state.ddn_context = ident
+        request.state.ddn_contexts = available(db)
         yield db
 
 def identity(request: Request, db: Session):
@@ -56,7 +68,9 @@ def unauthorized(user, require_admin=False):
     return user is None or (require_admin and user.role != 'admin')
 
 def context(request, user, sess, **kwargs):
-    return {'request': request, 'user': user, 'csrf': sess.csrf_token if sess else '', **kwargs}
+    return {'request': request, 'user': user, 'csrf': sess.csrf_token if sess else '',
+            'active_context_id': getattr(request.state, 'ddn_context', 1),
+            'ddn_contexts': getattr(request.state, 'ddn_contexts', []), **kwargs}
 
 async def form_body(request: Request):
     if request.headers.get('content-type', '').split(';')[0] != 'application/x-www-form-urlencoded':
@@ -66,7 +80,17 @@ async def form_body(request: Request):
         body.extend(chunk)
         if len(body) > 8192:
             raise HTTPException(status_code=413, detail='Formulário demasiado grande.')
-    return {k: vals[0] for k, vals in parse_qs(body.decode('utf-8', 'replace'), keep_blank_values=True).items()}
+    fields = parse_qs(body.decode('utf-8', 'replace'), keep_blank_values=True)
+    if any(len(vals) != 1 for vals in fields.values()):
+        raise HTTPException(400, 'Campos repetidos no formulário.')
+    form = {k: vals[0] for k, vals in fields.items()}
+    if 'csrf' in form:
+        current = str(getattr(request.state, 'ddn_context', 1))
+        # Old default-context forms remain compatible. New forms always include
+        # context_id: a tab opened before switching cannot write in a new context.
+        if form.get('context_id', '1') != current:
+            raise HTTPException(409, 'O contexto mudou noutra página. Reabrir o formulário no cliente/armazém correto.')
+    return form
 
 def valid_csrf(form, sess):
     return bool(sess and hmac.compare_digest(form.get('csrf', ''), sess.csrf_token))
@@ -121,7 +145,8 @@ def dashboard(request: Request, db: Session = Depends(database)):
     stats = db.execute(select(func.coalesce(func.sum(Stock.quantidade),0),func.count(func.distinct(Stock.artigo)),
                               func.count(func.distinct(Stock.lote)), func.count(func.distinct(Stock.local))).where(Stock.quantidade > 0)).first()
     occupied = db.execute(select(Stock.local, func.sum(Stock.quantidade)).where(Stock.quantidade > 0).group_by(Stock.local)).all()
-    exceeding_locations = [loc for loc, total in occupied if capacity_for(loc) is not None and total > 1]
+    capacities = dict(db.execute(select(Location.codigo, Location.capacidade)).all())
+    exceeding_locations = [loc for loc, total in occupied if capacities.get(loc) is not None and total > capacities[loc]]
     unidentified_pallets = sum(total for loc, total in occupied if is_unassigned(loc))
     missing_dates = db.scalar(select(func.count()).select_from(Carga).where(Carga.entrada.is_(None))) or 0
     return render(request, 'dashboard.html', context(request, user, sess, stats=stats,
@@ -223,6 +248,7 @@ def warehouse_map(request: Request, corredor: str='', andar: int=1,
     quantities = dict(db.execute(select(Stock.local, func.sum(Stock.quantidade))
                                  .where(Stock.local.in_(codes))
                                  .group_by(Stock.local)).all())
+    capacities = {loc.codigo: loc.capacidade for loc in catalogue}
     slots = []
     free = used = anomalies = removed = 0
     for code in codes:
@@ -235,10 +261,10 @@ def warehouse_map(request: Request, corredor: str='', andar: int=1,
         elif code in inactive and qty == 0:
             status = 'inactive'
             removed += 1
-        elif qty > 1:
+        elif capacities.get(code) is not None and qty > capacities[code]:
             status = 'anomaly'
             anomalies += 1
-        elif qty == 1:
+        elif qty > 0:
             status = 'used'
             used += 1
         else:
@@ -420,7 +446,7 @@ def health(db: Session = Depends(database)):
         db.execute(select(User.id).limit(1))
     except SQLAlchemyError:
         return JSONResponse({'status': 'unavailable'}, status_code=503)
-    return {'status': 'ok', 'application': 'Iberbag WMS', 'version':'2.3-prototipo'}
+    return {'status': 'ok', 'application': 'DDN WMS', 'version':'2.3-prototipo'}
 
 # Imported after shared rendering/auth helpers are defined.
 from .receiving_routes import router as receiving_router
@@ -437,3 +463,5 @@ app.include_router(inventory_router)
 
 from .commercial_routes import router as commercial_router
 app.include_router(commercial_router)
+
+from . import context_routes  # noqa: E402,F401

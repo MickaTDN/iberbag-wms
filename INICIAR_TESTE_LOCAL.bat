@@ -6,7 +6,7 @@ if defined WMS_DATABASE_URL (
  echo Para usar SQLite de desenvolvimento, remova essa variavel nesta consola.
 )
 set "WMS_COOKIE_SECURE=0"
-echo Iberbag WMS - TESTE LOCAL (nao aceder a partir da rede)
+echo DDN WMS - TESTE LOCAL (nao aceder a partir da rede)
 echo Abra http://127.0.0.1:8000
 py -m uvicorn iberbag.app:app --host 127.0.0.1 --port 8000
 pause

@@ -31,6 +31,11 @@ def operation(fn):
             actor = db.get(User, actor_id)
             if not actor or not actor.active or actor.role not in ('admin', 'operador'):
                 raise ReceivingError('Operação não autorizada.', 403)
+            from .contexts import require_context
+            try:
+                require_context(db, operational=True)
+            except ValueError as error:
+                raise ReceivingError(str(error)) from error
             result = fn(db, actor, *args, **kwargs)
             db.commit()
             return result
@@ -182,10 +187,10 @@ def destination(db, value, qty):
     location = db.scalar(select(Location).where(Location.codigo == value).with_for_update())
     if location is None or not location.active:
         raise ReceivingError('A posição não existe ou está inativa no catálogo de localizações.')
-    # Do not trust stale/custom capacity values: physical positions always hold one pallet.
+    # Capacity belongs to this exact owner/warehouse area; no global one-unit rule.
     used = db.scalar(select(func.coalesce(func.sum(Stock.quantidade), 0)).where(Stock.local == value))
-    if not is_floor(value) and used + qty > 1:
-        raise ReceivingError('Posição ocupada ou quantidade superior à capacidade de uma palete.')
+    if location.capacidade is not None and used + qty > location.capacidade:
+        raise ReceivingError('Posição ocupada ou quantidade superior à capacidade configurada.')
     return value
 
 

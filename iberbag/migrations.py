@@ -2,10 +2,10 @@
 from pathlib import Path
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect, text, select
 from .database import engine, SessionLocal, AppConfig, seed_warehouse_layout
 
-REVISION = "0006"
+REVISION = "ddn_0001"
 
 def config():
     cfg = Config()
@@ -20,7 +20,7 @@ def check_database():
         if connection.execute(text("SELECT version_num FROM alembic_version")).scalars().all() != [REVISION]:
             raise RuntimeError("Versão da base incompatível; rever migrações antes de arrancar.")
     with SessionLocal() as db:
-        if not db.get(AppConfig, "warehouse_layout_seeded_vba"):
+        if not db.scalar(select(AppConfig).where(AppConfig.key == "warehouse_layout_seeded_vba")):
             raise RuntimeError("Catálogo por inicializar. Executar prepare-db antes do servidor.")
 
 def prepare_database():

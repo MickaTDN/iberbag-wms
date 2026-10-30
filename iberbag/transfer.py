@@ -21,6 +21,7 @@ DISPATCH_TABLES = {'dispatch_orders', 'dispatch_lines', 'dispatch_picks'}
 TRANSFER_TABLES = {'stock_transfers'}
 INVENTORY_TABLES = {'lot_resolutions','dispatch_documents','preparation_completions','location_clocks','physical_inventories','inventory_scopes','inventory_counts','stock_incidents','stock_adjustments','preparation_compensations'}
 COMMERCIAL_TABLES = {'mercadona_destinations','commercial_preparations','customer_pending','pending_allocations','allocation_collections','receipt_documents','incomplete_compositions'}
+CONTEXT_TABLES = {'warehouses','clients','storage_contexts'}
 OPERATIONAL_TABLES = RECEIVING_TABLES | DISPATCH_TABLES | TRANSFER_TABLES | INVENTORY_TABLES | COMMERCIAL_TABLES
 
 
@@ -47,11 +48,12 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
+    missing_legacy = missing - CONTEXT_TABLES
     legacy_revision = {frozenset(OPERATIONAL_TABLES): '0001',
         frozenset(DISPATCH_TABLES | TRANSFER_TABLES | INVENTORY_TABLES | COMMERCIAL_TABLES): '0002',
         frozenset(TRANSFER_TABLES | INVENTORY_TABLES | COMMERCIAL_TABLES): '0003',
         frozenset(INVENTORY_TABLES | COMMERCIAL_TABLES): '0004',
-        frozenset(COMMERCIAL_TABLES): '0005', frozenset(): REVISION}.get(frozenset(missing))
+        frozenset(COMMERCIAL_TABLES): '0005', frozenset(): ('0006' if missing & CONTEXT_TABLES else REVISION)}.get(frozenset(missing_legacy))
     if names - expected - {'alembic_version'} or legacy_revision is None or inspector.get_view_names():
         raise ValueError('Esquema diferente da v2.3: tabelas em falta, adicionais ou vistas. Rever manualmente.')
     if 'alembic_version' in names:
@@ -69,20 +71,27 @@ def read_data(connection):
             result[table.name] = []
             continue
         columns = {c['name'] for c in inspector.get_columns(table.name)}
-        legacy_locations = table.name == 'locations' and legacy_revision in ('0001','0002','0003') and columns == set(table.columns.keys()) - {'active'}
+        legacy_locations = table.name == 'locations' and legacy_revision in ('0001','0002','0003') and columns == set(table.columns.keys()) - {'active','context_id'}
         defaults={}
+        if 'context_id' in table.c and 'context_id' not in columns:
+            defaults['context_id']=1
         if table.name=='dispatch_orders' and legacy_revision in ('0001','0002','0003','0004'):
-            defaults=dict(office=False,cancellation_reason=None,cancelled_by=None,cancelled_at=None)
-        if table.name=='dispatch_lines' and legacy_revision!='0006':
-            defaults=dict(destination='',destination_order=0,destination_highlight=False)
+            defaults.update(office=False,cancellation_reason=None,cancelled_by=None,cancelled_at=None)
+        if table.name=='dispatch_lines' and legacy_revision in ('0001','0002','0003','0004','0005'):
+            defaults.update(destination='',destination_order=0,destination_highlight=False)
         if columns != set(table.columns.keys())-set(defaults) and not legacy_locations:
             raise ValueError(f'Colunas incompatíveis: {table.name}.')
-        query = select(*(col for col in table.columns if col.name in columns)).order_by(*table.primary_key.columns)
+        query = select(*(col for col in table.columns if col.name in columns)).order_by(*(c for c in table.primary_key.columns if c.name in columns))
         result[table.name] = [dict(row) for row in connection.execute(query).mappings()]
         for row in result[table.name]:row.update(defaults)
         if legacy_locations:
             for row in result[table.name]:
                 row['active'] = True  # All catalogue positions were implicitly active before 0004.
+    if missing & CONTEXT_TABLES:
+        from .contexts import WAREHOUSES, CLIENTS
+        result['warehouses']=[dict(id=i,name=n,active=True) for i,n in WAREHOUSES]
+        result['clients']=[dict(id=i,name=n,tracking=t,unit=u,pallet_operations=e,active=True) for i,n,t,u,e,w in CLIENTS]
+        result['storage_contexts']=[dict(id=i,client_id=i,warehouse_id=w,area=n,active=True) for i,n,t,u,e,w in CLIENTS]
     if not any(row['key'] == 'warehouse_layout_seeded_vba' and row['value'] == '1'
                for row in result['app_config']):
         raise ValueError('Catálogo v2.3 não inicializado. Não será deduzido automaticamente.')
@@ -93,18 +102,18 @@ def inventory(data):
     stock = data['stock']
     occupancy = Counter()
     for row in stock:
-        occupancy[row['local']] += row['quantidade']
-    from .location_rules import capacity_for
+        occupancy[(row.get('context_id',1),row['local'])] += row['quantidade']
+    capacities={(r.get('context_id',1),r['codigo']):r['capacidade'] for r in data['locations']}
     return {
         'tables': {name: {'rows': len(rows), 'sha256': fingerprint(rows)} for name, rows in data.items()},
         'stock': {key: len({row[key] for row in stock}) for key in ('artigo', 'lote', 'carga', 'local')},
         'paletes': sum(row['quantidade'] for row in stock),
-        'associacoes_historicas_lote_contraditorias': sum(len({r['artigo'] for name in ('stock','receipt_lines','dispatch_lines','stock_transfers') for r in data[name] if r['lote']==lot})>1 for lot in {r['lote'] for name in ('stock','receipt_lines','dispatch_lines','stock_transfers') for r in data[name]}),
+        'associacoes_historicas_lote_contraditorias': sum(len({r['artigo'] for name in ('stock','receipt_lines','dispatch_lines','stock_transfers') for r in data[name] if (r.get('context_id',1),r['lote'])==lot})>1 for lot in {(r.get('context_id',1),r['lote']) for name in ('stock','receipt_lines','dispatch_lines','stock_transfers') for r in data[name]}),
         'cargas_sem_data': sum(row['entrada'] is None for row in data['cargas']),
         'cargas_sem_responsavel': sum(row['funcionario'] is None for row in data['cargas']),
-        'locais_acima_capacidade': sum(capacity_for(loc) == 1 and qty > 1 for loc, qty in occupancy.items()),
-        'stock_sem_catalogo': sum(row['local'] not in {r['codigo'] for r in data['locations']} for row in stock),
-        'stock_sem_carga': sum(row['carga'] not in {r['codigo'] for r in data['cargas']} for row in stock),
+        'locais_acima_capacidade': sum(capacities.get(loc) is not None and qty > capacities[loc] for loc, qty in occupancy.items()),
+        'stock_sem_catalogo': sum((row.get('context_id',1),row['local']) not in {(r.get('context_id',1),r['codigo']) for r in data['locations']} for row in stock),
+        'stock_sem_carga': sum((row.get('context_id',1),row['carga']) not in {(r.get('context_id',1),r['codigo']) for r in data['cargas']} for row in stock),
     }
 
 
@@ -189,6 +198,10 @@ def apply(bundle, engine):
         cfg = config()
         cfg.attributes['connection'] = connection
         command.upgrade(cfg, 'head')
+        # The migration seeds only empty administrative catalogues; a snapshot
+        # carries their exact values, including subsequently added clients.
+        for name in ('storage_contexts','clients','warehouses'):
+            connection.execute(Base.metadata.tables[name].delete())
         connection.execute(text('ALTER TABLE stock DISABLE TRIGGER stock_clock'))
         connection.execute(text('ALTER TABLE locations DISABLE TRIGGER catalogue_clock'))
         for table in TABLES:

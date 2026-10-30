@@ -191,3 +191,23 @@ def set_location_active(db, username, code, active):
         location.active = active
         audit(db, username, 'ESTADO_LOCALIZACAO', f'{location.codigo}: ativa={active}.')
     db.commit()
+
+@catalogue_operation
+def set_capacity(db, username, code, value):
+    location = db.scalar(select(Location).where(Location.codigo == code).with_for_update())
+    if not location:
+        raise WarehouseError('Localização inexistente neste contexto.')
+    if value == '':
+        capacity = None
+    elif not re.fullmatch('[0-9]{1,9}', value) or int(value) < 1:
+        raise WarehouseError('Capacidade: indicar inteiro positivo; vazio significa ilimitado.')
+    else:
+        capacity = int(value)
+    used = sum(row[1] for row in occupied(db,[code]))
+    if capacity is not None and used > capacity:
+        raise WarehouseError('A capacidade não pode ser inferior ao stock atual.')
+    if is_floor(code) and capacity is not None:
+        raise WarehouseError('O Chão mantém capacidade ilimitada.')
+    location.capacidade = capacity
+    audit(db,username,'CAPACIDADE_LOCALIZACAO',f'{code}: {capacity if capacity is not None else "ilimitada"}.')
+    db.commit()

@@ -200,9 +200,9 @@ def test_verified_upgrade_preserves_legacy_data(warehouse, pg_databases, tmp_pat
         cfg = config(); cfg.attributes['connection'] = conn; command.upgrade(cfg, '0001')
     with Session(legacy) as db:
         seed_legacy_catalogue(db)
-        db.add(Carga(codigo='LEGADO-FICTICIO', entrada=None, funcionario=None))
-        db.add(Stock(artigo='LEGADO', lote='LOTE', carga='LEGADO-FICTICIO', local='A101', quantidade=2))
-        db.add(Audit(username='ficticio', action='HISTORICO', details='Preservar sem inventar dados.'))
+        db.execute(text("INSERT INTO cargas(codigo,entrada,funcionario) VALUES ('LEGADO-FICTICIO',NULL,NULL)"))
+        db.execute(text("INSERT INTO stock(artigo,lote,carga,local,quantidade) VALUES ('LEGADO','LOTE','LEGADO-FICTICIO','A101',2)"))
+        db.execute(text("INSERT INTO audit(occurred_at,username,action,details) VALUES (CURRENT_TIMESTAMP,'ficticio','HISTORICO','Preservar sem inventar dados.')"))
         db.commit()
     from iberbag.schema_upgrade import preview, apply_upgrade
     assert preview(legacy)['from'] == '0001'

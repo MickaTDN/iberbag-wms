@@ -130,6 +130,8 @@ def archive_receipt(db,receipt):
     for line in db.scalars(select(ReceiptLine).where(ReceiptLine.receipt_id==receipt.id).order_by(ReceiptLine.id)):
         qty=line.quantidade-allocated(db,line.id)
         if qty:rows.append(dict(artigo=line.artigo,lote=line.lote,quantidade=qty,destination='Stock normal',reference='',status='Arrumação normal — registar localização no WMS'))
+    from .contexts import label
+    receipt.ddn_label=label(db)
     pdf=render_receipt(receipt,rows)
     db.add(ReceiptDocument(receipt_id=receipt.id,pdf=pdf,sha256=hashlib.sha256(pdf).hexdigest()))
 

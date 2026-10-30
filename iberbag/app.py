@@ -232,11 +232,13 @@ def warehouse_map(request: Request, corredor: str='', andar: int=1,
     if unauthorized(user): return redirect('/login')
     corridors = db.scalars(select(Corridor).order_by(Corridor.codigo)).all()
     if not corridors:
+        totals = db.execute(select(Stock.local, func.sum(Stock.quantidade)).where(
+            Stock.quantidade > 0).group_by(Stock.local)).all()
         return render(request, 'warehouse_map.html', context(request, user, sess,
                       corridors=[], current=None, selected_floor=None,
                       slots=[], free=0, used=0, anomalies=0, removed=0,
-                      floor_stock=0, floor_pallets=0, floor_name='Chão',
-                      unassigned=0, special_stock=[]))
+                      floor_pallets=sum(q for code,q in totals if is_floor(code)),
+                      unassigned=sum(q for code,q in totals if is_unassigned(code))))
     current = next((c for c in corridors if c.codigo == corredor.strip().upper()), corridors[0])
     selected_floor = andar if 1 <= andar <= current.andares else 1
     catalogue = db.scalars(select(Location).where(Location.codigo.like(f'{current.codigo}%'))).all()
@@ -273,7 +275,6 @@ def warehouse_map(request: Request, corredor: str='', andar: int=1,
         slots.append({'code': code, 'qty': qty, 'status': status,
                       'configured': exists})
     # Floor and missing locations are not silently treated as rack positions.
-    from .location_rules import is_floor, is_unassigned
     all_stock = db.execute(select(Stock.local, func.sum(Stock.quantidade)).where(Stock.quantidade > 0).group_by(Stock.local)).all()
     floor_pallets = sum(int(qty) for code,qty in all_stock if is_floor(code))
     unassigned = sum(int(qty) for code,qty in all_stock if is_unassigned(code))

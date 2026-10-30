@@ -190,6 +190,7 @@ def test_administrator_create_client_and_operator_denied(warehouse):
 def test_http_context_selection_roles_csrf_and_stale_forms(warehouse,monkeypatch):
     import iberbag.app as web
     engine,accounts=warehouse;actor=accounts['admin'][0];other=add_context(engine,actor)
+    receive(engine,actor,qty=7);receive(engine,actor,other,qty=4)
     monkeypatch.setattr(web,'SessionLocal',sessionmaker(bind=engine,expire_on_commit=False))
     with TestClient(web.app) as client:
         assert client.post('/login',data={'username':'admin','password':accounts['admin'][1]},follow_redirects=False).status_code==303
@@ -199,6 +200,8 @@ def test_http_context_selection_roles_csrf_and_stale_forms(warehouse,monkeypatch
         assert 'DDN WMS' in client.get('/settings/clients').text
         assert client.post('/context',data={'selected_context':other},follow_redirects=False).status_code==403
         assert client.post('/context',data={'selected_context':other,'csrf':csrf,'context_id':'1'},follow_redirects=False).status_code==303
+        assert 'Chão</b><strong>4</strong>' in client.get('/map').text
+        assert '4 paletes' in client.get('/stock').text
         assert client.post('/settings/clients',data={'csrf':csrf,'context_id':'1','name':'WRONG'},follow_redirects=False).status_code==409
         assert client.post('/settings/clients',data={'csrf':csrf,'context_id':other,'name':'WEB FICTÍCIO','warehouse':'2','area':'WEB FICTÍCIO','pallet_operations':'yes'},follow_redirects=False).status_code==303
         assert client.get('/stock/999999').status_code==404

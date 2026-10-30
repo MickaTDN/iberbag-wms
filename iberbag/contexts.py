@@ -59,6 +59,7 @@ def create_client(db, actor_id, client_name, warehouse_id, area, pallet_operatio
     try:
         if db.bind.dialect.name == 'postgresql':
             db.execute(text('SELECT pg_advisory_xact_lock(72834001)'))
+            db.expire_all()
         actor = db.get(User, actor_id)
         if not actor or not actor.active or actor.role != 'admin':
             raise PermissionError('Apenas Administrador pode configurar clientes.')

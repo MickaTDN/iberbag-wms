@@ -145,7 +145,9 @@ Automação: `python -m pytest -q`; PostgreSQL 17 descartável:
 `python scripts/test_postgres.py`. O runner aceita seletores pytest opcionais.
 Inclui regressão das Etapas 1–7, testes de isolamento, concorrência, ligação
 cruzada recusada, inventário, permissões, migração integral e recuperação.
-Os resultados concretos são registados no PR. Validação física Windows e
+Validação local: 189 testes PostgreSQL aprovados; SQLite: 31 aprovados e 158
+omitidos por dependerem de PostgreSQL/Docker. Os resultados da CI são registados
+no PR. Validação física Windows e
 conferência das áreas reais ficam pendentes; não houve testes com dados reais.
 
 ## Fases seguintes

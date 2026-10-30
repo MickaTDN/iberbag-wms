@@ -89,12 +89,24 @@ def test_lot_identity_is_per_context_even_in_union_queries(warehouse):
 
 
 def test_ovar_stock_is_never_available_in_escapaes(warehouse):
-    engine,accounts=warehouse;actor=accounts['admin'][0];other=add_context(engine,actor,2)
+    # Same owner in both warehouses: a client-only filter must fail this test.
+    engine,accounts=warehouse;actor=accounts['admin'][0]
+    with scoped(engine) as db:
+        ctx=StorageContext(client_id=1,warehouse_id=2,area='Iberbag',active=True)
+        db.add(ctx);db.flush();other=ctx.id
+        db.connection().execute(Location.__table__.insert().values(context_id=other,codigo='Chão',capacidade=None,active=True))
+        db.commit()
     receive(engine,actor)
     with scoped(engine,other) as db:
+        assert contexts.require_context(db)[1].id==1
+        assert contexts.require_context(db)[2].name=='Escapães'
         assert db.scalar(select(func.count()).select_from(Stock))==0
         with pytest.raises(receiving.ReceivingError,match='inexistente'):
             commercial.save_preparation(db,actor,secrets.token_hex(16),'TESTE','TESTE','normal',[('LOT','1','')])
+    receive(engine,actor,other,qty=3)
+    prepare(engine,actor,other,1)
+    with scoped(engine,other) as db:assert db.scalar(select(func.sum(Stock.quantidade)))==2
+    with scoped(engine) as db:assert db.scalar(select(func.sum(Stock.quantidade)))==5
 
 
 def test_pending_allocations_do_not_cross_owners(warehouse):

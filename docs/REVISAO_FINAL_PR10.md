@@ -51,6 +51,12 @@ do mesmo armazém devem usar códigos distintos nesta fase.
   físicos ambíguos em vários contextos, recusa a atualização transacionalmente;
   não escolhe um proprietário nem move mercadoria silenciosamente.
 
+O catálogo Iberbag A–S é teórico, herdado das versões anteriores. Os seus códigos
+ficam conservadoramente atribuídos ao contexto legado, sem afirmar que a
+exclusividade física foi comprovada no terreno. Isso pode bloquear códigos
+teóricos que outros clientes utilizem: a conferência/mapeamento futuro é
+obrigatória, sem apagar atribuições para contornar o bloqueio.
+
 A aplicação não é um cadastro físico capaz de reconhecer que «A101» e «B101»
 foram afixados à mesma posição real. Não contornar a restrição renomeando áreas
 ou etiquetas. Uma base DDN anterior com conflito deve ser primeiro salvaguardada
@@ -149,7 +155,7 @@ Revisão das asserções e das condições de execução:
 
 | Área | Testes diretos | Limites da evidência |
 |---|---|---|
-| Stock por cliente/armazém, artigo/lote/carga iguais | `test_ddn_contexts`: consulta por ID, agregação, saída, FIFO/união de lotes e stock Ovar/Escapães | Não é RLS nem autenticação de clientes externos |
+| Stock por cliente/armazém, artigo/lote/carga iguais | `test_ddn_contexts`: consulta por ID, agregação, saída, FIFO/união de lotes e o mesmo proprietário Iberbag em Ovar/Escapães | Não é RLS nem autenticação de clientes externos |
 | Reservas | Regressão `test_dispatching`, bloqueio de transferências e cancelamentos da Etapa 6; novo `test_reserved_stock_cancellation_and_movements_are_contextual` | O teste entre dois proprietários foi acrescentado nesta revisão |
 | Movimentos | Entradas, arrumação, saída e transferências; duplicações, concorrência, rollback e relações cruzadas recusadas | Dados exclusivamente fictícios |
 | Documentos | Texto extraído, seleção/contexto confirmado, bytes arquivados idênticos no restauro e na migração | Não valida impressão física nem formato comercial futuro Cosmopak |

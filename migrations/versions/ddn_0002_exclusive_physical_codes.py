@@ -14,18 +14,21 @@ def upgrade():
     conn = op.get_bind()
     # Frozen rules, not imports of future application code.
     rows = conn.execute(sa.text("""
-        SELECT c.warehouse_id, lower(trim(l.codigo)) AS code, l.context_id FROM locations l
+        SELECT c.warehouse_id, l.codigo AS code, l.context_id FROM locations l
         JOIN storage_contexts c ON c.id=l.context_id
         UNION
-        SELECT c.warehouse_id, lower(trim(s.local)) AS code, s.context_id FROM stock s
+        SELECT c.warehouse_id, s.local AS code, s.context_id FROM stock s
         JOIN storage_contexts c ON c.id=s.context_id
         ORDER BY warehouse_id, code, context_id
     """)).mappings().all()
     claims = {}
     for row in rows:
-        if row['code'] in ('','chão','chao','(não indicado)'):
+        # Python Unicode case conversion also works on SQLite (whose lower()
+        # is ASCII-only), preserving legacy CHÃO as the unlimited floor.
+        code = row['code'].strip(' ').lower()
+        if code in ('','chão','chao','(não indicado)'):
             continue
-        key = (row['warehouse_id'], row['code'])
+        key = (row['warehouse_id'], code)
         if key in claims and claims[key] != row['context_id']:
             raise RuntimeError('Código físico em vários contextos do mesmo armazém. Migração bloqueada sem alterar stock; reconciliar configurações numa cópia.')
         claims[key] = row['context_id']

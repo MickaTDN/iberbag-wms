@@ -87,6 +87,10 @@ A migração real consultada foi
 `759fd1a2d27cbe86696abd7cbf11f55edfbaea34` do PR #9.
 SHA-256 do ficheiro:
 `fc62ce9b1597f636751547190c81049b478c9c6653559184e64b311cc534c7a2`.
+A revisão acrescentou também um teste de `CHÃO` em maiúsculas: a migração usa
+normalização Unicode em Python para que o `lower()` limitado do SQLite não
+classifique a zona ilimitada como uma posição física.
+
 O ficheiro foi extraído apenas para uma pasta temporária de ensaio. Não foi
 adicionado a esta branch, e não se fez merge/cherry-pick do PR #9.
 
@@ -169,10 +173,13 @@ uma percentagem de cobertura de ramos nem prova de ausência de todos os defeito
 
 - Ensaios isolados das duas ordens com 0007 real: **2 aprovados**.
 - PostgreSQL focado em contexto/capacidade/reservas: **20 aprovados**.
-- Suite SQLite: **34 aprovados; 165 omitidos**, dependentes de PostgreSQL/Docker.
+- Suite SQLite: **35 aprovados; 165 omitidos**, dependentes de PostgreSQL/Docker.
 - Suite PostgreSQL completa: **199 aprovados, zero omitidos**. Verificador de
   provas local: válido, com todos os testes críticos executados.
-- Nova CI: resultado e artefactos referenciados no PR para a head final.
+- Verificação final de contexto/migração, incluindo `CHÃO` em SQLite: **21 aprovados**.
+- Nova CI: resultado e artefactos referenciados no PR para a head final. A primeira
+  execução encontrou a configuração de upload a excluir a pasta oculta de provas;
+  foi corrigida permitindo apenas o glob explícito dos JSON sanitizados.
 
 Antes do merge, exigir que a **nova head**, com estes bloqueios e verificações,
 tenha a CI concluída e as provas de execução válidas. Depois do merge isolado,

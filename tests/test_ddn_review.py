@@ -126,3 +126,19 @@ def test_ddn1_backup_restore_upgrade_preserves_legacy_data(pg_databases,tmp_path
     with origin.connect() as conn:
         assert transfer.inventory(transfer.read_data(conn))==before
         assert conn.scalar(select(func.count()).select_from(PhysicalLocationClaim))==2106
+
+
+def test_sqlite_upgrade_preserves_uppercase_floor_as_unlimited(tmp_path):
+    """SQLite lower() is ASCII-only; legacy CHÃO must not become a finite claim."""
+    from sqlalchemy import create_engine
+    engine=create_engine('sqlite:///'+str(tmp_path/'fictitious.db'))
+    try:
+        with engine.begin() as conn:
+            cfg=config();cfg.attributes['connection']=conn;command.upgrade(cfg,'ddn_0001')
+            conn.execute(text("INSERT INTO app_config(context_id,key,value) VALUES (1,'warehouse_layout_seeded_vba','1')"))
+            conn.execute(text("INSERT INTO locations(context_id,codigo,capacidade,active) VALUES (1,'CHÃO',NULL,true)"))
+            before=transfer.inventory(transfer.read_data(conn))
+            command.upgrade(cfg,REVISION)
+            assert conn.scalar(text('SELECT count(*) FROM physical_location_claims'))==0
+            assert transfer.inventory(transfer.read_data(conn))==before
+    finally:engine.dispose()

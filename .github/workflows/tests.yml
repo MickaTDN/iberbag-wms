@@ -26,6 +26,7 @@ jobs:
         with:
           name: phase1-proof-linux-${{ github.run_attempt }}
           path: .test-results/*-proof.json
+          include-hidden-files: true # only the explicit sanitized proof glob above
           if-no-files-found: error
 
   windows-sqlite:
@@ -47,4 +48,5 @@ jobs:
         with:
           name: phase1-proof-windows-${{ github.run_attempt }}
           path: .test-results/*-proof.json
+          include-hidden-files: true # only the explicit sanitized proof glob above
           if-no-files-found: error

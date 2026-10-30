@@ -4,7 +4,7 @@
 <h1>Paletes que aguardam arrumação</h1><p>A posição será novamente validada na confirmação. Uma posição normal admite uma palete; Chão não tem limite.</p>
 {% for line, receipt, pending in rows %}<section class="panel"><h2>{{ line.artigo }} · {{ line.lote }}</h2>
 <p>Carga <a href="/receipts/{{ receipt.id }}">{{ receipt.code }}</a> · {{ pending }} paletes por arrumar · recebida {{ receipt.received_on.strftime('%d/%m/%Y') }}</p>
-<form method="post" action="/putaway/review"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="request_key" value="{{ request_keys[line.id] }}"><input type="hidden" name="line_id" value="{{ line.id }}">
+<form method="post" action="/putaway/review"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="context_id" value="{{ active_context_id }}"><input type="hidden" name="request_key" value="{{ request_keys[line.id] }}"><input type="hidden" name="line_id" value="{{ line.id }}">
 <label>Quantidade <input type="number" name="quantidade" min="1" step="1" max="{{ pending }}" required></label><label>Localização <input name="local" maxlength="120" placeholder="C214 ou Chão" required></label><button class="btn" type="submit">Rever arrumação</button></form></section>
 {% else %}<p>Não há paletes pendentes de arrumação.</p>{% endfor %}
 <p>Página {{ page }} de {{ total_pages }}. {% if page > 1 %}<a href="?page={{ page-1 }}">Anterior</a>{% endif %} {% if page < total_pages %}<a href="?page={{ page+1 }}">Seguinte</a>{% endif %}</p>

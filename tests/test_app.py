@@ -118,7 +118,7 @@ def test_vba_layout_and_admin_settings():
             assert db.scalar(select(Location.id).where(Location.codigo=='A105')) is not None
 
 
-def test_migrate_previously_configured_location_preserves_stock():
+def test_configured_capacity_and_stock_are_preserved():
     with SessionLocal() as db:
         a=db.scalar(select(Location).where(Location.codigo=='A101'))
         a.capacidade=19
@@ -127,10 +127,10 @@ def test_migrate_previously_configured_location_preserves_stock():
     with SessionLocal() as db:
         sync_location_policy(db)
     with SessionLocal() as db:
-        assert db.scalar(select(Location.capacidade).where(Location.codigo=='A101'))==1
+        assert db.scalar(select(Location.capacidade).where(Location.codigo=='A101'))==19
         assert db.scalar(select(Stock.quantidade).where(Stock.carga=='CARGA-20'))==1
         assert db.scalar(select(Stock.quantidade).where(Stock.carga=='CARGA-21'))==1
-        assert db.scalar(select(Audit.id).where(Audit.action=='REGRA_CAPACIDADE')) is not None
+        assert db.scalar(select(Audit.id).where(Audit.action=='REGRA_CAPACIDADE')) is None
 
 
 

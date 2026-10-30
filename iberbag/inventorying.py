@@ -12,13 +12,14 @@ from .lots import assert_lot, resolve
 
 
 def clock(db, local):
-    value=db.get(LocationClock,local)
+    value=db.scalar(select(LocationClock).where(LocationClock.local==local))
     return value.version if value else 0
 
 
 def touch_location(db,local):
-    db.execute(text('INSERT INTO location_clocks(local,version) VALUES(:local,1) ON CONFLICT(local) DO UPDATE SET version=location_clocks.version+1'),{'local':local})
-    value=db.identity_map.get((LocationClock,(local,),None))
+    from .database import context_id
+    db.execute(text('INSERT INTO location_clocks(context_id,local,version) VALUES(:ctx,:local,1) ON CONFLICT(context_id,local) DO UPDATE SET version=location_clocks.version+1'),{'ctx':context_id(db),'local':local})
+    value=db.identity_map.get((LocationClock,(context_id(db),local),None))
     if value is not None: db.expire(value)
 
 
@@ -173,7 +174,8 @@ def approve_inventory(db,actor,inventory_id,reason,compensate_order=None):
         rows=counts(db,scope.id)
         if not scope.counted or any(row.pending for row in rows): raise InventoryError('Contagem desconhecida ou ocorrência pendente; nova conferência identificada é necessária.')
         total=sum(row.quantidade for row in rows)
-        if not is_floor(scope.local) and total>1: raise InventoryError('Capacidade física excedida em '+scope.local)
+        location=db.scalar(select(Location).where(Location.codigo==scope.local))
+        if location and location.capacidade is not None and total>location.capacidade: raise InventoryError('Capacidade física excedida em '+scope.local)
     changes=[r for r in differences(db,inv.id) if r['delta']]
     if compensate_order is not None:
         from .dispatching import picks,lines

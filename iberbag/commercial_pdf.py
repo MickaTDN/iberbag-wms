@@ -17,7 +17,7 @@ def document(title,subtitle,sections,closing=()):
         pdfmetrics.registerFont(TTFont('WMSVera',str(Path(reportlab.__file__).parent/'fonts'/'Vera.ttf')))
     style=ParagraphStyle('commercial',fontName='WMSVera',fontSize=8,leading=11,wordWrap='CJK')
     def p(value):return Paragraph(escape(str(value)),style)
-    story=[p(title),Spacer(1,3*mm)]+[p(s) for s in subtitle]+[Spacer(1,4*mm)]
+    story=[p('DDN WMS — Distribuição David Neto'),p(title),Spacer(1,3*mm)]+[p(s) for s in subtitle]+[Spacer(1,4*mm)]
     for heading,headers,rows,summary,highlight in sections:
         story.append(KeepTogether([p(heading),Spacer(1,2*mm)]))
         data=[[p(v) for v in headers]]+[[p(v) for v in row] for row in rows]
@@ -33,9 +33,9 @@ def document(title,subtitle,sections,closing=()):
     story.extend(p(line) for line in closing)
     buffer=BytesIO()
     def footer(canvas,doc):
-        canvas.setFont('WMSVera',8);canvas.drawRightString(195*mm,10*mm,f'IBERBAG WMS · Página {doc.page}')
+        canvas.setFont('WMSVera',8);canvas.drawRightString(195*mm,10*mm,f'DDN WMS · Página {doc.page}')
     SimpleDocTemplate(buffer,pagesize=A4,leftMargin=16*mm,rightMargin=16*mm,topMargin=16*mm,bottomMargin=18*mm,
-        title=title,author='Iberbag WMS').build(story,onFirstPage=footer,onLaterPages=footer)
+        title=title,author='DDN WMS').build(story,onFirstPage=footer,onLaterPages=footer)
     return buffer.getvalue()
 
 
@@ -64,8 +64,8 @@ def render_preparation(order,info,lines,picks):
             [f'Lote {l.lote} / {l.artigo}: pedidas {l.quantidade}, preparadas {totals[l.id]}, pendentes {l.quantidade-totals[l.id]}' for l in selected],
             any(l.destination_highlight for l in selected)))
     asked=sum(l.quantidade for l in lines);prepared=sum(p.quantidade for p in picks)
-    return document(f'IBERBAG WMS — {"Mercadona" if info.channel=="mercadona" else "CARGA"} / Preparação #{order.id}',
-        [f'Cliente: {info.customer} · Encomenda: {order.reference}',f'Data: {order.confirmed_at} UTC · Preparou: {order.confirmed_by}',
+    return document(f'DDN WMS — {"Mercadona" if info.channel=="mercadona" else "CARGA"} / Preparação #{order.id}',
+        [getattr(order,'ddn_label','DDN WMS'),f'Cliente: {info.customer} · Encomenda: {order.reference}',f'Data: {order.confirmed_at} UTC · Preparou: {order.confirmed_by}',
          'Stock das paletes preparadas já descontado. As linhas PENDENTE não são instruções de recolha.',
          f'Total pedido: {asked} · Total preparado: {prepared} · Total pendente: {asked-prepared}'],sections,
         closing=('Colaborador: ________________________________________',) if info.channel=='normal' else ())
@@ -78,8 +78,8 @@ def render_receipt(receipt,rows):
         data=[(r['artigo'],r['lote'],r['quantidade'],r['reference'],r['status']) for r in group]
         sections.append(('Destino: '+dest,('Artigo','Lote','Paletes','Encomenda','Instrução'),data,
             f'Total por destino: {sum(r["quantidade"] for r in group)} paletes',dest!='Stock normal'))
-    return document(f'IBERBAG WMS — Entrada / Arrumação #{receipt.id}',
-        [f'Carga: {receipt.code} · Data de entrada: {receipt.received_on:%d/%m/%Y}',
+    return document(f'DDN WMS — Entrada / Arrumação #{receipt.id}',
+        [getattr(receipt,'ddn_label','DDN WMS'),f'Carga: {receipt.code} · Data de entrada: {receipt.received_on:%d/%m/%Y}',
          f'Recebeu: {receipt.receiver} · Confirmada: {receipt.confirmed_at} UTC',
          'Separar mercadoria de clientes. A recolha física não desconta novamente o stock.',
          f'Total da carga: {sum(r["quantidade"] for r in rows)} paletes'],sections,closing=('Colaborador: ________________________________________',))

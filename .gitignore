@@ -17,3 +17,5 @@ Caddyfile
 ensaios/
 backup-*/
 migration-*/
+
+.test-results/

@@ -1,1 +1,1 @@
-"""Iberbag WMS · protótipo de rede."""
+"""DDN WMS · protótipo de rede."""

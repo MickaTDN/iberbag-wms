@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Mapa do armazém | Iberbag WMS{% endblock %}
+{% block title %}Mapa do armazém | DDN WMS{% endblock %}
 {% block crumb %}Mapa do armazém{% endblock %}
 {% block content %}
 <div class="page-head"><div><div class="overline">OCUPAÇÃO · CONSULTA</div><h1>Mapa do armazém</h1><p>Escolhe um corredor e um andar. Seleciona uma posição ocupada para consultar as paletes.</p></div><span class="pill outline">Apenas consulta</span></div>
@@ -21,7 +21,7 @@
   <div><strong>{{ anomalies }}</strong><span>a verificar</span></div>
   <div><strong>{{ removed }}</strong><span>não configuradas/inativas</span></div>
  </div>
- <div class="map-legend" aria-label="Legenda"><span><i class="legend-dot used"></i> Ocupada (1)</span><span><i class="legend-dot free"></i> Livre</span><span><i class="legend-dot anomaly"></i> Verificar</span><span><i class="legend-dot removed"></i> Não configurada</span></div>
+ <div class="map-legend" aria-label="Legenda"><span><i class="legend-dot used"></i> Ocupada</span><span><i class="legend-dot free"></i> Livre</span><span><i class="legend-dot anomaly"></i> Verificar</span><span><i class="legend-dot removed"></i> Não configurada</span></div>
  <div class="map-shelf" role="group" aria-label="Posições do corredor {{ current.codigo }}, andar {{ selected_floor }}">
  {% for slot in slots %}
    {% if slot.status in ['used','anomaly'] %}
@@ -33,7 +33,7 @@
    {% endif %}
  {% endfor %}
  </div>
- <p class="map-note">O mapa mostra apenas as posições do andar escolhido. <strong>Verificar</strong> indica mais de 1 palete numa posição ou stock numa localização fora do catálogo. Nenhum dado foi corrigido automaticamente.</p>
+ <p class="map-note">O mapa mostra apenas as posições do andar escolhido. <strong>Verificar</strong> indica ocupação acima da capacidade configurada ou stock numa localização fora do catálogo. Nenhum dado foi corrigido automaticamente.</p>
 </section>
 {% else %}<div class="alert warning">Ainda não existem corredores configurados. Um administrador deverá criar as localizações nas Definições.</div>{% endif %}
 <section class="panel">

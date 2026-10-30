@@ -1,3 +1,5 @@
+> DDN WMS — Fase 1: cliente proprietário, armazém e área explícitos; capacidades configuráveis. [Especificação atual desta fase](DDN_FASE1_MULTICLIENTE.md) prevalece sobre as regras globais históricas abaixo.
+
 # Iberbag WMS — Especificação para desenvolvimento
 
 ## Infraestrutura

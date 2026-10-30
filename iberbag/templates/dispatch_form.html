@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% block crumb %}Saídas / Pedido{% endblock %}
 {% block content %}<h1>{{ 'Corrigir rascunho' if order else 'Nova preparação' }}</h1>
 <p>Indicar apenas lotes e paletes inteiras. Os artigos e o stock são identificados automaticamente ao guardar. O sistema selecionará as cargas e localizações por FIFO.</p>
-<form method="post" action="/dispatches/save" class="panel"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="request_key" value="{{ request_key }}">
+<form method="post" action="/dispatches/save" class="panel"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="context_id" value="{{ active_context_id }}"><input type="hidden" name="request_key" value="{{ request_key }}">
 {% if order %}<input type="hidden" name="order_id" value="{{ order.id }}"><input type="hidden" name="version" value="{{ order.version }}">{% endif %}
 <input type="hidden" name="channel" value="{{ channel }}"><p>Fluxo: {{ 'Mercadona' if channel=='mercadona' else 'Outros clientes / CARGA' }}. <a href="/dispatches/new?channel=mercadona">Nova Mercadona</a> · <a href="/dispatches/new">Nova para outros clientes</a></p>
 <label>Cliente <input name="customer" maxlength="120" required value="{{ 'Mercadona' if channel=='mercadona' else commercial.customer if commercial else '' }}" {{ 'readonly' if channel=='mercadona' else '' }}></label>

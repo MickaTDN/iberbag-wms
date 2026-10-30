@@ -68,7 +68,15 @@ def validate_location(db, code):
         raise WarehouseError('O corredor não existe. Cria primeiro o corredor nas Definições.')
     if not 1 <= slot <= corridor.posicoes or floor > corridor.andares:
         raise WarehouseError('A localização está fora dos andares/posições configurados para este corredor.')
+    exclusive_codes(db, [code])
     return code
+
+def exclusive_codes(db, codes):
+    from .physical_locations import ensure_exclusive
+    try:
+        ensure_exclusive(db, codes)
+    except ValueError as error:
+        raise WarehouseError(str(error)) from error
 
 def audit(db, username, event, details):
     db.add(Audit(username=username, action=event, details=details))
@@ -79,6 +87,7 @@ def add_corridor(db: Session, user, code, floors, positions):
     if db.scalar(select(Corridor).where(Corridor.codigo == code)) is not None:
         raise WarehouseError(f'O corredor {code} já existe.')
     wanted = codes_for(code, floors, positions)
+    exclusive_codes(db, wanted)
     existing = set(db.scalars(select(Location.codigo).where(Location.codigo.in_(wanted))).all())
     db.add(Corridor(codigo=code, andares=floors, posicoes=positions))
     db.add_all([Location(codigo=c, capacidade=1) for c in sorted(wanted-existing)])
@@ -94,6 +103,7 @@ def update_corridor(db: Session, user, code, floors, positions):
     _, floors, positions = validate_corridor(code, floors, positions)
     existing = corridor_locations(db, code)
     desired = codes_for(code, floors, positions)
+    exclusive_codes(db, desired)
     drop = set(existing) - desired
     # Include stocked codes that may exist without a catalogue row (legacy Excel).
     stock_codes = db.scalars(select(Stock.local).where(Stock.local.like(f'{code}%'), Stock.quantidade > 0)).all()
@@ -190,4 +200,24 @@ def set_location_active(db, username, code, active):
     if location.active != active:
         location.active = active
         audit(db, username, 'ESTADO_LOCALIZACAO', f'{location.codigo}: ativa={active}.')
+    db.commit()
+
+@catalogue_operation
+def set_capacity(db, username, code, value):
+    location = db.scalar(select(Location).where(Location.codigo == code).with_for_update())
+    if not location:
+        raise WarehouseError('Localização inexistente neste contexto.')
+    if value == '':
+        capacity = None
+    elif not re.fullmatch('[0-9]{1,9}', value) or int(value) < 1:
+        raise WarehouseError('Capacidade: indicar inteiro positivo; vazio significa ilimitado.')
+    else:
+        capacity = int(value)
+    used = sum(row[1] for row in occupied(db,[code]))
+    if capacity is not None and used > capacity:
+        raise WarehouseError('A capacidade não pode ser inferior ao stock atual.')
+    if is_floor(code) and capacity is not None:
+        raise WarehouseError('O Chão mantém capacidade ilimitada.')
+    location.capacidade = capacity
+    audit(db,username,'CAPACIDADE_LOCALIZACAO',f'{code}: {capacity if capacity is not None else "ilimitada"}.')
     db.commit()

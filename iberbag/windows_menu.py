@@ -5,7 +5,7 @@ import sys
 
 
 def main():
-    print('IBERBAG WMS — ensaio de instalação Windows; usar apenas dados fictícios.')
+    print('DDN WMS — ensaio de instalação Windows; usar apenas dados fictícios.')
     name = input('Nome da base de TESTE [iberbag_ensaio_test]: ').strip() or 'iberbag_ensaio_test'
     if not name.endswith('_test') or not name.replace('_', '').isalnum():
         raise SystemExit('Usar letras, números, _ e nome terminado em _test.')

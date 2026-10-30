@@ -11,8 +11,22 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -r requirements-dev.txt
-      - run: python -m pytest -q
-      - run: python scripts/test_postgres.py
+      - name: SQLite consultation regression
+        run: python -m pytest -q --junitxml=.test-results/sqlite.xml
+      - name: PostgreSQL operational regression
+        run: python scripts/test_postgres.py --junitxml=.test-results/postgres.xml
+      - name: Require executed PostgreSQL coverage and sanitized evidence
+        if: always()
+        run: |
+          python scripts/verify_test_report.py .test-results/sqlite.xml --backend sqlite --output .test-results/sqlite-proof.json
+          python scripts/verify_test_report.py .test-results/postgres.xml --backend postgres --output .test-results/postgres-proof.json
+      - name: Archive test evidence without traces or fixture secrets
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: phase1-proof-linux-${{ github.run_attempt }}
+          path: .test-results/*-proof.json
+          if-no-files-found: error
 
   windows-sqlite:
     runs-on: windows-latest
@@ -22,4 +36,15 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -r requirements-dev.txt
-      - run: python -m pytest -q
+      - name: Windows SQLite consultation regression
+        run: python -m pytest -q --junitxml=.test-results/windows-sqlite.xml
+      - name: Record Windows evidence
+        if: always()
+        run: python scripts/verify_test_report.py .test-results/windows-sqlite.xml --backend sqlite --output .test-results/windows-sqlite-proof.json
+      - name: Archive test evidence without traces or fixture secrets
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: phase1-proof-windows-${{ github.run_attempt }}
+          path: .test-results/*-proof.json
+          if-no-files-found: error

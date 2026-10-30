@@ -15,6 +15,11 @@ from .database import Base
 from .migrations import config, REVISION
 
 TABLES = list(Base.metadata.sorted_tables)
+# Claims must precede locations/stock: their insertion triggers also register claims.
+_claim = next(t for t in TABLES if t.name == 'physical_location_claims')
+TABLES.remove(_claim)
+TABLES.insert(next(i for i,t in enumerate(TABLES) if t.name == 'storage_contexts')+1, _claim)
+PHYSICAL_TABLES = {'physical_location_claims'}
 LOCK = 72834002
 RECEIVING_TABLES = {'receipts', 'receipt_lines', 'putaways'}
 DISPATCH_TABLES = {'dispatch_orders', 'dispatch_lines', 'dispatch_picks'}
@@ -48,12 +53,12 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
-    missing_legacy = missing - CONTEXT_TABLES
+    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES
     legacy_revision = {frozenset(OPERATIONAL_TABLES): '0001',
         frozenset(DISPATCH_TABLES | TRANSFER_TABLES | INVENTORY_TABLES | COMMERCIAL_TABLES): '0002',
         frozenset(TRANSFER_TABLES | INVENTORY_TABLES | COMMERCIAL_TABLES): '0003',
         frozenset(INVENTORY_TABLES | COMMERCIAL_TABLES): '0004',
-        frozenset(COMMERCIAL_TABLES): '0005', frozenset(): ('0006' if missing & CONTEXT_TABLES else REVISION)}.get(frozenset(missing_legacy))
+        frozenset(COMMERCIAL_TABLES): '0005', frozenset(): ('0006' if missing & CONTEXT_TABLES else ('ddn_0001' if missing & PHYSICAL_TABLES else REVISION))}.get(frozenset(missing_legacy))
     if names - expected - {'alembic_version'} or legacy_revision is None or inspector.get_view_names():
         raise ValueError('Esquema diferente da v2.3: tabelas em falta, adicionais ou vistas. Rever manualmente.')
     if 'alembic_version' in names:
@@ -92,6 +97,9 @@ def read_data(connection):
         result['warehouses']=[dict(id=i,name=n,active=True) for i,n in WAREHOUSES]
         result['clients']=[dict(id=i,name=n,tracking=t,unit=u,pallet_operations=e,active=True) for i,n,t,u,e,w in CLIENTS]
         result['storage_contexts']=[dict(id=i,client_id=i,warehouse_id=w,area=n,active=True) for i,n,t,u,e,w in CLIENTS]
+    if missing & PHYSICAL_TABLES:
+        from .physical_locations import expected_claims
+        result['physical_location_claims'] = expected_claims(result)
     if not any(row['key'] == 'warehouse_layout_seeded_vba' and row['value'] == '1'
                for row in result['app_config']):
         raise ValueError('Catálogo v2.3 não inicializado. Não será deduzido automaticamente.')

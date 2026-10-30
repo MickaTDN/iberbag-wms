@@ -44,6 +44,13 @@ class StorageContext(Base):
     __table_args__ = (UniqueConstraint('warehouse_id', 'area', name='warehouse_area_unique'),
                      UniqueConstraint('client_id', 'warehouse_id', name='client_warehouse_unique'))
 
+class PhysicalLocationClaim(Base):
+    """One physical code per warehouse, never reassigned by deleting a location."""
+    __tablename__ = 'physical_location_claims'
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey('warehouses.id'), primary_key=True)
+    code: Mapped[str] = mapped_column(String(120), primary_key=True)
+    context_id: Mapped[int] = mapped_column(ForeignKey('storage_contexts.id'), nullable=False)
+
 class Scoped:
     context_id: Mapped[int] = mapped_column(ForeignKey('storage_contexts.id'), nullable=False,
                                            default=1, server_default='1', index=True)
@@ -533,7 +540,7 @@ class IncompleteComposition(Scoped, Base):
 # Every business key lives inside an immutable client/warehouse context. IDs stay
 # globally unique, preserving all historical references and archived documents.
 for _table in list(Base.metadata.tables.values()):
-    if 'context_id' not in _table.c:
+    if _table.name == 'physical_location_claims' or 'context_id' not in _table.c:
         continue
     for _unique in list(_table.constraints):
         if isinstance(_unique, UniqueConstraint) and 'context_id' not in _unique.columns:
@@ -548,7 +555,7 @@ for _table in list(Base.metadata.tables.values()):
     else:
         _table.append_constraint(UniqueConstraint('context_id', *_pk, name='uq_ctx_' + _table.name))
 for _table in list(Base.metadata.tables.values()):
-    if 'context_id' not in _table.c:
+    if _table.name == 'physical_location_claims' or 'context_id' not in _table.c:
         continue
     for _fk in list(_table.foreign_key_constraints):
         if len(_fk.elements) != 1:
@@ -589,3 +596,13 @@ def _scope_writes(db, flush_context, instances):
             record.context_id = scope
         if record.context_id != scope or (record not in db.new and sa_inspect(record).attrs.context_id.history.has_changes()):
             raise ValueError('Registo fora do contexto ou tentativa de mudar o proprietário/armazém.')
+
+# PostgreSQL enforces physical ownership with database triggers. Keep SQLite
+# consultation fixtures consistent without enabling operational SQLite services.
+@event.listens_for(Session, 'before_flush')
+def _sqlite_physical_claims(db, flush_context, instances):
+    if db.bind.dialect.name == 'sqlite':
+        from .physical_locations import claim_sqlite
+        for record in db.new | db.dirty:
+            if isinstance(record, (Location, Stock)):
+                claim_sqlite(db, record)

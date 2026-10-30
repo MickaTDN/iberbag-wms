@@ -12,6 +12,8 @@ scripts, repositório e configurações `WMS_*` conservam compatibilidade.
 Documentos já arquivados conservam exatamente os seus bytes e identificação
 histórica; apenas novos documentos usam DDN e incluem o contexto confirmado.
 
+> Revisão final: [riscos, bloqueio de posições partilhadas, reconciliação com 0007 e provas da CI](REVISAO_FINAL_PR10.md). A head desta branch passa a `ddn_0002`, sem alterar a revisão publicada `ddn_0001`.
+
 ## Modelo
 
 - `Warehouse`: armazém físico configurável; inicialmente Ovar e Escapães.
@@ -44,12 +46,20 @@ Um novo cliente pode usar o processo genérico de paletes agrupadas sem código 
 
 ## Localizações e capacidade
 
-A identificação completa é armazém + área do proprietário + código, por exemplo
-Ovar / Iberbag / A101. O mesmo código numa **outra área fisicamente distinta**
-não identifica a mesma posição. Não duplicar uma posição física real criando
-áreas com nomes diferentes. O administrador deve conferir a implantação física
-antes de ativar operações num novo contexto. A partilha da mesma posição entre
-proprietários e várias áreas por cliente/armazém não estão implementadas.
+A propriedade do stock continua a ser cliente/armazém/área. Nesta revisão,
+`physical_location_claims` acrescenta a identidade física conservadora
+armazém + código normalizado, exclusiva de um contexto. Um código normal não
+pode repetir-se entre proprietários/áreas no mesmo armazém; pode repetir-se em
+armazéns diferentes. A atribuição mantém-se após remover a localização vazia.
+Chão mantém-se uma zona lógica ilimitada por contexto. Não existem posições
+com capacidade finita partilhadas entre proprietários nesta fase.
+
+A partilha real Iberbag/Cosmopak requer a alteração descrita na revisão final:
+localização física independente do proprietário, capacidade/ocupação/reservas
+comuns e bloqueios concorrentes por posição. Não simular essa partilha criando
+duas áreas com capacidade própria. Conferir fisicamente os códigos antes de
+ativar novos contextos; etiquetas diferentes na mesma posição real não podem
+ser identificadas automaticamente pelo programa.
 
 Iberbag mantém o seu catálogo A–S, incluindo códigos históricos e Chão, com as
 capacidades anteriores. Novos contextos começam apenas com Chão; o mapa não é
@@ -84,7 +94,7 @@ sessões contextualizadas; SQL/Core direto exige revisão específica.
 Operações de stock continuam recusadas em SQLite. O importador Excel original
 continua exclusivamente Iberbag/Ovar e recusa outro contexto.
 
-## Migração `ddn_0001` (a partir de 0006)
+## Migrações `ddn_0001` e `ddn_0002` (a partir de 0006)
 
 O identificador evita colidir com `0007` do PR #9. Há uma única head nesta branch.
 **Antes de integrar #8/#9 e esta fase, reconciliar explicitamente código e grafo
@@ -92,12 +102,17 @@ Alembic e repetir regressão/backup/restauro.** Uma base já na revisão 0007 n�
 aceite por esta branch independente. Não usar `stamp`, remover migrações, ou
 escolher `heads` para contornar essa incompatibilidade.
 
-A migração acrescenta catálogos e colunas com DEFAULT 1. Todos os registos antigos
+A `ddn_0001` acrescenta catálogos e colunas com DEFAULT 1. Todos os registos antigos
 ficam associados a Iberbag/Ovar, sem alterar os seus outros valores, quantidades,
 identidades, datas, responsáveis, reservas ou PDFs. Não se deduzem dados ausentes.
 Os constraints e relógios passam a respeitar o contexto. Não se apagam tabelas
 nem se desativam os triggers de imutabilidade durante a atualização PostgreSQL.
 O downgrade destrutivo é recusado.
+
+A `ddn_0002` cria o registo físico exclusivo, incluindo posições históricas.
+Recusa conflitos já existentes, sem os resolver ou mover stock silenciosamente.
+A revisão `ddn_0001` pode ser atualizada pelo mesmo procedimento de backup e
+restauro, preservando os valores anteriores. A migração publicada não foi editada.
 
 Procedimento de ensaio (primeiro numa cópia fictícia, servidor parado):
 
@@ -130,9 +145,9 @@ Nenhuma atualização automática é feita no arranque.
 1. Administrador: confirmar Iberbag/Ovar e consultar o stock de ensaio.
 2. Criar «Cliente fictício», área exclusiva, Ovar, paletes agrupadas ativas.
 3. Selecionar o novo contexto. Confirmar que não aparece stock Iberbag.
-4. Criar corredor A/1/2 e configurar A101 com capacidade 3.
-5. Receber carga TESTE, artigo ART, lote LOT, 5 paletes; arrumar 3 em A101 e 2 no
-   Chão. A quarta palete em A101 deve ser recusada.
+4. Criar corredor T/1/2 e configurar T101 com capacidade 3. Não usar A101: esse código físico já pertence a Iberbag em Ovar.
+5. Receber carga TESTE, artigo ART, lote LOT, 5 paletes; arrumar 3 em T101 e 2 no
+   Chão. A quarta palete em T101 deve ser recusada.
 6. Criar preparação LOT/2; rever e confirmar. Verificar desconto imediato, FIFO,
    PDF com contexto, idempotência e manutenção do stock dos outros clientes.
 7. Associar o cliente a Escapães, com outra área; aí não deve existir stock Ovar.
@@ -145,7 +160,7 @@ Automação: `python -m pytest -q`; PostgreSQL 17 descartável:
 `python scripts/test_postgres.py`. O runner aceita seletores pytest opcionais.
 Inclui regressão das Etapas 1–7, testes de isolamento, concorrência, ligação
 cruzada recusada, inventário, permissões, migração integral e recuperação.
-Validação local: 189 testes PostgreSQL aprovados; SQLite: 31 aprovados e 158
+Validação local após revisão: 199 testes PostgreSQL aprovados; SQLite: 34 aprovados e 165
 omitidos por dependerem de PostgreSQL/Docker. Os resultados da CI são registados
 no PR. Validação física Windows e
 conferência das áreas reais ficam pendentes; não houve testes com dados reais.

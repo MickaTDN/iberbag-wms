@@ -2,6 +2,7 @@
 {% block title %}Definições | DDN WMS{% endblock %}
 {% block crumb %}Definições / Localizações{% endblock %}
 {% block content %}
+<div class="alert warning">Nesta fase, cada código físico de posição pertence a um único contexto por armazém. Mudar o nome da área não permite duplicar a capacidade. Posições partilhadas entre clientes estão bloqueadas; a exclusividade mantém-se mesmo após remover uma localização vazia. Chão é uma zona lógica ilimitada, não uma posição partilhada com capacidade finita.</div>
 <div class="page-head"><div><div class="overline"><a class="table-link" href="/settings">← Todas as Definições</a></div><h1>Localizações</h1><p>Gerir as posições físicas do armazém sem modificar o stock.</p></div><span class="pill outline">{{ corridors|length }} corredores</span></div>
 <div class="alert warning"><strong>Mapa inicial extraído do VBA:</strong> corredores A–S, posições 01–27 em cada andar; L e M têm 5 andares, os restantes 4. É um mapa teórico: confirma as posições físicas existentes. A capacidade é configurável por posição em Clientes e armazéns. O mapa inicial Iberbag usa uma palete por posição. <strong>Chão</strong> não tem limite e não pode ser removido. Remover uma posição vazia retira-a do catálogo, não do stock.</div>
 <section class="panel">

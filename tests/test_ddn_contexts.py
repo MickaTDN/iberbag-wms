@@ -110,16 +110,16 @@ def test_pending_allocations_do_not_cross_owners(warehouse):
 def test_context_capacity_and_catalogue_are_resolved_exactly(warehouse):
     engine,accounts=warehouse;actor=accounts['admin'][0];other=add_context(engine,actor)
     with scoped(engine,other) as db:
-        add_corridor(db,'admin','A',1,1)
-        set_capacity(db,'admin','A101','3')
+        add_corridor(db,'admin','T',1,1)
+        set_capacity(db,'admin','T101','3')
     receipt,stock=receive(engine,actor,other,qty=4)
     with scoped(engine,other) as db:
-        ident=transferring.review_transfer(db,actor,secrets.token_hex(16),stock,'A101','3')
+        ident=transferring.review_transfer(db,actor,secrets.token_hex(16),stock,'T101','3')
         transferring.confirm_transfer(db,actor,ident)
-        assert db.scalar(select(func.sum(Stock.quantidade)).where(Stock.local=='A101'))==3
+        assert db.scalar(select(func.sum(Stock.quantidade)).where(Stock.local=='T101'))==3
         with pytest.raises(receiving.ReceivingError,match='capacidade'):
-            transferring.review_transfer(db,actor,secrets.token_hex(16),stock,'A101','1')
-        with pytest.raises(WarehouseError):set_capacity(db,'admin','A101','2')
+            transferring.review_transfer(db,actor,secrets.token_hex(16),stock,'T101','1')
+        with pytest.raises(WarehouseError):set_capacity(db,'admin','T101','2')
     with scoped(engine) as db:
         assert db.scalar(select(Location.capacidade).where(Location.codigo=='A101'))==1
         assert db.scalar(select(func.count()).select_from(StockTransfer))==0
@@ -220,7 +220,7 @@ def test_migration_preserves_every_legacy_column_and_document(warehouse,pg_datab
     receive(engine,actor,qty=5);prepare(engine,actor,1,7)
     with engine.connect() as conn:
         legacy={t.name:[{k:v for k,v in r.items() if k!='context_id'} for r in conn.execute(select(t)).mappings()]
-                for t in Base.metadata.sorted_tables if t.name not in transfer.CONTEXT_TABLES}
+                for t in Base.metadata.sorted_tables if t.name not in transfer.CONTEXT_TABLES | transfer.PHYSICAL_TABLES}
     target=pg_databases(restricted=True)
     with target.begin() as conn:
         cfg=config();cfg.attributes['connection']=conn;command.upgrade(cfg,'0006')
@@ -228,7 +228,7 @@ def test_migration_preserves_every_legacy_column_and_document(warehouse,pg_datab
         conn.execute(text('ALTER TABLE locations DISABLE TRIGGER catalogue_clock'))
         # This is synthetic fixture restoration, not an application migration path.
         for table in Base.metadata.sorted_tables:
-            if table.name in transfer.CONTEXT_TABLES or not legacy[table.name]:continue
+            if table.name in transfer.CONTEXT_TABLES | transfer.PHYSICAL_TABLES or not legacy[table.name]:continue
             reflected=Table(table.name,MetaData(),autoload_with=conn)
             # Preserve insertion guards; restore headers in draft and finalise last.
             rows=legacy[table.name]

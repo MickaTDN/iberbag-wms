@@ -199,3 +199,12 @@ conta runtime restrita, recuperação verificada e implantação física conferi
 continua necessária antes de utilização oficial. Não foram especificadas aqui
 as funcionalidades da Fase 2; não se declara implementado ou validado qualquer
 fluxo dessa fase.
+
+### Atualização das dependências de teste
+
+A primeira auditoria CI deste candidato detetou três avisos novos em `pypdf`
+6.21.3: GHSA-5849-834g-hvw5, GHSA-mfr5-77xh-9j7h e GHSA-cggf-277g-3q54.
+A dependência de teste foi atualizada para 6.21.4, com hashes do wheel verificados
+no PyPI e mínimo correspondente no ficheiro de origem. Os documentos arquivados
+não são alterados; a nova versão apenas participa na leitura/validação dos PDFs
+nos testes. Os resultados da auditoria atualizada constam no PR/CI.

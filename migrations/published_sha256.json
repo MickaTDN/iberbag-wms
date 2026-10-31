@@ -1,0 +1,11 @@
+{
+  "migrations/versions/0001_initial_v2_3_schema.py": "d70efe690f5a381fe2ce589e7f3ab77489be380fe476689b5ff825b039a0f75e",
+  "migrations/versions/0002_receipts_and_putaway_ledger.py": "1b40fe4986bf2b09fe5c65d8d9f34f4e30c47b134e8b45593981b8e5a90f1deb",
+  "migrations/versions/0003_dispatch_fifo_and_retained_stock_history.py": "548ec2d229214cf152ccf45ea7fed3b16db95918476122189dd9d146c0cd0456",
+  "migrations/versions/0004_location_transfers_and_active_catalogue.py": "6c58b26b7e92447c6879cbfce380b5020443d615e0136197365661941f556078",
+  "migrations/versions/0005_office_preparation_and_physical_inventory.py": "eaf71513afe0150e14c52a36f32b3c2936a97abb9ab802ba510044fe0d4a0215",
+  "migrations/versions/0006_commercial_pending_and_incoming_allocation.py": "d08e22d236883d241ca7a9ba69dd1eae4b0b47f6033001506bc444edbfe27f51",
+  "migrations/versions/0007_audit_append_only.py": "fc62ce9b1597f636751547190c81049b478c9c6653559184e64b311cc534c7a2",
+  "migrations/versions/ddn_0001_client_warehouse_contexts.py": "734c2305e2dac6d732bc874c213c850cf43a7631c24b3f5bf01bcd1fd46e5f42",
+  "migrations/versions/ddn_0002_exclusive_physical_codes.py": "03f36b12f1744c1ff3cccf32dde86cd90dbfc3fb18d941c6bf645d1506e614e6"
+}

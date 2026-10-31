@@ -1,3 +1,5 @@
+> Candidato de integração, dependente do PR #10: [junção Alembic, segurança e recuperação](INTEGRACAO_SEGURANCA_MULTICLIENTE.md). A `main` e os PRs existentes não foram integrados automaticamente.
+
 # DDN WMS — Distribuição David Neto: Fase 1
 
 ## Âmbito e estado dos PRs

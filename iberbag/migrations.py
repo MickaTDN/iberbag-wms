@@ -5,7 +5,7 @@ from alembic.config import Config
 from sqlalchemy import inspect, text, select
 from .database import engine, SessionLocal, AppConfig, seed_warehouse_layout
 
-REVISION = "ddn_0002"
+REVISION = "ddn_security_0001"
 
 def config():
     cfg = Config()
@@ -30,8 +30,8 @@ def prepare_database():
         if tables and "alembic_version" not in tables:
             raise RuntimeError("Base existente sem versão: recusada. Fazer backup e ensaiar migração numa cópia.")
         if "alembic_version" in tables:
-            revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
-            if revision != REVISION:
+            versions = connection.execute(text("SELECT version_num FROM alembic_version")).scalars().all()
+            if versions != [REVISION]:
                 raise RuntimeError("Base existente: usar upgrade-db --preview e depois --apply com backup/restauro verificados.")
     command.upgrade(config(), "head")
     with SessionLocal() as db:

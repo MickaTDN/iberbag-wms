@@ -1,3 +1,4 @@
+from conftest import BACKUP_PASSWORD, login_data
 """Final PR #10 review: exclusive physical capacity and cross-owner reservations."""
 import secrets
 from concurrent.futures import ThreadPoolExecutor
@@ -119,8 +120,8 @@ def test_ddn1_backup_restore_upgrade_preserves_legacy_data(pg_databases,tmp_path
         cfg=config();cfg.attributes['connection']=conn;command.upgrade(cfg,'ddn_0001')
     with scoped(origin) as db:seed_legacy_catalogue(db)
     folder=tmp_path/'ddn1'
-    backup.backup(origin,folder,runner=docker_client)
-    assert backup.restore(restored,folder,runner=docker_client)['status']=='reconciled'
+    backup.backup(origin,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
+    assert backup.restore(restored,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)['status']=='reconciled'
     with origin.connect() as conn:before=transfer.inventory(transfer.read_data(conn))
     assert apply_upgrade(origin,folder)['status']=='upgraded'
     with origin.connect() as conn:

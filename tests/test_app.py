@@ -1,3 +1,4 @@
+from conftest import login_data
 """Version 2.3 functional tests with an isolated, temporary SQLite database."""
 import os
 from datetime import datetime
@@ -40,7 +41,7 @@ def setup_module():
 
 
 def login(client, name):
-    response=client.post('/login',data={'username':name,'password':PASSWORD},follow_redirects=False)
+    response=client.post('/login',data=login_data(client, {'username':name,'password':PASSWORD}),follow_redirects=False)
     assert response.status_code == 303
 
 
@@ -189,8 +190,8 @@ def test_zz_permissions_and_rate_limit():
         assert 'newop' in client.get('/users').text
     with TestClient(app) as client:
         for _ in range(8):
-            assert client.post('/login',data={'username':'none','password':secrets.token_urlsafe(24)}).status_code==401
-        assert client.post('/login',data={'username':'none','password':secrets.token_urlsafe(24)}).status_code==429
+            assert client.post('/login',data=login_data(client, {'username':'none','password':secrets.token_urlsafe(24)})).status_code==401
+        assert client.post('/login',data=login_data(client, {'username':'none','password':secrets.token_urlsafe(24)})).status_code==429
     # Keep subsequent tests independent of the intentional rate-limit test.
     from iberbag.database import FailedLogin
     with SessionLocal() as db:

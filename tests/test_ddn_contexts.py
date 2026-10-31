@@ -1,3 +1,4 @@
+from conftest import BACKUP_PASSWORD, login_data
 """Phase 1: synthetic owners/warehouses, real PostgreSQL, existing operations."""
 import secrets
 from io import BytesIO
@@ -205,7 +206,7 @@ def test_http_context_selection_roles_csrf_and_stale_forms(warehouse,monkeypatch
     receive(engine,actor,qty=7);receive(engine,actor,other,qty=4)
     monkeypatch.setattr(web,'SessionLocal',sessionmaker(bind=engine,expire_on_commit=False))
     with TestClient(web.app) as client:
-        assert client.post('/login',data={'username':'admin','password':accounts['admin'][1]},follow_redirects=False).status_code==303
+        assert client.post('/login',data=login_data(client,{'username':'admin','password':accounts['admin'][1]}),follow_redirects=False).status_code==303
         with scoped(engine) as db:
             from iberbag.security import get_session
             csrf=get_session(db,client.cookies.get('wms_session')).csrf_token
@@ -218,7 +219,7 @@ def test_http_context_selection_roles_csrf_and_stale_forms(warehouse,monkeypatch
         assert client.post('/settings/clients',data={'csrf':csrf,'context_id':other,'name':'WEB FICTÍCIO','warehouse':'2','area':'WEB FICTÍCIO','pallet_operations':'yes'},follow_redirects=False).status_code==303
         assert client.get('/stock/999999').status_code==404
     with TestClient(web.app) as client:
-        client.post('/login',data={'username':'operador','password':accounts['operador'][1]})
+        client.post('/login',data=login_data(client,{'username':'operador','password':accounts['operador'][1]}))
         assert client.get('/settings/clients').status_code==403
         assert client.post('/settings/clients',data={'name':'FORBIDDEN'}).status_code==403
     with scoped(engine) as db:
@@ -267,9 +268,9 @@ def test_backup_restore_keeps_all_contexts_and_archived_pdfs(warehouse,pg_databa
     receipt,stock=receive(engine,actor);other_receipt,other_stock=receive(engine,actor,other)
     order=prepare(engine,actor,other,7)
     folder=tmp_path/'all-contexts'
-    backup.backup(engine,folder,runner=docker_client)
+    backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
     target=pg_databases(restricted=True)
-    assert backup.restore(target,folder,runner=docker_client)['status']=='reconciled'
+    assert backup.restore(target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)['status']=='reconciled'
     with engine.connect() as a,target.connect() as b:
         assert transfer.inventory(transfer.read_data(a))==transfer.inventory(transfer.read_data(b))
     with scoped(target,other) as db,scoped(engine,other) as original:

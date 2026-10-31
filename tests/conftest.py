@@ -36,3 +36,28 @@ def cleanup_database():
         with _admin.begin() as conn:
             conn.exec_driver_sql(f'DROP SCHEMA {_schema} CASCADE')
         _admin.dispose()
+
+
+def login_data(client, data):
+    import re
+    token = re.search('name="login_csrf" value="([^"]+)"', client.get('/login').text)[1]
+    return dict(data, login_csrf=token)
+
+import secrets
+BACKUP_PASSWORD = secrets.token_urlsafe(32)
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Expose safe failure locations through the Checks API, without fixture values."""
+    outcome = yield
+    report = outcome.get_result()
+    if os.environ.get('GITHUB_ACTIONS') == 'true' and report.failed and call.excinfo:
+        kind = call.excinfo.typename
+        # Only our fixed permission errors are useful here; never echo general
+        # tracebacks, credentials, HTTP bodies or parametrized fixture values.
+        detail = str(call.excinfo.value)
+        if not detail.startswith(('ACL Windows privada', 'Pasta privada', 'Ficheiro de backup')):
+            detail = kind
+        message = (item.name.split('[')[0] + ': ' + detail).replace('%', '%25').replace('\n', '%0A').replace('\r', '%0D')
+        print(f'::error file={item.location[0]},line={item.location[1]+1}::{message}')

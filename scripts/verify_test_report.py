@@ -9,6 +9,14 @@ import re
 import xml.etree.ElementTree as ET
 
 REQUIRED_POSTGRES = {
+    'test_security_integration.test_mismatched_heads_refuse_startup_and_upgrade_without_adoption',
+    'test_security_integration.test_encrypted_verified_upgrade_origin_matrix',
+    'test_security_integration.test_encrypted_recovery_preserves_all_owners_warehouses_and_claims',
+    'test_security_integration.test_upgrade_rollback_retains_original_heads_and_history',
+    'test_security_integration.test_existing_pr9_encrypted_archive_uses_original_authenticated_inventory',
+    'test_security_context_auth.test_login_csrf_preserves_context_and_blocks_external_and_stale_forms',
+    'test_security_context_auth.test_secure_login_challenge_and_operator_admin_denial_in_other_context',
+    'test_security_context_auth.test_restricted_runtime_can_write_contextual_stock_but_not_physical_claims_or_history',
     'test_ddn_contexts.test_same_article_lot_load_and_location_are_isolated',
     'test_ddn_contexts.test_ovar_stock_is_never_available_in_escapaes',
     'test_ddn_contexts.test_pending_allocations_do_not_cross_owners',

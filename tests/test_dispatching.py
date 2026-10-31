@@ -12,12 +12,21 @@ from fastapi.testclient import TestClient
 from alembic import command
 from iberbag import dispatching as ops, backup, transfer
 from iberbag.database import (Stock, Carga, DispatchOrder, DispatchLine, DispatchPick, Audit, User, Base)
-from iberbag.migrations import config
+from iberbag.migrations import config, REVISION
 from test_receiving import warehouse
 from test_transfer import pg_databases, docker_client
 
 
 def add_stock(engine, code, day='2020-01-01', qty=1, local='Chão', artigo='A', lote='L', missing=False):
+    # Historical-schema fixtures must not use newer ORM columns.
+    from sqlalchemy import inspect, Table, MetaData
+    if 'context_id' not in {c['name'] for c in inspect(engine).get_columns('stock')}:
+        with engine.begin() as conn:
+            loads=Table('cargas',MetaData(),autoload_with=conn)
+            items=Table('stock',MetaData(),autoload_with=conn)
+            if not missing and not conn.scalar(select(loads.c.id).where(loads.c.codigo==code)):
+                conn.execute(loads.insert().values(codigo=code,entrada=datetime.fromisoformat(day) if day else None,funcionario=None))
+            return conn.scalar(items.insert().values(artigo=artigo,lote=lote,carga=code,local=local,quantidade=qty).returning(items.c.id))
     with Session(engine) as db:
         carga = db.scalar(select(Carga).where(Carga.codigo == code))
         if not carga and not missing:
@@ -272,7 +281,7 @@ def test_upgrade_0002_preserves_history_and_positive_stock(warehouse,pg_database
     assert preview(legacy)['from']=='0002'
     folder=tmp_path/'upgrade-backup'; backup.backup(legacy,folder,runner=docker_client)
     backup.restore(restored,folder,runner=docker_client)
-    assert apply_upgrade(legacy,folder)['revision']=='0006'
+    assert apply_upgrade(legacy,folder)['revision']==REVISION
     assert preview(legacy)['data']==preview(restored)['data']
 
 

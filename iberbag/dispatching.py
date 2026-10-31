@@ -259,6 +259,8 @@ def confirm_preparation(db, actor, order_id):
     db.flush()
     rows=[dict(lote=by_line[p.line_id].lote,artigo=by_line[p.line_id].artigo,
                quantidade=p.quantidade,carga=p.carga,local=p.local) for p in plan]
+    from .contexts import label
+    order.ddn_label = label(db)
     if commercial:
         from .database import CustomerPending
         from .commercial_pdf import render_preparation
@@ -304,6 +306,8 @@ def archive_legacy_document(db,actor,order_id):
     by_line={line.id:line for line in lines(db,order_id)}
     rows=[dict(artigo=by_line[p.line_id].artigo,lote=by_line[p.line_id].lote,carga=p.carga,local=p.local,quantidade=p.quantidade) for p in picks(db,order_id)]
     if not rows:raise DispatchError('Sem seleção histórica comprovada para emitir documento.')
+    from .contexts import label
+    order.ddn_label=label(db)
     content=render_pdf(order,rows)
     db.add(DispatchDocument(order_id=order_id,pdf=content,sha256=hashlib.sha256(content).hexdigest(),stock_versions='{}'))
     db.add(Audit(username=actor.username,action='DOCUMENTO_LEGADO',details=f'Pedido {order_id}; seleção histórica, sem recalcular ou descontar stock.'))

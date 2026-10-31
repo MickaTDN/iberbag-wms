@@ -10,7 +10,7 @@
 {% if operation.confirmed_at %}<div><dt>Data/hora UTC</dt><dd>{{ operation.confirmed_at.strftime('%d/%m/%Y %H:%M:%S') }}</dd></div>{% endif %}
 </dl></section>
 {% if operation.status == 'draft' %}<p>A revisão não reserva a posição. Só a confirmação atualiza o stock; pode falhar se outro operador ocupar a posição entretanto.</p>
-<form method="post" action="/putaway/{{ operation.id }}/confirm"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn" type="submit">Confirmar arrumação</button></form>
+<form method="post" action="/putaway/{{ operation.id }}/confirm"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="context_id" value="{{ active_context_id }}"><button class="btn" type="submit">Confirmar arrumação</button></form>
 {% else %}<p><a href="/stock/{{ operation.stock_id }}">Consultar stock e rastreabilidade</a></p>{% endif %}
 <p><a href="/putaway">Voltar às paletes pendentes</a></p>
 {% endblock %}

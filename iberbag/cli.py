@@ -8,7 +8,7 @@ from .capacities import export_csv
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Iberbag WMS — ferramentas do servidor')
+    parser = argparse.ArgumentParser(description='DDN WMS — ferramentas do servidor')
     commands = parser.add_subparsers(dest='command', required=True)
     upgrade = commands.add_parser('upgrade-db', help='rever/aplicar atualização de esquema com backup verificado')
     mode = upgrade.add_mutually_exclusive_group(required=True)
@@ -21,9 +21,9 @@ def main():
     imp = commands.add_parser('import-excel', help='validar/importar o ficheiro XLSM (nunca executa VBA)')
     imp.add_argument('ficheiro')
     imp.add_argument('--apply', action='store_true', help='gravar dados após a análise; uma única vez')
-    capex = commands.add_parser('export-capacities', help='exportar ocupação e capacidades fixas (apenas consulta)')
+    capex = commands.add_parser('export-capacities', help='exportar ocupação e capacidades configuradas (apenas consulta)')
     capex.add_argument('ficheiro')
-    capim = commands.add_parser('import-capacities', help='desativado: capacidades fixas na versão 2.2')
+    capim = commands.add_parser('import-capacities', help='desativado: editar nas Definições')
     capim.add_argument('ficheiro')
     capim.add_argument('--apply', action='store_true', help='confirmar gravação')
     args = parser.parse_args()
@@ -49,7 +49,7 @@ def main():
         with SessionLocal() as db: total=export_csv(db,args.ficheiro)
         print(f'{total} localizações exportadas para {args.ficheiro}.'); return
     if args.command == 'import-capacities':
-        raise SystemExit('Capacidades fixas no Iberbag WMS: 1 palete por posição, Chão sem limite. Não é necessário importar capacidades.')
+        raise SystemExit('Importação de capacidades desativada. Configurar por contexto em Definições → Clientes e armazéns.')
     if args.command == 'create-admin':
         u = input('Nome de utilizador: ').strip()
         name = input('Nome a apresentar: ').strip() or u

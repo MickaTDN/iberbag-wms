@@ -2,7 +2,7 @@
 setlocal EnableExtensions DisableDelayedExpansion
 chcp 65001 >nul
 cd /d "%~dp0"
-title IBERBAG WMS - Instalacao e testes locais
+title DDN WMS - Instalacao e testes locais
 
 if not exist "iberbag\cli.py" (
  echo.
@@ -33,7 +33,7 @@ exit /b 1
 :menu
 cls
 echo =========================================================
-echo             IBERBAG WMS v2.3 - TESTE LOCAL
+echo             DDN WMS v2.3 - TESTE LOCAL
  echo =========================================================
 echo Pasta: %CD%
 echo.

@@ -91,6 +91,9 @@ def import_stock(db, report: Scan, username='importador'):
     from .lots import assert_lot
     if db.bind.dialect.name != 'postgresql':
         raise ValueError('Importação de stock exige PostgreSQL; análise sem gravação continua disponível.')
+    from .database import context_id
+    if context_id(db) != 1:
+        raise ValueError('O importador Excel legado destina-se apenas a Iberbag/Ovar. Outros formatos exigem uma fase própria.')
     db.execute(text('SELECT pg_advisory_xact_lock(72834001)'))
     lotes = {}
     for (art, lot, load, loc), qty in report.groups.items():

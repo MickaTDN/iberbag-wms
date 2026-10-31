@@ -1,3 +1,4 @@
+from legacy_catalogue import seed_legacy_catalogue
 """Etapa 7: exclusively synthetic PostgreSQL warehouse/accounting scenarios."""
 import json
 import re
@@ -419,7 +420,7 @@ def test_0005_upgrade_preserves_confirmed_office_stock_pdf_and_identity(warehous
         table=Table(name,MetaData(),autoload_with=conn)
         return conn.execute(table.insert().values(**values).returning(table.c.id)).scalar_one()
     from iberbag.database import seed_warehouse_layout
-    with Session(old) as db:seed_warehouse_layout(db)
+    with Session(old) as db:seed_legacy_catalogue(db)
     with warehouse[0].connect() as conn:user=dict(conn.execute(select(User.__table__).limit(1)).mappings().one())
     with old.begin() as conn:
         actor=insert(conn,'users',user)

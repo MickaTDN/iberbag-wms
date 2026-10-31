@@ -4,26 +4,32 @@
 
 ## Estado e sequência de revisão
 
-A preparação parte de `main` `35460aa`, do PR #9 (`759fd1a`) e da Fase 1 revista
-no PR #10 (`20cbf38`). No momento da verificação, ambos os PRs estavam abertos.
-Esta branch combina os históricos para ensaio e revisão; **não integra nada na
-`main`**, não atualiza bases existentes, não faz deploy e não instala executáveis.
+A Fase 1 do PR #10 (`20cbf38`) foi integrada manualmente na `main` pelo merge
+`c891643b63ad8f9967a765a747b36f4dc1167ae5`, cujos pais são `35460aa` e `20cbf38`.
+A árvore da main corresponde exatamente à Fase 1 revista, sem alterações
+adicionais. O PR #11 passou a ter base `main`; o commit `9626411` atualiza apenas
+a branch de integração com essa main, sem rebase, force-push ou alteração do
+código funcional. O PR #9 (`759fd1a`) continua incluído por ancestralidade.
+Esta preparação **não integra o PR #11 na main**, não atualiza bases existentes,
+não faz deploy e não instala executáveis.
 
 Sequência recomendada:
 
-1. O proprietário revê e integra **manualmente o PR #10 primeiro**, preferencialmente
-   por merge commit, para preservar a relação entre os históricos já publicados.
-2. Este PR permanece em rascunho, com base em `codex/ddn-multiclient-phase1`, até
-   à integração da Fase 1. Só depois se atualiza a base para a `main` efetiva.
-3. Reavaliar o diff, as migrações e executar novamente a CI na base atualizada.
-4. Rever o PR combinado e integrá-lo manualmente. O tratamento do PR #9 original
+1. **Concluído:** integração manual do PR #10 por merge commit, preservando a
+   relação entre os históricos já publicados.
+2. **Concluído:** base do PR #11 alterada para main e atualização da sua branch
+   com a main efetiva. Os modelos e serviços operacionais da Fase 1 não mudaram.
+3. Reavaliar o diff, as migrações e exigir a nova CI na base atualizada. As provas
+   sanitizadas e os resultados vinculados à head ficam na descrição do PR #11;
+   retirar o rascunho só depois de PostgreSQL, Windows e Security aprovados.
+4. Rever o PR combinado e integrá-lo **manualmente**. O tratamento do PR #9 original
    deve referenciar a integração efetivamente aprovada, sem o declarar integrado
    antecipadamente nem aplicar as suas alterações uma segunda vez.
 
-Se o PR #10 for integrado por squash ou outra estratégia, reavaliar a ascendência
-Git antes de atualizar a base. Não alterar revisões Alembic para compensar uma
-mudança do histórico Git, nem assumir que um badge anterior valida o novo diff.
-O PR e as respetivas provas de CI registam os resultados finais da head revista.
+O risco anterior de squash do PR #10 não se concretizou. Não alterar revisões
+Alembic para compensar futuras mudanças do histórico Git, nem assumir que um
+badge anterior valida uma base/head diferente. O PR e as respetivas provas de
+CI registam os resultados finais da head revista.
 
 ## O que a integração preserva
 

@@ -1,22 +1,32 @@
-# DDN WMS — Preparação final dos PRs #10 e #11
+# DDN WMS — Finalização do PR #11 após integração do PR #10
 
-## Estado verificado antes da integração
+## Estado verificado em 31 de outubro de 2026
 
 | Elemento | Versão/base verificada | Estado |
 |---|---|---|
-| main | `35460aa160b47c14d79da0dcd693745b073e7969` | Igual à base dos ensaios anteriores; zero commits novos |
+| main | `c891643b63ad8f9967a765a747b36f4dc1167ae5` | Merge manual de #10; árvore igual à Fase 1 revista, sem alterações adicionais |
 | PR #9 | `759fd1a2d27cbe86696abd7cbf11f55edfbaea34` → main | Aberto; já incluído no candidato #11, não integrar isoladamente |
-| PR #10 | `20cbf383e56e16d85cf5b6fd21b1d6da77a97566` → main | Aberto, fora de rascunho, mergeable/clean, CI aprovada na mesma head |
-| PR #11 | código `ec3e0bfc1bebb546c11ffe014c7e4d98939fa323` → branch do #10 | Aberto, em rascunho, mergeable/clean na base atual, CI aprovada |
+| PR #10 | `20cbf383e56e16d85cf5b6fd21b1d6da77a97566` → main | Fechado e integrado com Create a merge commit; pais `35460aa` e `20cbf38` |
+| PR #11 | `codex/security-multiclient-integration` → main | Base atualizada; main incorporada na branch pelo merge `9626411`, sem conflitos |
 
-A API de reviews não devolveu nenhuma aprovação humana `APPROVED` em #10 ou #11.
-A aprovação aqui confirmada é a dos testes e a revisão técnica; não se inventa
-uma aprovação formal nem se presume autorização para integrar automaticamente.
-O proprietário deve conferir as regras de revisão do repositório e decidir o merge.
+Aprovação de testes não equivale a aprovação humana `APPROVED`. A descrição do
+PR #11 regista o estado final da CI/revisões e a sua passagem de rascunho para
+revisão, apenas depois das verificações. O proprietário decide o merge manual.
 
-Esta preparação não altera código funcional, bases, main nem a base do #11
-antecipadamente. Acrescenta este plano à branch do #11 e repete a regressão/CI
-sobre essa head. As provas finais ficam na descrição do PR.
+Esta preparação atualiza a base e o histórico do #11 **depois** do merge manual
+do #10. O merge local com a main produziu exatamente a árvore anterior de #11:
+nenhuma alteração funcional foi necessária para conciliar a Fase 1. Só a
+documentação de finalização foi atualizada; a nova CI testa a head publicada
+sobre main. Não se alteram bases de dados, instalações ou a própria main.
+
+## Diff contra a main efetiva
+
+O diff não repete modelos, catálogos, regras de stock nem serviços operacionais
+multicliente. Contém a segurança de #9, a conciliação de autenticação contextual,
+permissões e backups, a junção Alembic, dependências fixadas, testes e documentação.
+Não introduz a Fase 2. A migração `0007_audit_append_only.py` só acrescenta função
+e triggers PostgreSQL; `ddn_security_0001_merge.py` não executa DDL/DML. Nenhuma
+destas revisões apaga, recalcula ou recria stock e históricos.
 
 ## Inclusão da segurança sem duplicações
 
@@ -56,33 +66,17 @@ Os testes incluem 0006, 0007, ambas as revisões DDN e ambas as combinações,
 com prova de restauro prévia, preservação de valores/PDFs/reservas e rollback
 após DDL parcial. Heads desconhecidas/incoerentes são recusadas.
 
-## Sequência exata, a executar apenas depois da decisão humana
+## Sequência executada e aceitação do PR #11
 
-1. **Rever e integrar manualmente #10 primeiro.** Preferir a opção GitHub
-   **Create a merge commit**, se permitida pelas regras do repositório.
-   Confirmar que as heads/base continuam iguais às acima e que a CI de #10
-   está aprovada. Se mudarem, reavaliar antes de integrar.
-2. **Atualizar a cópia local da main** e confirmar que `20cbf38` é seu ancestral.
-   Comparar a árvore da nova main com a Fase 1 e listar qualquer alteração
-   adicional. Uma diferença nova exige revisão e regressão própria.
-3. **Alterar a base do PR #11 para main**, mantendo o PR em rascunho.
-   Não executar este passo enquanto #10 continuar aberto.
-4. **Atualizar apenas a branch de integração com essa nova main.** Este passo
-   não integra um PR na main: acrescenta o commit de atualização à branch #11,
-   preserva históricos e evita force-push/rebase. Exemplo para o responsável
-   técnico, apenas depois dos passos anteriores:
-
-   ```sh
-   git fetch origin main codex/security-multiclient-integration
-   git switch codex/security-multiclient-integration
-   git status --short
-   git merge-base --is-ancestor 20cbf383e56e16d85cf5b6fd21b1d6da77a97566 origin/main
-   git merge --no-ff origin/main
-   git push origin codex/security-multiclient-integration
-   ```
-
-   Parar se houver alterações locais, falha de ancestralidade ou conflitos.
-   Não resolver conflitos automaticamente nem ignorar os códigos de saída.
+1. **Concluído pelo proprietário:** integrar manualmente #10 com Create a merge
+   commit. A API e os dois pais do commit confirmam o método.
+2. **Concluído:** fetch da main, árvore de trabalho limpa, ancestralidade de
+   `20cbf38` e igualdade da árvore da main com a Fase 1.
+3. **Concluído:** alterar a base do PR #11 para main, mantendo-o em rascunho
+   durante os ensaios.
+4. **Concluído:** merge da origin/main apenas na branch de integração,
+   preservando os históricos de #9/#10 e sem rebase/force-push. A publicação
+   normal da branch provoca a CI nova; os links finais constam do PR.
 5. **Rever o diff do #11 contra a main efetiva.** Confirmar que é a integração
    de segurança/junção esperada, sem repetir a Fase 1 nem introduzir alterações
    alheias. Revalidar fingerprints, head Alembic e permissões.
@@ -92,9 +86,8 @@ após DDL parcial. Heads desconhecidas/incoerentes são recusadas.
    efetiva. Reexecutar um run antigo reutiliza o evento/SHA antigo e, por si só,
    não demonstra compatibilidade com uma main nova.
 7. Conferir a head/base dos checks, provas sanitizadas, PostgreSQL completo sem
-   omissões, Windows/SQLite/ACL e Security. Só então retirar o rascunho, concluir
-   a revisão humana e integrar **manualmente** #11. Preservar a ancestralidade
-   também nesta integração simplifica a confirmação de inclusão de #9.
+   omissões, Windows/SQLite/ACL e Security. Só então retirar o rascunho e deixar
+   #11 para revisão humana. A integração é **manual** e não faz parte desta tarefa.
 8. Verificar o estado de #9 e referenciar a integração aprovada. Não fazer uma
    segunda aplicação das suas alterações nem uma segunda migração 0007.
 
@@ -104,11 +97,32 @@ O ensaio `merge-tree` de main → #10 foi limpo e produziu a árvore exata de #1
 o ensaio #10 → #11 foi limpo e produziu a árvore exata do candidato.
 Não foram atualizados refs, index, ficheiros de trabalho ou PRs nesse ensaio.
 
-Uma simulação com ancestralidade de squash/rebase de #10 acusou **16 conflitos**,
-incluindo autenticação, migrações/upgrade, workflow e testes. Se o repositório
-exigir histórico linear ou o proprietário escolher essa estratégia, **parar e
-reconciliar explicitamente #11 antes de o retargetar/integrar**. Não basta mudar
-a base. Não alterar migrações para disfarçar uma diferença de ancestralidade.
+Uma simulação anterior de squash/rebase de #10 acusou **16 conflitos**. Esse
+risco foi evitado: o proprietário usou merge commit, e o merge real da main na
+branch #11 foi limpo. Não reescrever agora os históricos nem as migrações.
+
+## Regressão e provas da head publicada
+
+A regressão SQLite local desta finalização passou: **66 aprovados e 183 omitidos**
+por exigirem PostgreSQL/Docker. A auditoria local das dependências não encontrou
+vulnerabilidades conhecidas; Bandit não encontrou problemas médios/altos, e a
+política de Actions fixadas, tokens de leitura e executáveis suspensos passou.
+
+A aceitação completa exige as seguintes provas novas, sem reutilizar os checks
+da base antiga:
+
+| Verificação | Prova exigida |
+|---|---|
+| PostgreSQL 17 | Suite completa, zero omissões e 26 funções críticas executadas; prova sanitizada válida |
+| Windows/SQLite | Suite completa e teste nativo de ACL de backups; omissões apenas dos testes PostgreSQL |
+| Security | Auditoria de dependências, Bandit, política de workflows e Gitleaks com checksum e saída redigida |
+| Base efetiva | Run novo de pull_request com base main `c891643` e a head publicada do #11 |
+
+Os resultados finais, números e links dos artefactos ficam no
+[PR #11](https://github.com/MickaTDN/iberbag-wms/pull/11), associados à head e
+base exatas. Esses artefactos contêm nomes, contagens e hash do relatório, sem
+traces, credenciais ou conteúdo das fixtures. Aprovação Windows/SQLite não é
+uma certificação de PostgreSQL nativo em Windows 11.
 
 ## Backups, restauro e preservação
 
@@ -133,13 +147,13 @@ não foi examinada nem substituem o ensaio específico de atualização/restauro
 | PR | Preparação técnica | Condição de integração |
 |---|---|---|
 | #9 | Melhorias necessárias incluídas no #11; sem proteção crítica removida | Não integrar isoladamente nesta sequência; confirmar inclusão após #11 |
-| #10 | CI válida na head revista, sem conflitos com a main atual | Decisão/revisão humana; preferir merge commit e integrar primeiro |
-| #11 | Candidato funcional/seguro testado; sem conflitos com a base #10 | Continua dependente/em rascunho; atualizar para a main pós-#10 e repetir CI antes da revisão/merge final |
+| #10 | Integrado manualmente; ancestralidade e árvore verificadas | Dependência concluída; não aplicar a Fase 1 novamente |
+| #11 | Base main e histórico atualizados sem alteração funcional | CI nova aprovada antes de retirar rascunho; revisão e merge final exclusivamente humanos |
 
 Riscos/condições que permanecem:
 
-- A main atual ainda não contém a Fase 1 e a segurança integrada. Para iniciar a
-  Fase 2 **sobre main**, concluir a sequência manual e verificar a base final.
+- A main já contém a Fase 1, mas ainda não a segurança integrada do #11. Não
+  iniciar a Fase 2 nesta tarefa; depende da revisão e integração manual do #11.
 - Windows CI cobre Server/SQLite e ACL nativa, não homologação Windows 11 com
   PostgreSQL nativo no computador da empresa. Exigir essa aceitação antes de
   produção, com conta runtime e recuperação verificadas.
@@ -159,7 +173,7 @@ Riscos/condições que permanecem:
   integração continuam dependentes do proprietário. CI verde não equivale a
   aprovação humana formal nem autorização de deploy.
 
-Nenhum PR foi integrado, nenhuma instalação foi alterada e nenhum dado real foi
-utilizado. Os resultados desta repetição da regressão/CI são associados à head
-na descrição do PR #11; não se promete que uma mudança futura da main preserve
-os mesmos resultados sem os repetir.
+O PR #10 foi integrado previamente pelo proprietário. Nesta tarefa não se integra
+o #11 nem o #9, não se altera qualquer instalação e não se utiliza dado real.
+Os resultados desta repetição da regressão/CI são associados à head na descrição
+do PR #11; uma mudança futura da main exige revalidar a base e os checks.

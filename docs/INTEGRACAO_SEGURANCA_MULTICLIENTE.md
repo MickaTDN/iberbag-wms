@@ -1,3 +1,5 @@
+> Preparação final: [estado dos PRs, estratégia Git e condições de integração](PREPARACAO_FINAL_INTEGRACAO.md).
+
 # DDN WMS — Integração da segurança com a Fase 1
 
 ## Estado e sequência de revisão

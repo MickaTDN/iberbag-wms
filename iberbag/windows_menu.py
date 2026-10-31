@@ -9,7 +9,8 @@ def main():
     name = input('Nome da base de TESTE [iberbag_ensaio_test]: ').strip() or 'iberbag_ensaio_test'
     if not name.endswith('_test') or not name.replace('_', '').isalnum():
         raise SystemExit('Usar letras, números, _ e nome terminado em _test.')
-    env = dict(os.environ, WMS_DB_NAME=name)
+    env = {k:v for k,v in os.environ.items() if not k.startswith(('WMS_', 'PG'))}
+    env['WMS_DB_NAME'] = name
     # The assisted test menu must not accidentally inherit a production URL.
     env.pop('WMS_DATABASE_URL', None)
     env['WMS_DB_HOST'] = '127.0.0.1'
@@ -39,7 +40,7 @@ def main():
 7 Ensaiar restauro numa OUTRA base VAZIA
 8 Preparar base SEM migração (instalação vazia)
 9 Criar administrador (instalação vazia)
-10 Pré-visualizar atualização 0001–0005 para 0006
+10 Pré-visualizar junção de segurança/multicliente (ddn_security_0001)
 11 Aplicar atualização com backup/restauro verificado
 0 Sair
 ''')

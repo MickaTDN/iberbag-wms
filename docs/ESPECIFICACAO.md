@@ -1,4 +1,7 @@
+> Candidato de integração, dependente do PR #10: [junção Alembic, segurança e recuperação](INTEGRACAO_SEGURANCA_MULTICLIENTE.md). A `main` e os PRs existentes não foram integrados automaticamente.
+
 > DDN WMS — Fase 1: cliente proprietário, armazém e área explícitos; capacidades configuráveis. [Especificação atual desta fase](DDN_FASE1_MULTICLIENTE.md) prevalece sobre as regras globais históricas abaixo.
+> Atualização de segurança: revisão 0007, conta web separada, login CSRF e backups cifrados. Antes de seguir os exemplos históricos abaixo, consultar [Correções de segurança](CORRECOES_SEGURANCA_2026_10.md).
 
 # Iberbag WMS — Especificação para desenvolvimento
 

@@ -1,6 +1,9 @@
+> Candidato de integração, dependente do PR #10: [junção Alembic, segurança e recuperação](docs/INTEGRACAO_SEGURANCA_MULTICLIENTE.md). A `main` e os PRs existentes não foram integrados automaticamente.
+
 # DDN WMS — Distribuição David Neto
 
 Fase 1 multicliente e multi-armazém: [arquitetura, migração e testes](docs/DDN_FASE1_MULTICLIENTE.md). O repositório e pacote `iberbag` conservam o nome por compatibilidade. PRs #8 e #9 são independentes e não estão integrados nesta branch.
+Atualização de segurança em revisão: [correções, atualização e riscos residuais](docs/CORRECOES_SEGURANCA_2026_10.md). Não utilizar o launcher antigo com bases reais; executáveis DEMO assinalados continuam suspensos.
 
 Etapa 7: [Pendentes, entradas, Mercadona e CARGA](docs/ETAPA7_PENDENTES_E_PROCESSOS_EXCEL.md), revisão 0006. [Análise do VBA fornecido](docs/ANALISE_VBA_ETAPA7.md). Paletes incompletas apenas em dossiês documentais, sem conversões/movimentos.
 

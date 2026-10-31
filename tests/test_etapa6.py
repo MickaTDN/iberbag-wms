@@ -1,3 +1,5 @@
+from conftest import BACKUP_PASSWORD
+from conftest import login_data
 import json
 import re
 import secrets
@@ -280,7 +282,7 @@ def test_inventory_ui_and_office_pdf_without_operator_confirmation(warehouse):
     app.dependency_overrides[database]=session
     try:
         with TestClient(app) as client:
-            client.post('/login',data={'username':'admin','password':accounts['admin'][1]})
+            client.post('/login',data=login_data(client, {'username':'admin','password':accounts['admin'][1]}))
             form=client.get('/dispatches/new');csrf=field(form,'csrf')
             assert 'name="artigo_0"' not in form.text
             saved=client.post('/dispatches/save',data=dict(csrf=csrf,request_key=field(form,'request_key'),customer='CLIENTE FICTÍCIO',channel='normal',lote_0='L',quantidade_0='1'))
@@ -305,9 +307,9 @@ def test_backup_restore_includes_documents_inventory_and_incidents(warehouse,pg_
     with Session(engine) as db:
         pick=prep.picks(db,prep_id)[0]
         inv.report_shortage(db,actor,secrets.token_hex(16),pick.id,'1','Falta fictícia')
-    folder=tmp_path/'backup';backup.backup(engine,folder,runner=docker_client)
+    folder=tmp_path/'backup';backup.backup(engine,folder,runner=docker_client, passphrase=BACKUP_PASSWORD)
     restored=pg_databases(restricted=True)
-    assert backup.restore(restored,folder,runner=docker_client)['status']=='reconciled'
+    assert backup.restore(restored,folder,runner=docker_client, passphrase=BACKUP_PASSWORD)['status']=='reconciled'
     with Session(engine) as original,Session(restored) as copy:
         assert original.get(DispatchDocument,prep_id).pdf==copy.get(DispatchDocument,prep_id).pdf
         assert copy.get(PhysicalInventory,ident).status=='applied'
@@ -442,7 +444,7 @@ def test_upgrade_0004_keeps_legacy_confirmed_records(warehouse,pg_databases,tmp_
         line_id=insert('dispatch_lines',dict(order_id=order_id,artigo='A',lote='L',quantidade=1))
         insert('dispatch_picks',dict(line_id=line_id,stock_id=b.id,quantidade=1,actual=1,carga='LEGADO',local='A101',entrada=stamp))
         db.execute(text("UPDATE dispatch_orders SET status='confirmed',reviewed_at=:day,checked_by='legado',checked_at=:day,confirmed_by='legado',confirmed_at=:day WHERE id=:id"),dict(day=stamp,id=order_id));db.commit()
-    folder=tmp_path/'legacy';backup.backup(legacy,folder,runner=docker_client);backup.restore(restored,folder,runner=docker_client)
+    folder=tmp_path/'legacy';backup.backup(legacy,folder,runner=docker_client, passphrase=BACKUP_PASSWORD);backup.restore(restored,folder,runner=docker_client, passphrase=BACKUP_PASSWORD)
     assert preview(legacy)['from']=='0004'
     assert apply_upgrade(legacy,folder)['revision']==REVISION
     with Session(legacy) as db:
@@ -472,7 +474,7 @@ def test_admin_can_consult_pending_preparation_without_impersonating_owner(wareh
     try:
         with TestClient(app) as admin,TestClient(app) as other:
             for c,role in ((admin,'admin'),(other,'other')):
-                c.post('/login',data={'username':role,'password':accounts[role][1]})
+                c.post('/login',data=login_data(c, {'username':role,'password':accounts[role][1]}))
             assert admin.get(f'/dispatches/{ident}').status_code==200
             assert other.get(f'/dispatches/{ident}').status_code==404
     finally:app.dependency_overrides.clear()

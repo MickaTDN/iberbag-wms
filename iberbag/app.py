@@ -1,8 +1,8 @@
 """DDN WMS: office preparations, incoming allocation, inventory and warehouse consultation."""
-import hmac, os, re
+import hmac, os, re, secrets
 from contextlib import asynccontextmanager
 from datetime import timedelta
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlsplit
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -92,37 +92,69 @@ async def form_body(request: Request):
             raise HTTPException(409, 'O contexto mudou noutra página. Reabrir o formulário no cliente/armazém correto.')
     return form
 
+
 def valid_csrf(form, sess):
     return bool(sess and hmac.compare_digest(form.get('csrf', ''), sess.csrf_token))
 
 def forbidden(request, user, sess, msg='Operação não autorizada.'):
     return render(request, 'message.html', context(request, user, sess, title='Acesso negado', message=msg), 403)
 
+def login_response(request, error=None, status=200):
+    token = secrets.token_hex(32)
+    response = render(request, 'login.html', context(request, None, None, error=error, login_csrf=token), status)
+    response.set_cookie('__Host-wms_login' if COOKIE_SECURE else 'wms_login', token,
+                        max_age=600, httponly=True, secure=COOKIE_SECURE, samesite='strict', path='/')
+    return response
+
+
+def valid_login_origin(request):
+    expected = str(request.base_url).rstrip('/')
+    for name in ('origin', 'referer'):
+        values = request.headers.getlist(name)
+        if len(values) > 1: return False
+        if not values: continue
+        value = values[0]
+        if name == 'origin':
+            if value != expected: return False
+        else:
+            try:
+                parts = urlsplit(value)
+                if parts.username is not None or parts.password is not None or '\\' in value or any(ord(c) <= 32 for c in value): return False
+                if f'{parts.scheme}://{parts.netloc}' != expected: return False
+            except ValueError: return False
+    return True
+
+
 @app.get('/login', response_class=HTMLResponse)
 def login_page(request: Request, db: Session = Depends(database)):
     user, sess = identity(request, db)
     if user: return redirect('/')
-    return render(request, 'login.html', context(request, None, None))
+    return login_response(request)
 
 @app.post('/login')
 async def login(request: Request, db: Session = Depends(database)):
     data = await form_body(request)
+    submitted = data.get('login_csrf', '')
+    cookie = request.cookies.get('__Host-wms_login' if COOKIE_SECURE else 'wms_login', '')
+    if not (valid_login_origin(request) and re.fullmatch(r'[a-f0-9]{64}', submitted) and re.fullmatch(r'[a-f0-9]{64}', cookie) and hmac.compare_digest(submitted, cookie)):
+        return login_response(request, 'Formulário de início de sessão inválido. Volte a tentar.', 403)
     username = data.get('username', '').strip()[:60]
     password = data.get('password', '')[:250]
     ip = (request.client.host if request.client else 'unknown')[:64]
     if not username or not password:
-        return render(request, 'login.html', context(request, None, None, error='Preenche o utilizador e a palavra-passe.'), 400)
+        return login_response(request, 'Preenche o utilizador e a palavra-passe.', 400)
     if too_many_failures(db, username, ip):
-        return render(request, 'login.html', context(request, None, None, error='Demasiadas tentativas. Tenta novamente daqui a 15 minutos.'), 429)
+        return login_response(request, 'Demasiadas tentativas. Tenta novamente daqui a 15 minutos.', 429)
     user = db.scalar(select(User).where(User.username == username, User.active.is_(True)))
     if not verify_password(user, password):
         log_failed_login(db, username, ip); db.commit()
-        return render(request, 'login.html', context(request, None, None, error='Credenciais incorretas.'), 401)
+        return login_response(request, 'Credenciais incorretas.', 401)
     db.execute(delete(FailedLogin).where(FailedLogin.username == username))
     token = new_session(db, user)
     db.add(Audit(username=user.username, action='LOGIN', details='Sessão iniciada.'))
     db.commit()
     resp = redirect('/')
+    resp.delete_cookie('__Host-wms_login' if COOKIE_SECURE else 'wms_login', path='/', secure=COOKIE_SECURE, samesite='strict')
     resp.set_cookie('wms_session', token, max_age=8 * 3600, httponly=True, secure=COOKIE_SECURE, samesite='strict', path='/')
     return resp
 

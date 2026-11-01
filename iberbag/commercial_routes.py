@@ -42,7 +42,7 @@ def allocations(request:Request,page:int=1,db:Session=Depends(database)):
 
 @router.post('/pending/allocations/{ident}/collect')
 def collection(ident:int,request:Request,data:dict=Depends(receiving_form),db:Session=Depends(database)):
-    user,sess=form_actor(request,db,data)
+    user,sess=form_actor(request,db,data,require_admin=True)
     try:
         service.record_collection(db,user.id,ident,data.get('reason'))
         return redirect('/pending/allocations')
@@ -60,7 +60,7 @@ def destinations(request:Request,db:Session=Depends(database)):
 
 @router.post('/settings/mercadona')
 def destination_save(request:Request,data:dict=Depends(receiving_form),db:Session=Depends(database)):
-    user,sess=form_actor(request,db,data)
+    user,sess=form_actor(request,db,data,require_admin=True)
     try:
         service.save_destination(db,user.id,data.get('name'),data.get('sort_order'),data.get('active')=='1',data.get('highlighted')=='1',
             integer(data['ident']) if data.get('ident') else None)

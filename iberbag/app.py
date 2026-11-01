@@ -26,6 +26,8 @@ async def lifespan(_app):
     yield
 
 app = FastAPI(title='DDN WMS', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+from .http_body import BoundedPostBody
+app.add_middleware(BoundedPostBody)
 BASE = Path(__file__).parent
 app.mount('/static', StaticFiles(directory=BASE / 'static'), name='static')
 templates = Jinja2Templates(directory=BASE / 'templates')
@@ -47,13 +49,33 @@ def database(request: Request):
         request.state.ddn_contexts = available(db)
         yield db
 
-def identity(request: Request, db: Session):
-    # Serialize administrative writes across workers before reading permissions/state.
-    # Transaction-scoped lock is released by commit/rollback/session close.
-    if request.method == 'POST' and db.bind.dialect.name == 'postgresql':
-        db.execute(text('SELECT pg_advisory_xact_lock(72834001)'))
+def identity(request: Request, db: Session, *, data=None, require_admin=False, operational=False):
     session = get_session(db, request.cookies.get('wms_session'))
-    return (session.user, session) if session else (None, None)
+    if not session or session.user.role not in ('admin','operador'):
+        return None, None
+    if request.method == 'POST':
+        # Middleware has finished receiving the bounded body before any DB work.
+        form = parsed_form(request) if data is None else data
+        validate_form_context(request, form)
+        if not valid_csrf(form, session) or (require_admin and session.user.role != 'admin'):
+            return session.user, session  # Existing handlers render their denial.
+        from .contexts import require_context
+        try:
+            require_context(db, operational=operational)
+            if db.bind.dialect.name == 'postgresql':
+                db.execute(text('SELECT pg_advisory_xact_lock(72834001)'))
+                db.expire_all()
+                session = get_session(db, request.cookies.get('wms_session'))
+                if (not session or not valid_csrf(form, session)
+                        or (require_admin and session.user.role != 'admin')):
+                    db.rollback()
+                    raise HTTPException(403, 'Sessão ou permissões alteradas. Reabrir o formulário.')
+                require_context(db, operational=operational)
+                validate_form_context(request, form)
+        except ValueError as error:
+            db.rollback()
+            raise HTTPException(409, str(error)) from error
+    return session.user, session
 
 def render(request, template, context, status=200):
     return templates.TemplateResponse(request, template, context, status_code=status,
@@ -72,29 +94,39 @@ def context(request, user, sess, **kwargs):
             'active_context_id': getattr(request.state, 'ddn_context', 1),
             'ddn_contexts': getattr(request.state, 'ddn_contexts', []), **kwargs}
 
-async def form_body(request: Request):
+def parsed_form(request: Request):
     if request.headers.get('content-type', '').split(';')[0] != 'application/x-www-form-urlencoded':
         return {}
-    body = bytearray()
-    async for chunk in request.stream():
-        body.extend(chunk)
-        if len(body) > 8192:
-            raise HTTPException(status_code=413, detail='Formulário demasiado grande.')
+    body = getattr(request.state, 'wms_body', None)
+    if body is None:
+        raise HTTPException(400, 'Corpo do formulário não validado.')
+    if len(body) > 8192:
+        raise HTTPException(status_code=413, detail='Formulário demasiado grande.')
     fields = parse_qs(body.decode('utf-8', 'replace'), keep_blank_values=True)
     if any(len(vals) != 1 for vals in fields.values()):
         raise HTTPException(400, 'Campos repetidos no formulário.')
     form = {k: vals[0] for k, vals in fields.items()}
+    validate_form_context(request, form)
+    return form
+
+
+def validate_form_context(request, form):
     if 'csrf' in form:
         current = str(getattr(request.state, 'ddn_context', 1))
         # Old default-context forms remain compatible. New forms always include
         # context_id: a tab opened before switching cannot write in a new context.
         if form.get('context_id', '1') != current:
             raise HTTPException(409, 'O contexto mudou noutra página. Reabrir o formulário no cliente/armazém correto.')
-    return form
+
+
+async def form_body(request: Request):
+    return parsed_form(request)
 
 
 def valid_csrf(form, sess):
-    return bool(sess and hmac.compare_digest(form.get('csrf', ''), sess.csrf_token))
+    value = form.get('csrf', '')
+    return bool(sess and isinstance(value, str) and value.isascii()
+                and hmac.compare_digest(value, sess.csrf_token))
 
 def forbidden(request, user, sess, msg='Operação não autorizada.'):
     return render(request, 'message.html', context(request, user, sess, title='Acesso negado', message=msg), 403)
@@ -337,7 +369,7 @@ def corridor_page(code: str, request: Request, db: Session=Depends(database)):
                    entries=entries, count=count, floor_range=range(1,corridor.andares+1)))
 
 async def admin_form(request, db):
-    user, sess = identity(request, db)
+    user, sess = identity(request, db, require_admin=True)
     if unauthorized(user, True): return user, sess, None, forbidden(request,user,sess)
     data = await form_body(request)
     if not valid_csrf(data, sess): return user, sess, None, forbidden(request,user,sess,'Pedido inválido (CSRF).')
@@ -408,7 +440,7 @@ def users_page(request: Request, db: Session=Depends(database)):
 
 @app.post('/users')
 async def users_create(request: Request, db: Session=Depends(database)):
-    user, sess = identity(request, db)
+    user, sess = identity(request, db, require_admin=True)
     if unauthorized(user, True): return forbidden(request,user,sess)
     data = await form_body(request)
     if not valid_csrf(data, sess):return forbidden(request,user,sess,'Pedido inválido (CSRF).')
@@ -431,7 +463,7 @@ async def users_create(request: Request, db: Session=Depends(database)):
 
 @app.post('/users/{uid}/toggle')
 async def users_toggle(uid: int, request: Request, db: Session=Depends(database)):
-    user, sess = identity(request, db)
+    user, sess = identity(request, db, require_admin=True)
     if unauthorized(user, True): return forbidden(request, user, sess)
     data = await form_body(request)
     if not valid_csrf(data,sess):return forbidden(request,user,sess,'Pedido inválido (CSRF).')
@@ -451,7 +483,7 @@ async def users_toggle(uid: int, request: Request, db: Session=Depends(database)
 
 @app.post('/users/{uid}/reset-password')
 async def users_reset_password(uid: int, request: Request, db: Session=Depends(database)):
-    user, sess = identity(request, db)
+    user, sess = identity(request, db, require_admin=True)
     if unauthorized(user, True): return forbidden(request, user, sess)
     data = await form_body(request)
     if not valid_csrf(data,sess):return forbidden(request,user,sess,'Pedido inválido (CSRF).')

@@ -32,7 +32,7 @@ def clients_page(request: Request, db: Session=Depends(database)):
 
 @app.post('/settings/clients')
 async def client_create(request: Request, db: Session=Depends(database)):
-    user,sess=identity(request,db); form=await form_body(request)
+    user,sess=identity(request,db,require_admin=True); form=await form_body(request)
     if unauthorized(user,True) or not valid_csrf(form,sess): return forbidden(request,user,sess)
     try:
         contexts.create_client(db,user.id,form.get('name'),int(form.get('warehouse','')),form.get('area'),form.get('pallet_operations')=='yes')
@@ -42,7 +42,7 @@ async def client_create(request: Request, db: Session=Depends(database)):
 
 @app.post('/settings/clients/{ident}')
 async def client_edit(ident: int, request: Request, db: Session=Depends(database)):
-    user,sess=identity(request,db); form=await form_body(request)
+    user,sess=identity(request,db,require_admin=True); form=await form_body(request)
     if unauthorized(user,True) or not valid_csrf(form,sess): return forbidden(request,user,sess)
     owner=db.get(Client,ident)
     if not owner: raise HTTPException(404,'Cliente inexistente.')
@@ -57,7 +57,7 @@ async def client_edit(ident: int, request: Request, db: Session=Depends(database
 
 @app.post('/settings/warehouses')
 async def warehouse_create(request: Request, db: Session=Depends(database)):
-    user,sess=identity(request,db); form=await form_body(request)
+    user,sess=identity(request,db,require_admin=True); form=await form_body(request)
     if unauthorized(user,True) or not valid_csrf(form,sess): return forbidden(request,user,sess)
     try:
         db.add(Warehouse(name=contexts.name(form.get('name')),active=True))
@@ -69,7 +69,7 @@ async def warehouse_create(request: Request, db: Session=Depends(database)):
 
 @app.post('/settings/contexts')
 async def context_create(request: Request, db: Session=Depends(database)):
-    user,sess=identity(request,db); form=await form_body(request)
+    user,sess=identity(request,db,require_admin=True); form=await form_body(request)
     if unauthorized(user,True) or not valid_csrf(form,sess): return forbidden(request,user,sess)
     try:
         owner=db.get(Client,int(form.get('client',''))); wh=db.get(Warehouse,int(form.get('warehouse','')))
@@ -85,7 +85,7 @@ async def context_create(request: Request, db: Session=Depends(database)):
 
 @app.post('/settings/capacity')
 async def capacity_edit(request: Request, db: Session=Depends(database)):
-    user,sess=identity(request,db); form=await form_body(request)
+    user,sess=identity(request,db,require_admin=True); form=await form_body(request)
     if unauthorized(user,True) or not valid_csrf(form,sess): return forbidden(request,user,sess)
     from .warehouse_settings import set_capacity, WarehouseError
     try:

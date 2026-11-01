@@ -6,14 +6,15 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import tempfile
 import getpass
 from .backup_crypto import encrypt, decrypt, key
-from .private_files import private_folder, owned_file
+from .private_files import (private_folder, owned_file, private_binary_file,
+                            private_temporary, save_private_json as save_json)
+from .pg_environment import client_environment, configure_process
 
 from sqlalchemy import create_engine, text
 from .transfer import (LOCK, digest_file, inventory, read_data, require_empty,
-                       require_test_target, save_json, differences, archive_inventory)
+                       require_test_target, differences, archive_inventory)
 
 
 def client(name):
@@ -31,10 +32,7 @@ def client(name):
 
 def run_client(name, args, url, *, stdin=None, stdout=None):
     # No password in command arguments, URLs, output or saved configuration.
-    env = dict(os.environ)
-    for key in ('PGSERVICE', 'PGSERVICEFILE', 'PGOPTIONS', 'PGHOST', 'PGPORT', 'PGDATABASE', 'PGUSER'):
-        env.pop(key, None)
-    env['PGPASSWORD'] = url.password or ''
+    env = client_environment(url)
     version = subprocess.run([client(name), '--version'], capture_output=True, check=True, env=env)
     if b' 17.' not in version.stdout:
         raise ValueError('Usar ferramentas PostgreSQL 17.')
@@ -47,8 +45,7 @@ def run_client(name, args, url, *, stdin=None, stdout=None):
 
 def backup(engine, folder, runner=run_client, *, passphrase=None):
     key(passphrase, bytes(16))  # Validate before contacting the database or creating files.
-    if engine.url.drivername != 'postgresql+psycopg' or engine.url.query:
-        raise ValueError('Usar uma ligação PostgreSQL simples, sem parâmetros personalizados.')
+    configure_process(engine.url)
     folder = private_folder(folder, create=True)
     archive = owned_file(folder, 'database.dump')
     with engine.connect().execution_options(isolation_level='REPEATABLE READ') as connection:
@@ -60,11 +57,11 @@ def backup(engine, folder, runner=run_client, *, passphrase=None):
                       'encryption': 'AES-256-GCM/PBKDF2-SHA256-600000', 'restore_verified': False}
             # pg_dump needs a file descriptor. Plaintext exists only in a private,
             # disposable temporary file inside the ACL-restricted backup folder.
-            with tempfile.TemporaryFile(dir=folder) as plain:
+            with private_temporary(folder) as plain:
                 runner('pg_dump', ['--format=custom', '--no-owner', '--no-privileges',
                                    '--snapshot=' + snapshot], engine.url, stdout=plain)
                 plain.seek(0)
-                with archive.open('xb') as output: encrypt(plain, output, passphrase, report)
+                with private_binary_file(folder,archive.name) as output: encrypt(plain, output, passphrase, report)
     report['archive_sha256'] = digest_file(archive)
     save_json(folder / 'manifest.json', report)
     return report
@@ -77,7 +74,7 @@ def restore(engine, folder, runner=run_client, *, passphrase=None, allow_legacy=
     manifest = json.loads(owned_file(folder, 'manifest.json').read_text(encoding='utf-8'))
     if manifest.get('format') not in (1, 2) or digest_file(archive) != manifest['archive_sha256']:
         raise ValueError('Backup alterado ou manifesto inválido.')
-    with tempfile.TemporaryFile(dir=folder) as plain:
+    with private_temporary(folder) as plain:
         if manifest['format'] == 2:
             with archive.open('rb') as source: decrypt(source, plain, passphrase, manifest)
         elif allow_legacy:

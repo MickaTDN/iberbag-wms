@@ -1,5 +1,7 @@
 > Preparação final: [estado dos PRs, estratégia Git e condições de integração](PREPARACAO_FINAL_INTEGRACAO.md).
 
+> Auditoria independente e correções posteriores: [P1/P2 — HTTP, privilégios, ACLs individuais e ambiente libpq](CORRECOES_P1_P2_PR11.md). Estas regras prevalecem sobre as limitações iniciais de permissões/ambiente descritas no ensaio anterior.
+
 # DDN WMS — Integração da segurança com a Fase 1
 
 ## Estado e sequência de revisão

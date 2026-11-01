@@ -1,5 +1,7 @@
 # DDN WMS — Finalização do PR #11 após integração do PR #10
 
+> Parecer inicial substituído após auditoria independente: [correções P1/P2, provas antes/depois e condições finais](CORRECOES_P1_P2_PR11.md). A prontidão depende da CI da head corrigida, não dos checks anteriores abaixo.
+
 ## Estado verificado em 31 de outubro de 2026
 
 | Elemento | Versão/base verificada | Estado |

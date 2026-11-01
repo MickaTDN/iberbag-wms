@@ -18,6 +18,8 @@ def configure():
         ).render_as_string(hide_password=False)
     if make_url(value).drivername != 'postgresql+psycopg':
         raise SystemExit('O servidor de rede exige PostgreSQL (psycopg).')
+    from .pg_environment import configure_process
+    configure_process(value)
     os.environ['WMS_DATABASE_URL'] = value
     os.environ['WMS_COOKIE_SECURE'] = '1'
 

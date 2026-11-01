@@ -140,7 +140,7 @@ def document_pdf(ident: int, request: Request, db: Session = Depends(database)):
 
 @router.post('/dispatches/{ident}/cancel')
 def cancel(ident: int, request: Request, data: dict = Depends(receiving_form), db: Session = Depends(database)):
-    user,sess=form_actor(request,db,data)
+    user,sess=form_actor(request,db,data,require_admin=True)
     try:
         service.cancel_order(db,user.id,ident,data.get('reason'),data.get('returned')=='1')
         return redirect(f'/dispatches/{ident}')

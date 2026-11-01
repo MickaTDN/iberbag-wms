@@ -22,10 +22,22 @@ def validate_runtime(connection, role=None):
     oid = role_flags(connection, role)
     if connection.scalar(text('SELECT count(*) FROM pg_database WHERE datname=current_database() AND datdba=:oid'), {'oid':oid}):
         raise ValueError('Conta web não pode ser owner da base.')
-    if connection.scalar(text('SELECT count(*) FROM pg_namespace WHERE nspname=current_schema() AND nspowner=:oid'), {'oid':oid}):
-        raise ValueError('Conta web não pode ser owner do esquema.')
-    if connection.scalar(text("SELECT count(*) FROM pg_class WHERE relnamespace=current_schema()::regnamespace AND relowner=:oid"), {'oid':oid}):
-        raise ValueError('Conta web não pode ser owner das tabelas/sequências.')
+    if connection.scalar(text("SELECT has_database_privilege(:r,current_database(),'CREATE')"), {'r':role}):
+        raise ValueError('Conta web não pode criar esquemas na base.')
+    # Inspect every persistent user schema, not just search_path/current_schema.
+    # has_*_privilege includes PUBLIC and other effective grants.
+    if connection.scalar(text('''SELECT count(*) FROM pg_namespace n
+            WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname !~ '^pg_(toast|temp)(_|$)'
+            AND (n.nspowner=:oid OR has_schema_privilege(:r,n.oid,'CREATE'))'''), {'oid':oid,'r':role}):
+        raise ValueError('Conta web não pode possuir ou criar objetos em esquemas da base.')
+    if connection.scalar(text('''SELECT count(*) FROM (
+            SELECT relnamespace AS namespace, relowner AS owner FROM pg_class
+            UNION ALL SELECT pronamespace, proowner FROM pg_proc
+            UNION ALL SELECT typnamespace, typowner FROM pg_type) o
+            JOIN pg_namespace n ON n.oid=o.namespace
+            WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname !~ '^pg_(toast|temp)(_|$)'
+            AND o.owner=:oid'''), {'oid':oid}):
+        raise ValueError('Conta web não pode ser owner de objetos, mesmo fora do esquema corrente.')
     schema = connection.scalar(text('SELECT current_schema()'))
     quote = connection.dialect.identifier_preparer.quote
     # Check effective privileges, including PUBLIC and grants external to this
@@ -36,8 +48,18 @@ def validate_runtime(connection, role=None):
             if connection.scalar(text('SELECT has_table_privilege(:r,:t,:p)'),
                                  {'r':role,'t':relation,'p':privilege}):
                 raise ValueError('Conta web não pode modificar/apagar histórico ou atribuições físicas.')
-    if connection.scalar(text('SELECT has_schema_privilege(:r,current_schema(),\'CREATE\')'), {'r':role}):
-        raise ValueError('Conta web não pode criar objetos no esquema.')
+    # No grant option, DDL/maintenance privilege or sequence UPDATE is required.
+    from .database import Base
+    for table in sorted(set(Base.metadata.tables) | {'alembic_version'}):
+        relation = quote(schema) + '.' + quote(table)
+        allowed = ('SELECT',) if table == 'alembic_version' else (('SELECT','INSERT') if table in IMMUTABLE else ('SELECT','INSERT','UPDATE','DELETE'))
+        for privilege in ('TRIGGER','REFERENCES','TRUNCATE','MAINTAIN', *(p+' WITH GRANT OPTION' for p in allowed)):
+            if connection.scalar(text('SELECT has_table_privilege(:r,:t,:p)'), {'r':role,'t':relation,'p':privilege}):
+                raise ValueError('Conta web tem privilégios adicionais de DDL, manutenção ou delegação.')
+    if connection.scalar(text('''SELECT count(*) FROM pg_class s JOIN pg_namespace n ON n.oid=s.relnamespace
+            WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname !~ '^pg_(toast|temp)(_|$)'
+            AND CASE WHEN s.relkind='S' THEN has_sequence_privilege(:r,s.oid,'UPDATE') ELSE false END'''), {'r':role}):
+        raise ValueError('Conta web não pode alterar diretamente sequências.')
 
 
 def grant_runtime(connection, role, apply=False):

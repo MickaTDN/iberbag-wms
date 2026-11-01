@@ -24,6 +24,8 @@ def revision(connection):
 
 
 def preview(engine):
+    from .pg_environment import configure_process
+    configure_process(engine.url)
     with engine.connect().execution_options(isolation_level='REPEATABLE READ') as connection:
         old=revision(connection)
         changes=[] if old==REVISION else ['junção 0007 + ddn_0002; auditoria imutável; contextos e atribuições físicas exclusivos; valores de negócio preservados']
@@ -33,6 +35,8 @@ def preview(engine):
 
 def apply_upgrade(engine, folder):
     if engine.dialect.name!='postgresql':raise ValueError('Atualização operacional exige PostgreSQL.')
+    from .pg_environment import configure_process
+    configure_process(engine.url)
     folder=private_folder(folder)
     manifest=json.loads(owned_file(folder,'manifest.json').read_text(encoding='utf-8'))
     if manifest.get('format') not in (1,2) or digest_file(owned_file(folder,'database.dump'))!=manifest['archive_sha256']:

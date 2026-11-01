@@ -221,8 +221,8 @@ def load_bundle(bundle):
 def require_test_target(engine):
     if engine.url.drivername != 'postgresql+psycopg' or not (engine.url.database or '').endswith('_test'):
         raise ValueError('Destino exige PostgreSQL e nome terminado em _test. Produção não é suportada.')
-    if engine.url.query:
-        raise ValueError('Parâmetros de ligação personalizados não são aceites no destino de teste.')
+    from .pg_environment import configure_process
+    configure_process(engine.url)
 
 
 def require_empty(connection):

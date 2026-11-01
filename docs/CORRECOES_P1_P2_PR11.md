@@ -127,8 +127,9 @@ credenciais aleatórias e a conta runtime restrita, com remoção do contentor f
 |---|---|---|
 | Corpo lento, pedidos recusados e grants exteriores | 15 falhas reproduzidas | Cenários incluídos na suite completa aprovada |
 | Encaminhamento PGHOSTADDR/serviços, contra a versão anterior | 1 falha reproduzida | Regressão aprovada para pg_dump e pg_restore |
-| Primeira suite PostgreSQL completa corrigida | Versão vulnerável já tinha CI verde, sem estas regressões | 287 aprovados, zero omitidos; depois acrescentado também o caso pg_catalog |
-| Suite SQLite Linux | Não cobre semântica NTFS | 74 aprovados; 213 casos PostgreSQL omitidos |
+| Suite PostgreSQL completa em `43910b0` | Versão vulnerável já tinha CI verde, sem estas regressões | 289 aprovados, zero omitidos, incluindo pg_catalog e pg_toast |
+| Regressões de locks/autenticação após a última alteração funcional, `df879a8` | Revogações durante a espera não eram cobertas integralmente | 48 aprovados; inclui reset de senha, conta/contexto desativado e recusa de snapshots antigos |
+| Suite SQLite Linux em `df879a8` | Não cobre semântica NTFS | 74 aprovados; 219 casos PostgreSQL omitidos |
 
 Windows/NTFS é validado pelo job Windows com casos negativos próprios; o resultado
 definitivo da head e as provas descarregáveis são publicados no PR.
@@ -154,7 +155,7 @@ Os artefactos públicos contêm nomes/contagens/hash, sem traces nem dados das f
 ## Integridade, atualização e limites
 
 Não há migração nova: a head continua `ddn_security_0001`, pais `0007` e `ddn_0002`.
-As nove revisões publicadas são imutáveis e verificadas por fingerprint. Não são
+As dez revisões publicadas são imutáveis e verificadas por fingerprint. Não são
 alterados modelos, quantidades, reservas, movimentos, históricos ou PDFs arquivados.
 Mantêm-se os ensaios de atualização das origens anteriores, backup cifrado e
 restauro/reconciliação integral de clientes, armazéns e atribuições físicas.

@@ -1,4 +1,7 @@
+> Segurança sobre a Fase 1 já integrada pelo PR #10: [junção Alembic, segurança e recuperação](INTEGRACAO_SEGURANCA_MULTICLIENTE.md). O PR #11 aponta para `main` e requer CI atualizada e revisão humana; não existe integração automática.
+
 > DDN WMS — Fase 1: cliente proprietário, armazém e área explícitos; capacidades configuráveis. [Especificação atual desta fase](DDN_FASE1_MULTICLIENTE.md) prevalece sobre as regras globais históricas abaixo.
+> Atualização de segurança: revisão 0007, conta web separada, login CSRF e backups cifrados. Antes de seguir os exemplos históricos abaixo, consultar [Correções de segurança](CORRECOES_SEGURANCA_2026_10.md).
 
 # Iberbag WMS — Especificação para desenvolvimento
 

@@ -1,7 +1,1 @@
-fastapi>=0.115,<1
-uvicorn>=0.30,<1
-SQLAlchemy>=2.0,<3
-jinja2>=3.1,<4
-psycopg[binary]>=3.2,<4
-alembic>=1.13,<2
-reportlab>=4,<5
+-r requirements-prod.lock

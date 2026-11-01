@@ -1,3 +1,5 @@
+from conftest import BACKUP_PASSWORD
+from conftest import login_data
 from legacy_catalogue import seed_legacy_catalogue
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
@@ -232,7 +234,7 @@ def test_dispatch_ui_and_hidden_exhausted_stock(warehouse):
     try:
         with TestClient(app) as client:
             assert client.get('/dispatches',follow_redirects=False).status_code==303
-            client.post('/login',data={'username':'operador','password':accounts['operador'][1]})
+            client.post('/login',data=login_data(client, {'username':'operador','password':accounts['operador'][1]}))
             page=client.get('/dispatches/new'); csrf=field(page,'csrf')
             data=dict(csrf=csrf,request_key=field(page,'request_key'),reference='UI-ORDER',customer='CLIENTE FICTÍCIO',channel='normal',artigo_0='A',lote_0='L',quantidade_0='1',stock_id='999',carga='FORGED')
             response=client.post('/dispatches/save',data=data); url=str(response.url).split('testserver')[1]
@@ -254,8 +256,8 @@ def test_backup_restore_and_transfer_preserve_dispatch_history(warehouse,pg_data
     engine,accounts=warehouse; actor=accounts['admin'][0]
     add_stock(engine,'ONE'); ident=order(engine,actor); review(engine,actor,ident); check(engine,actor,ident); confirm(engine,actor,ident)
     restored=pg_databases(restricted=True)
-    folder=tmp_path/'backup'; backup.backup(engine,folder,runner=docker_client)
-    assert backup.restore(restored,folder,runner=docker_client)['status']=='reconciled'
+    folder=tmp_path/'backup'; backup.backup(engine,folder,runner=docker_client, passphrase=BACKUP_PASSWORD)
+    assert backup.restore(restored,folder,runner=docker_client, passphrase=BACKUP_PASSWORD)['status']=='reconciled'
     with Session(restored) as db: assert db.get(DispatchOrder,ident).confirmed_by=='admin'
     with engine.connect() as conn: data=transfer.read_data(conn)
     source=tmp_path/'source.sqlite'; sqlite=create_engine('sqlite:///'+str(source))
@@ -279,8 +281,8 @@ def test_upgrade_0002_preserves_history_and_positive_stock(warehouse,pg_database
     with Session(legacy) as db: seed_legacy_catalogue(db)
     add_stock(legacy,'LEGACY',qty=3)
     assert preview(legacy)['from']=='0002'
-    folder=tmp_path/'upgrade-backup'; backup.backup(legacy,folder,runner=docker_client)
-    backup.restore(restored,folder,runner=docker_client)
+    folder=tmp_path/'upgrade-backup'; backup.backup(legacy,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
+    backup.restore(restored,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
     assert apply_upgrade(legacy,folder)['revision']==REVISION
     assert preview(legacy)['data']==preview(restored)['data']
 

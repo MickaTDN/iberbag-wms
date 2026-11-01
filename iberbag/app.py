@@ -1,8 +1,8 @@
 """DDN WMS: office preparations, incoming allocation, inventory and warehouse consultation."""
-import hmac, os, re
+import hmac, os, re, secrets
 from contextlib import asynccontextmanager
 from datetime import timedelta
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlsplit
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -26,6 +26,8 @@ async def lifespan(_app):
     yield
 
 app = FastAPI(title='DDN WMS', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+from .http_body import BoundedPostBody
+app.add_middleware(BoundedPostBody)
 BASE = Path(__file__).parent
 app.mount('/static', StaticFiles(directory=BASE / 'static'), name='static')
 templates = Jinja2Templates(directory=BASE / 'templates')
@@ -47,13 +49,35 @@ def database(request: Request):
         request.state.ddn_contexts = available(db)
         yield db
 
-def identity(request: Request, db: Session):
-    # Serialize administrative writes across workers before reading permissions/state.
-    # Transaction-scoped lock is released by commit/rollback/session close.
-    if request.method == 'POST' and db.bind.dialect.name == 'postgresql':
-        db.execute(text('SELECT pg_advisory_xact_lock(72834001)'))
+def identity(request: Request, db: Session, *, data=None, require_admin=False, operational=False):
     session = get_session(db, request.cookies.get('wms_session'))
-    return (session.user, session) if session else (None, None)
+    if not session or session.user.role not in ('admin','operador'):
+        return None, None
+    if request.method == 'POST':
+        # Middleware has finished receiving the bounded body before any DB work.
+        form = parsed_form(request) if data is None else data
+        validate_form_context(request, form)
+        if not valid_csrf(form, session) or (require_admin and session.user.role != 'admin'):
+            return session.user, session  # Existing handlers render their denial.
+        from .contexts import require_context
+        try:
+            require_context(db, operational=operational)
+            if db.bind.dialect.name == 'postgresql':
+                from .database import require_write_isolation
+                require_write_isolation(db)
+                db.execute(text('SELECT pg_advisory_xact_lock(72834001)'))
+                db.expire_all()
+                session = get_session(db, request.cookies.get('wms_session'))
+                if (not session or not valid_csrf(form, session)
+                        or (require_admin and session.user.role != 'admin')):
+                    db.rollback()
+                    raise HTTPException(403, 'Sessão ou permissões alteradas. Reabrir o formulário.')
+                require_context(db, operational=operational)
+                validate_form_context(request, form)
+        except ValueError as error:
+            db.rollback()
+            raise HTTPException(409, str(error)) from error
+    return session.user, session
 
 def render(request, template, context, status=200):
     return templates.TemplateResponse(request, template, context, status_code=status,
@@ -72,57 +96,123 @@ def context(request, user, sess, **kwargs):
             'active_context_id': getattr(request.state, 'ddn_context', 1),
             'ddn_contexts': getattr(request.state, 'ddn_contexts', []), **kwargs}
 
-async def form_body(request: Request):
+def parsed_form(request: Request):
     if request.headers.get('content-type', '').split(';')[0] != 'application/x-www-form-urlencoded':
         return {}
-    body = bytearray()
-    async for chunk in request.stream():
-        body.extend(chunk)
-        if len(body) > 8192:
-            raise HTTPException(status_code=413, detail='Formulário demasiado grande.')
+    body = getattr(request.state, 'wms_body', None)
+    if body is None:
+        raise HTTPException(400, 'Corpo do formulário não validado.')
+    if len(body) > 8192:
+        raise HTTPException(status_code=413, detail='Formulário demasiado grande.')
     fields = parse_qs(body.decode('utf-8', 'replace'), keep_blank_values=True)
     if any(len(vals) != 1 for vals in fields.values()):
         raise HTTPException(400, 'Campos repetidos no formulário.')
     form = {k: vals[0] for k, vals in fields.items()}
+    validate_form_context(request, form)
+    return form
+
+
+def validate_form_context(request, form):
     if 'csrf' in form:
         current = str(getattr(request.state, 'ddn_context', 1))
         # Old default-context forms remain compatible. New forms always include
         # context_id: a tab opened before switching cannot write in a new context.
         if form.get('context_id', '1') != current:
             raise HTTPException(409, 'O contexto mudou noutra página. Reabrir o formulário no cliente/armazém correto.')
-    return form
+
+
+async def form_body(request: Request):
+    return parsed_form(request)
+
 
 def valid_csrf(form, sess):
-    return bool(sess and hmac.compare_digest(form.get('csrf', ''), sess.csrf_token))
+    value = form.get('csrf', '')
+    return bool(sess and isinstance(value, str) and value.isascii()
+                and hmac.compare_digest(value, sess.csrf_token))
 
 def forbidden(request, user, sess, msg='Operação não autorizada.'):
     return render(request, 'message.html', context(request, user, sess, title='Acesso negado', message=msg), 403)
+
+def login_response(request, error=None, status=200):
+    token = secrets.token_hex(32)
+    response = render(request, 'login.html', context(request, None, None, error=error, login_csrf=token), status)
+    response.set_cookie('__Host-wms_login' if COOKIE_SECURE else 'wms_login', token,
+                        max_age=600, httponly=True, secure=COOKIE_SECURE, samesite='strict', path='/')
+    return response
+
+
+def valid_login_origin(request):
+    expected = str(request.base_url).rstrip('/')
+    for name in ('origin', 'referer'):
+        values = request.headers.getlist(name)
+        if len(values) > 1: return False
+        if not values: continue
+        value = values[0]
+        if name == 'origin':
+            if value != expected: return False
+        else:
+            try:
+                parts = urlsplit(value)
+                if parts.username is not None or parts.password is not None or '\\' in value or any(ord(c) <= 32 for c in value): return False
+                if f'{parts.scheme}://{parts.netloc}' != expected: return False
+            except ValueError: return False
+    return True
+
 
 @app.get('/login', response_class=HTMLResponse)
 def login_page(request: Request, db: Session = Depends(database)):
     user, sess = identity(request, db)
     if user: return redirect('/')
-    return render(request, 'login.html', context(request, None, None))
+    return login_response(request)
 
 @app.post('/login')
 async def login(request: Request, db: Session = Depends(database)):
     data = await form_body(request)
+    submitted = data.get('login_csrf', '')
+    cookie = request.cookies.get('__Host-wms_login' if COOKIE_SECURE else 'wms_login', '')
+    if not (valid_login_origin(request) and re.fullmatch(r'[a-f0-9]{64}', submitted) and re.fullmatch(r'[a-f0-9]{64}', cookie) and hmac.compare_digest(submitted, cookie)):
+        return login_response(request, 'Formulário de início de sessão inválido. Volte a tentar.', 403)
     username = data.get('username', '').strip()[:60]
     password = data.get('password', '')[:250]
     ip = (request.client.host if request.client else 'unknown')[:64]
     if not username or not password:
-        return render(request, 'login.html', context(request, None, None, error='Preenche o utilizador e a palavra-passe.'), 400)
+        return login_response(request, 'Preenche o utilizador e a palavra-passe.', 400)
     if too_many_failures(db, username, ip):
-        return render(request, 'login.html', context(request, None, None, error='Demasiadas tentativas. Tenta novamente daqui a 15 minutos.'), 429)
+        return login_response(request, 'Demasiadas tentativas. Tenta novamente daqui a 15 minutos.', 429)
     user = db.scalar(select(User).where(User.username == username, User.active.is_(True)))
-    if not verify_password(user, password):
+    if not verify_password(user, password) or user.role not in ('admin','operador'):
         log_failed_login(db, username, ip); db.commit()
-        return render(request, 'login.html', context(request, None, None, error='Credenciais incorretas.'), 401)
+        return login_response(request, 'Credenciais incorretas.', 401)
+    if db.bind.dialect.name == 'postgresql':
+        # Login has no session yet: credentials/challenge/body are validated
+        # first. Serialize session creation with account revocation/reset too.
+        ident, verified = user.id, (user.password_salt, user.password_hash)
+        from .database import require_write_isolation
+        try:
+            require_write_isolation(db)
+        except ValueError:
+            db.rollback()
+            return login_response(request, 'Configuração transacional incompatível. Contactar o administrador.', 503)
+        db.execute(text('SELECT pg_advisory_xact_lock(72834001)'))
+        db.expire_all()
+        user = db.get(User, ident)
+        if (not user or not user.active or user.username != username
+                or user.role not in ('admin','operador')
+                or (user.password_salt, user.password_hash) != verified):
+            db.rollback()
+            return login_response(request, 'Credenciais ou permissões alteradas. Volte a tentar.', 401)
+        from .contexts import require_context
+        try:
+            require_context(db)
+        except ValueError:
+            db.rollback()
+            return login_response(request, 'Contexto alterado ou inativo. Reabrir o acesso no contexto correto.', 409)
     db.execute(delete(FailedLogin).where(FailedLogin.username == username))
     token = new_session(db, user)
     db.add(Audit(username=user.username, action='LOGIN', details='Sessão iniciada.'))
     db.commit()
     resp = redirect('/')
+    resp.delete_cookie('__Host-wms_login' if COOKIE_SECURE else 'wms_login', path='/', secure=COOKIE_SECURE, samesite='strict')
     resp.set_cookie('wms_session', token, max_age=8 * 3600, httponly=True, secure=COOKIE_SECURE, samesite='strict', path='/')
     return resp
 
@@ -305,7 +395,7 @@ def corridor_page(code: str, request: Request, db: Session=Depends(database)):
                    entries=entries, count=count, floor_range=range(1,corridor.andares+1)))
 
 async def admin_form(request, db):
-    user, sess = identity(request, db)
+    user, sess = identity(request, db, require_admin=True)
     if unauthorized(user, True): return user, sess, None, forbidden(request,user,sess)
     data = await form_body(request)
     if not valid_csrf(data, sess): return user, sess, None, forbidden(request,user,sess,'Pedido inválido (CSRF).')
@@ -376,7 +466,7 @@ def users_page(request: Request, db: Session=Depends(database)):
 
 @app.post('/users')
 async def users_create(request: Request, db: Session=Depends(database)):
-    user, sess = identity(request, db)
+    user, sess = identity(request, db, require_admin=True)
     if unauthorized(user, True): return forbidden(request,user,sess)
     data = await form_body(request)
     if not valid_csrf(data, sess):return forbidden(request,user,sess,'Pedido inválido (CSRF).')
@@ -399,7 +489,7 @@ async def users_create(request: Request, db: Session=Depends(database)):
 
 @app.post('/users/{uid}/toggle')
 async def users_toggle(uid: int, request: Request, db: Session=Depends(database)):
-    user, sess = identity(request, db)
+    user, sess = identity(request, db, require_admin=True)
     if unauthorized(user, True): return forbidden(request, user, sess)
     data = await form_body(request)
     if not valid_csrf(data,sess):return forbidden(request,user,sess,'Pedido inválido (CSRF).')
@@ -419,7 +509,7 @@ async def users_toggle(uid: int, request: Request, db: Session=Depends(database)
 
 @app.post('/users/{uid}/reset-password')
 async def users_reset_password(uid: int, request: Request, db: Session=Depends(database)):
-    user, sess = identity(request, db)
+    user, sess = identity(request, db, require_admin=True)
     if unauthorized(user, True): return forbidden(request, user, sess)
     data = await form_body(request)
     if not valid_csrf(data,sess):return forbidden(request,user,sess,'Pedido inválido (CSRF).')

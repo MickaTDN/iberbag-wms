@@ -1,3 +1,5 @@
+from conftest import BACKUP_PASSWORD
+from conftest import login_data
 import json
 import os
 from pathlib import Path
@@ -118,7 +120,7 @@ def test_production_target_refused(source):
         with pytest.raises(ValueError, match='_test'):
             transfer.apply(bundle, target)
         with pytest.raises(ValueError, match='_test'):
-            backup.restore(target, bundle)
+            backup.restore(target, bundle, passphrase=BACKUP_PASSWORD)
     finally:
         target.dispose()
 
@@ -179,17 +181,17 @@ def test_backup_restore_complete_and_tamper_refused(source, pg_databases, tmp_pa
     origin, restored, untouched = pg_databases(), pg_databases(), pg_databases()
     transfer.apply(bundle, origin)
     folder = tmp_path / 'backup'
-    manifest = backup.backup(origin, folder, runner=docker_client)
+    manifest = backup.backup(origin, folder, runner=docker_client, passphrase=BACKUP_PASSWORD)
     assert manifest['restore_verified'] is False
-    assert backup.restore(restored, folder, runner=docker_client)['status'] == 'reconciled'
+    assert backup.restore(restored, folder, runner=docker_client, passphrase=BACKUP_PASSWORD)['status'] == 'reconciled'
     assert transfer.reconcile(bundle, restored)['status'] == 'reconciled'
     assert transfer.reconcile(bundle, origin)['status'] == 'reconciled'
     with pytest.raises(ValueError, match='não vazio'):
-        backup.restore(restored, folder, runner=docker_client)
+        backup.restore(restored, folder, runner=docker_client, passphrase=BACKUP_PASSWORD)
     with (folder / 'database.dump').open('ab') as stream:
         stream.write(b'changed')
     with pytest.raises(ValueError, match='alterado'):
-        backup.restore(untouched, folder, runner=docker_client)
+        backup.restore(untouched, folder, runner=docker_client, passphrase=BACKUP_PASSWORD)
     with untouched.connect() as connection:
         transfer.require_empty(connection)
 
@@ -222,7 +224,7 @@ def test_two_http_clients_share_migrated_postgres_and_permissions(source, pg_dat
             barrier = Barrier(2)
             def workstation(role):
                 with httpx.Client(base_url=base, timeout=15) as client:
-                    assert client.post('/login', data={'username': role + '_teste', 'password': passwords[role]}).status_code == 303
+                    assert client.post('/login', data=login_data(client, {'username': role + '_teste', 'password': passwords[role]})).status_code == 303
                     barrier.wait(timeout=5)
                     for _ in range(3):
                         response = client.get('/stock?artigo=ART-FICTICIO')
@@ -273,9 +275,9 @@ def test_backup_snapshot_excludes_concurrent_change_and_restore_failure_is_atomi
             connection.execute(text("UPDATE stock SET quantidade=99 WHERE local='Chão'"))
         docker_client(name, args, url, **kwargs)
     folder = tmp_path / 'snapshot-backup'
-    manifest = backup.backup(origin, folder, runner=concurrent_dump)
+    manifest = backup.backup(origin, folder, runner=concurrent_dump, passphrase=BACKUP_PASSWORD)
     assert manifest['inventory']['paletes'] == 8
-    backup.restore(restored, folder, runner=docker_client)
+    backup.restore(restored, folder, runner=docker_client, passphrase=BACKUP_PASSWORD)
     assert transfer.reconcile(bundle, restored)['status'] == 'reconciled'
     assert set(transfer.reconcile(bundle, origin)['different_tables']) == {'stock','location_clocks'}
     # A checksum-valid but truncated archive must fail without partial tables.
@@ -283,8 +285,8 @@ def test_backup_snapshot_excludes_concurrent_change_and_restore_failure_is_atomi
     archive.write_bytes(archive.read_bytes()[:2000])
     manifest['archive_sha256'] = transfer.digest_file(archive)
     (folder / 'manifest.json').write_text(json.dumps(manifest))
-    with pytest.raises(ValueError, match='archive command failed'):
-        backup.restore(failed, folder, runner=docker_client)
+    with pytest.raises(ValueError, match='alterado|autenticação'):
+        backup.restore(failed, folder, runner=docker_client, passphrase=BACKUP_PASSWORD)
     with failed.connect() as connection:
         transfer.require_empty(connection)
 
@@ -297,8 +299,8 @@ def test_non_superuser_can_migrate_backup_and_restore(source, pg_databases, tmp_
     with origin.connect() as connection:
         assert connection.scalar(text('SELECT rolsuper FROM pg_roles WHERE rolname=current_user')) is False
     folder = tmp_path / 'restricted-backup'
-    backup.backup(origin, folder, runner=docker_client)
-    backup.restore(restored, folder, runner=docker_client)
+    backup.backup(origin, folder, runner=docker_client, passphrase=BACKUP_PASSWORD)
+    backup.restore(restored, folder, runner=docker_client, passphrase=BACKUP_PASSWORD)
     assert transfer.reconcile(bundle, restored)['status'] == 'reconciled'
     from sqlalchemy.orm import Session
     from sqlalchemy import select

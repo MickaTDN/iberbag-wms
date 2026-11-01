@@ -1,3 +1,4 @@
+from conftest import login_data
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
@@ -26,7 +27,7 @@ def accounts():
         db.commit()
     with TestClient(app) as first, TestClient(app) as second:
         for client, name in zip((first, second), names):
-            response = client.post('/login', data={'username': name, 'password': password}, follow_redirects=False)
+            response = client.post('/login', data=login_data(client, {'username': name, 'password': password}), follow_redirects=False)
             assert response.status_code == 303
             assert 'HttpOnly' in response.headers['set-cookie']
             assert 'SameSite=strict' in response.headers['set-cookie']
@@ -95,7 +96,7 @@ def test_secure_cookie(monkeypatch, accounts):
         set_password(user, password)
         db.commit()
     with TestClient(app, base_url='https://testserver') as client:
-        response = client.post('/login', data={'username': name, 'password': password}, follow_redirects=False)
+        response = client.post('/login', data=login_data(client, {'username': name, 'password': password}), follow_redirects=False)
         assert 'Secure' in response.headers['set-cookie']
         assert client.get('/settings').status_code == 200
 

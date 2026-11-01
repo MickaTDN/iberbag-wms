@@ -18,6 +18,8 @@ def configure():
         ).render_as_string(hide_password=False)
     if make_url(value).drivername != 'postgresql+psycopg':
         raise SystemExit('O servidor de rede exige PostgreSQL (psycopg).')
+    from .pg_environment import configure_process
+    configure_process(value)
     os.environ['WMS_DATABASE_URL'] = value
     os.environ['WMS_COOKIE_SECURE'] = '1'
 
@@ -49,6 +51,13 @@ def main():
     else:
         from .migrations import check_database
         check_database()
+        from .database import engine
+        from .privileges import validate_runtime
+        try:
+            with engine.connect() as connection:
+                validate_runtime(connection)
+        except ValueError as error:
+            raise SystemExit('Arranque recusado: configurar conta web restrita. '+str(error)) from None
         import uvicorn
         uvicorn.run('iberbag.app:app', host='127.0.0.1', port=8000, workers=2,
                     proxy_headers=True, forwarded_allow_ips='127.0.0.1')

@@ -65,7 +65,7 @@ def confirm(ident: int, request: Request, data: dict = Depends(receiving_form), 
 
 @router.post('/settings/locations/{code}/active')
 def active_location(code: str, request: Request, data: dict = Depends(receiving_form), db: Session = Depends(database)):
-    user, sess = form_actor(request, db, data)
+    user, sess = form_actor(request, db, data, require_admin=True, operational=False)
     if user.role != 'admin': raise HTTPException(403, 'Só o administrador gere o catálogo.')
     if data.get('active') not in ('0', '1'): raise HTTPException(400, 'Estado de localização inválido.')
     from .warehouse_settings import set_location_active, WarehouseError

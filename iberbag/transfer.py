@@ -61,9 +61,19 @@ def read_data(connection):
         frozenset(COMMERCIAL_TABLES): '0005', frozenset(): ('0006' if missing & CONTEXT_TABLES else ('ddn_0001' if missing & PHYSICAL_TABLES else REVISION))}.get(frozenset(missing_legacy))
     if names - expected - {'alembic_version'} or legacy_revision is None or inspector.get_view_names():
         raise ValueError('Esquema diferente da v2.3: tabelas em falta, adicionais ou vistas. Rever manualmente.')
+    if missing & CONTEXT_TABLES not in (set(),CONTEXT_TABLES):
+        raise ValueError('Catálogo multicliente incompleto.')
     if 'alembic_version' in names:
-        if connection.execute(text('SELECT version_num FROM alembic_version')).scalars().all() != [legacy_revision]:
-            raise ValueError('Revisão incompatível.')
+        versions = frozenset(connection.execute(text('SELECT version_num FROM alembic_version')).scalars())
+        if missing & CONTEXT_TABLES:
+            allowed = {frozenset({legacy_revision})}
+            if legacy_revision == '0006':allowed.add(frozenset({'0007'}))
+        elif missing & PHYSICAL_TABLES:
+            allowed = {frozenset({'ddn_0001'}),frozenset({'ddn_0001','0007'})}
+        else:
+            allowed = {frozenset({'ddn_0002'}),frozenset({'ddn_0002','0007'}),frozenset({REVISION})}
+        if versions not in allowed:
+            raise ValueError('Revisão/heads incompatíveis com o esquema. Não usar stamp para contornar.')
     if connection.dialect.name == 'sqlite':
         if connection.scalar(text('SELECT count(*) FROM users WHERE active NOT IN (0, 1) OR active IS NULL')):
             raise ValueError('Valor booleano inválido em users.active; não será convertido.')
@@ -125,6 +135,33 @@ def inventory(data):
     }
 
 
+
+def archive_inventory(connection, expected):
+    """Reconcile historical archives in their original authenticated representation.
+
+    New backups always use normalized inventory. Legacy PR9 archives predate
+    context columns/catalogues. Only an actual pre-DDN schema may be projected;
+    never hide another client's data by accepting an arbitrary table subset.
+    """
+    data = read_data(connection)
+    wanted = set(expected.get('tables', {}))
+    current = {t.name for t in TABLES}
+    legacy = current - CONTEXT_TABLES - PHYSICAL_TABLES
+    if wanted == current:
+        return inventory(data)
+    if wanted != legacy or set(inspect(connection).get_table_names()) & (CONTEXT_TABLES | PHYSICAL_TABLES):
+        raise ValueError('Inventário histórico incompatível; não ocultar clientes/tabelas.')
+    projected = {name:[{k:v for k,v in row.items() if k!='context_id'} for row in data[name]] for name in legacy}
+    if any(row.get('context_id',1)!=1 for name in legacy for row in data[name]):
+        raise ValueError('Não é permitido projetar dados de outros contextos.')
+    actual = inventory(projected)
+    # PR9's historical manifest used the original fixed Iberbag capacity metric.
+    from .location_rules import capacity_for
+    occupied = Counter()
+    for row in projected['stock']:occupied[row['local']] += row['quantidade']
+    actual['locais_acima_capacidade'] = sum(capacity_for(loc)==1 and qty>1 for loc,qty in occupied.items())
+    return actual
+
 def differences(expected, actual):
     return [name for name in expected['tables'] if expected['tables'][name] != actual['tables'].get(name)]
 
@@ -184,8 +221,8 @@ def load_bundle(bundle):
 def require_test_target(engine):
     if engine.url.drivername != 'postgresql+psycopg' or not (engine.url.database or '').endswith('_test'):
         raise ValueError('Destino exige PostgreSQL e nome terminado em _test. Produção não é suportada.')
-    if engine.url.query:
-        raise ValueError('Parâmetros de ligação personalizados não são aceites no destino de teste.')
+    from .pg_environment import configure_process
+    configure_process(engine.url)
 
 
 def require_empty(connection):

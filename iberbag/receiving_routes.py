@@ -29,9 +29,10 @@ async def receiving_form(request: Request):
     return {key: values[0] for key, values in fields.items()}
 
 
-def form_actor(request, db, data):
-    user, sess = identity(request, db)
-    if not user or user.role not in ('admin', 'operador') or not valid_csrf(data, sess):
+def form_actor(request, db, data, *, require_admin=False, operational=True):
+    user, sess = identity(request, db, data=data, require_admin=require_admin, operational=operational)
+    if (not user or user.role not in ('admin', 'operador') or not valid_csrf(data, sess)
+            or (require_admin and user.role != 'admin')):
         raise HTTPException(403, 'Operação não autorizada ou sessão/formulário inválido.')
     return user, sess
 

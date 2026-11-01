@@ -62,7 +62,7 @@ def report(request:Request,data:dict=Depends(receiving_form),db:Session=Depends(
 
 @router.post('/inventory/incidents/{ident}/resolve')
 def resolve_incident(ident:int,request:Request,data:dict=Depends(receiving_form),db:Session=Depends(database)):
-    user,sess=form_actor(request,db,data)
+    user,sess=form_actor(request,db,data,require_admin=True)
     try:
         service.resolve_incident(db,user.id,ident,data.get('reason'),integer(data['inventory_id']) if data.get('inventory_id') else None)
         return redirect('/inventory/incidents')
@@ -71,7 +71,7 @@ def resolve_incident(ident:int,request:Request,data:dict=Depends(receiving_form)
 
 @router.post('/inventory/lots/resolve')
 def resolve_lot(request:Request,data:dict=Depends(receiving_form),db:Session=Depends(database)):
-    user,sess=form_actor(request,db,data)
+    user,sess=form_actor(request,db,data,require_admin=True)
     try:
         service.resolve_lot(db,user.id,data.get('lote'),data.get('artigo'),data.get('reason'))
         return redirect('/inventory/incidents')
@@ -80,7 +80,7 @@ def resolve_lot(request:Request,data:dict=Depends(receiving_form),db:Session=Dep
 
 @router.post('/inventory/preparations/{ident}/complete')
 def complete(ident:int,request:Request,data:dict=Depends(receiving_form),db:Session=Depends(database)):
-    user,sess=form_actor(request,db,data)
+    user,sess=form_actor(request,db,data,require_admin=True)
     try:
         service.close_preparation(db,user.id,ident,data.get('reason'))
         return redirect(f'/dispatches/{ident}')
@@ -155,7 +155,7 @@ def submit(ident:int,request:Request,data:dict=Depends(receiving_form),db:Sessio
 
 @router.post('/inventory/{ident}/approve')
 def approve(ident:int,request:Request,data:dict=Depends(receiving_form),db:Session=Depends(database)):
-    user,sess=form_actor(request,db,data)
+    user,sess=form_actor(request,db,data,require_admin=True)
     try:
         service.approve_inventory(db,user.id,ident,data.get('reason'),integer(data['compensate_order']) if data.get('compensate_order') else None)
         return redirect(f'/inventory/{ident}')

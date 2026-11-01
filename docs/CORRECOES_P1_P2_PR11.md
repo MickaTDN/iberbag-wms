@@ -29,7 +29,15 @@ Foram revistos os POST administrativos, de utilizadores, contexto, entradas,
 arrumação, saídas/cancelamentos, transferências, inventários/ajustes, pendentes
 e destinos. Operações administrativas declaram explicitamente o perfil exigido.
 Os locks dos serviços e as transações/idempotência mantêm-se. O login conserva
-o seu challenge/Origin/Referer; também beneficia dos limites de receção.
+o seu challenge/Origin/Referer; também beneficia dos limites de receção. Apenas
+após validar as credenciais adquire o lock para criar a sessão; senha, conta e
+contexto são revalidados para impedir que um reset/desativação concorrente deixe
+uma sessão nova criada com credenciais antigas.
+
+O protocolo exige READ COMMITTED, o padrão PostgreSQL. Uma configuração que
+conserve snapshots anteriores ao lock é recusada no arranque e nas escritas;
+não se baixa automaticamente o isolamento para fazer passar a operação. Backups
+de leitura conservam o seu snapshot REPEATABLE READ explícito.
 
 ## P2 — Conta PostgreSQL de execução
 
@@ -132,7 +140,7 @@ a espera, pedidos concorrentes, grants PUBLIC/exteriores, arquivos/temporários,
 encaminhamento libpq e preservação de TLS sem passwords nos argumentos.
 
 As **26 funções críticas anteriores mantêm-se obrigatórias**. A prova PostgreSQL
-exige também os novos casos (41 funções obrigatórias no total), zero omissões e
+exige também os novos casos (43 funções obrigatórias no total), zero omissões e
 um contador separado das 26 originais. Os testes Win32 estão em `tests/windows`:
 são recolhidos apenas no Windows e sete funções nativas são obrigatórias na sua
 prova; não se simula uma aprovação de ACL Windows em Linux. A CI Windows executa

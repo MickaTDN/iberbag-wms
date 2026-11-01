@@ -18,6 +18,8 @@ def role_flags(connection, role):
 
 
 def validate_runtime(connection, role=None):
+    if role is None and connection.get_isolation_level() != 'READ COMMITTED':
+        raise ValueError('Conta web exige READ COMMITTED para revalidar após locks; não alterar isolamento automaticamente.')
     role = role or connection.scalar(text('SELECT current_user'))
     oid = role_flags(connection, role)
     if connection.scalar(text('SELECT count(*) FROM pg_database WHERE datname=current_database() AND datdba=:oid'), {'oid':oid}):

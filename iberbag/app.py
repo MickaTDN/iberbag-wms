@@ -63,6 +63,8 @@ def identity(request: Request, db: Session, *, data=None, require_admin=False, o
         try:
             require_context(db, operational=operational)
             if db.bind.dialect.name == 'postgresql':
+                from .database import require_write_isolation
+                require_write_isolation(db)
                 db.execute(text('SELECT pg_advisory_xact_lock(72834001)'))
                 db.expire_all()
                 session = get_session(db, request.cookies.get('wms_session'))
@@ -178,9 +180,33 @@ async def login(request: Request, db: Session = Depends(database)):
     if too_many_failures(db, username, ip):
         return login_response(request, 'Demasiadas tentativas. Tenta novamente daqui a 15 minutos.', 429)
     user = db.scalar(select(User).where(User.username == username, User.active.is_(True)))
-    if not verify_password(user, password):
+    if not verify_password(user, password) or user.role not in ('admin','operador'):
         log_failed_login(db, username, ip); db.commit()
         return login_response(request, 'Credenciais incorretas.', 401)
+    if db.bind.dialect.name == 'postgresql':
+        # Login has no session yet: credentials/challenge/body are validated
+        # first. Serialize session creation with account revocation/reset too.
+        ident, verified = user.id, (user.password_salt, user.password_hash)
+        from .database import require_write_isolation
+        try:
+            require_write_isolation(db)
+        except ValueError:
+            db.rollback()
+            return login_response(request, 'Configuração transacional incompatível. Contactar o administrador.', 503)
+        db.execute(text('SELECT pg_advisory_xact_lock(72834001)'))
+        db.expire_all()
+        user = db.get(User, ident)
+        if (not user or not user.active or user.username != username
+                or user.role not in ('admin','operador')
+                or (user.password_salt, user.password_hash) != verified):
+            db.rollback()
+            return login_response(request, 'Credenciais ou permissões alteradas. Volte a tentar.', 401)
+        from .contexts import require_context
+        try:
+            require_context(db)
+        except ValueError:
+            db.rollback()
+            return login_response(request, 'Contexto alterado ou inativo. Reabrir o acesso no contexto correto.', 409)
     db.execute(delete(FailedLogin).where(FailedLogin.username == username))
     token = new_session(db, user)
     db.add(Audit(username=user.username, action='LOGIN', details='Sessão iniciada.'))

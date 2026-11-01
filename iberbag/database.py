@@ -17,6 +17,13 @@ SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 def now_utc():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
+
+def require_write_isolation(db):
+    # A snapshot taken before waiting for an advisory lock must not keep old
+    # permissions/stock visible after the lock. Never lower isolation silently.
+    if db.bind.dialect.name == 'postgresql' and db.connection().get_isolation_level() != 'READ COMMITTED':
+        raise ValueError('Escritas WMS exigem READ COMMITTED; rever a configuração transacional.')
+
 class Base(DeclarativeBase):
     pass
 

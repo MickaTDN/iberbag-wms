@@ -47,6 +47,8 @@ REQUIRED_POSTGRES |= {
     'test_security_regressions.test_authenticated_concurrent_forms_finish_atomically',
     'test_security_regressions.test_admin_posts_refuse_operator_before_lock',
     'test_security_regressions.test_database_error_after_lock_releases_transaction',
+    'test_security_regressions.test_login_revalidates_credentials_and_context_before_session_creation',
+    'test_security_regressions.test_snapshot_isolation_cannot_reuse_stale_authorization',
     'test_pg_environment.test_inherited_routes_and_credentials_never_reach_libpq',
     'test_pg_environment.test_explicit_tls_preserved_without_legacy_tls_downgrade',
     'test_pg_environment.test_pg_dump_receives_controlled_environment_and_no_password_argv',

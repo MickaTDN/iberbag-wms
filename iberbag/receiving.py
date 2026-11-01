@@ -26,6 +26,11 @@ def operation(fn):
         try:
             if db.bind.dialect.name != 'postgresql':
                 raise ReceivingError('Operações de stock exigem PostgreSQL. SQLite permite apenas consulta.', 503)
+            from .database import require_write_isolation
+            try:
+                require_write_isolation(db)
+            except ValueError as error:
+                raise ReceivingError(str(error),503) from error
             db.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK})
             db.expire_all()
             actor = db.get(User, actor_id)

@@ -304,3 +304,54 @@ def test_database_error_after_lock_releases_transaction(restricted_web):
         assert connection.scalar(text('SELECT pg_try_advisory_xact_lock(:key)'),{'key':LOCK})
     assert runtime.pool.checkedout()==0
 
+
+@pytest.mark.parametrize('change',['password','active','context'])
+def test_login_revalidates_credentials_and_context_before_session_creation(restricted_web,change):
+    from conftest import login_data
+    from iberbag.security import set_password
+    from iberbag.database import LoginSession
+    app,owner,runtime,role,accounts,tokens=restricted_web
+    with TestClient(app) as client,ThreadPoolExecutor(max_workers=1) as pool:
+        data=login_data(client,{'username':'admin','password':accounts['admin'][1]})
+        with owner.begin() as connection:
+            connection.execute(text('SELECT pg_advisory_xact_lock(:key)'),{'key':LOCK})
+            future=pool.submit(client.post,'/login',data=data,follow_redirects=False)
+            deadline=time.monotonic()+4;waiting=False
+            while time.monotonic()<deadline:
+                waiting=bool(connection.scalar(text('''SELECT count(*) FROM pg_locks l JOIN pg_stat_activity a ON a.pid=l.pid
+                    WHERE a.usename=:role AND l.locktype='advisory' AND NOT l.granted'''),{'role':role}))
+                if waiting:break
+                time.sleep(.02)
+            assert waiting,'Credential-validated login must serialize with account changes.'
+            connection.execute(LoginSession.__table__.delete().where(LoginSession.user_id==accounts['admin'][0]))
+            if change=='password':
+                synthetic=User();set_password(synthetic,secrets.token_urlsafe(24))
+                connection.execute(User.__table__.update().where(User.id==accounts['admin'][0]).values(
+                    password_salt=synthetic.password_salt,password_hash=synthetic.password_hash))
+            elif change=='active':
+                connection.execute(User.__table__.update().where(User.id==accounts['admin'][0]).values(active=False))
+            else:
+                connection.execute(StorageContext.__table__.update().where(StorageContext.id==1).values(active=False))
+        assert future.result(timeout=5).status_code==(409 if change=='context' else 401)
+    with Session(owner) as db:
+        assert not db.scalar(select(LoginSession.id).where(LoginSession.user_id==accounts['admin'][0]))
+    assert runtime.pool.checkedout()==0
+
+
+def test_snapshot_isolation_cannot_reuse_stale_authorization(restricted_web,monkeypatch):
+    import iberbag.app as web
+    from iberbag import receiving
+    from iberbag.database import Warehouse
+    app,owner,runtime,role,accounts,tokens=restricted_web
+    snapshot=runtime.execution_options(isolation_level='REPEATABLE READ')
+    monkeypatch.setattr(web,'SessionLocal',sessionmaker(bind=snapshot,expire_on_commit=False))
+    with snapshot.connect() as connection,pytest.raises(ValueError,match='READ COMMITTED'):
+        validate_runtime(connection)
+    with TestClient(app) as client:
+        client.cookies.set('wms_session',tokens['admin'][0])
+        assert client.post('/settings/warehouses',data={'csrf':tokens['admin'][1],'context_id':1,'name':'NUNCA CRIAR'}).status_code==409
+    with Session(snapshot) as db,pytest.raises(receiving.ReceivingError,match='READ COMMITTED'):
+        receiving.save_receipt(db,accounts['admin'][0],secrets.token_hex(16),'NUNCA CRIAR','2020-01-01',[('ART','LOT','1')])
+    with Session(owner) as db:
+        assert not db.scalar(select(Warehouse.id).where(Warehouse.name=='NUNCA CRIAR'))
+

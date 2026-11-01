@@ -17,8 +17,9 @@ revisão, apenas depois das verificações. O proprietário decide o merge manua
 
 Esta preparação atualiza a base e o histórico do #11 **depois** do merge manual
 do #10. O merge local com a main produziu exatamente a árvore anterior de #11:
-nenhuma alteração funcional foi necessária para conciliar a Fase 1. Só a
-documentação de finalização foi atualizada; a nova CI testa a head publicada
+nenhuma alteração funcional foi necessária nesse merge. A auditoria independente
+posterior exigiu as correções P1/P2 de segurança descritas no novo guia; os modelos
+e regras de negócio da Fase 1 mantêm-se. A nova CI testa a head corrigida publicada
 sobre main. Não se alteram bases de dados, instalações ou a própria main.
 
 ## Diff contra a main efetiva
@@ -35,9 +36,9 @@ destas revisões apaga, recalcula ou recria stock e históricos.
 O histórico de #11 contém os commits de #10 e de #9 por ancestralidade. Não há
 commits de #9 em falta. A comparação do candidato com #9 confirma:
 
-- Cifra/AAD, ACL nativa Windows, preview isolado, limites Excel, servidor e
-  dependências de produção preservados. Os ficheiros críticos correspondentes
-  mantêm o conteúdo de #9; a autenticação recebeu apenas a conciliação contextual.
+- Cifra/AAD, preview isolado, limites Excel e dependências de produção preservados.
+  Autenticação, ACLs individuais, validação de privilégios e ambiente PostgreSQL
+  receberam ainda as correções P1/P2, sem alterar os valores de negócio.
 - Login CSRF, Origin/Referer, sessões e CSRF operacional preservados, juntamente
   com os controlos de cliente/armazém e de formulário desatualizado.
 - Conta PostgreSQL restrita, sem ownership/DDL; atribuições físicas e históricos
@@ -150,7 +151,7 @@ não foi examinada nem substituem o ensaio específico de atualização/restauro
 |---|---|---|
 | #9 | Melhorias necessárias incluídas no #11; sem proteção crítica removida | Não integrar isoladamente nesta sequência; confirmar inclusão após #11 |
 | #10 | Integrado manualmente; ancestralidade e árvore verificadas | Dependência concluída; não aplicar a Fase 1 novamente |
-| #11 | Base main e histórico atualizados sem alteração funcional | CI nova aprovada antes de retirar rascunho; revisão e merge final exclusivamente humanos |
+| #11 | Base main e histórico atualizados; correções de segurança P1/P2 | CI nova aprovada antes de retirar rascunho; revisão e merge final exclusivamente humanos |
 
 Riscos/condições que permanecem:
 
@@ -165,12 +166,9 @@ Riscos/condições que permanecem:
 - Backups exigem volume local privado e senha separada. Temporário em claro,
   manifesto confidencial e provas locais não assinadas têm os limites já descritos
   no guia; não certificam segurança contra um administrador comprometido.
-- Usar ambiente de manutenção controlado. O filtro libpq herdado de #9 é parcial
-  (por exemplo, não remove `PGHOSTADDR`); confirmar que variáveis de encaminhamento
-  não substituem a ligação pretendida. Isso não é regressão do #11 nem prova de
-  acesso indevido; a execução deste ensaio elimina PG* herdadas e usa servidor
-  descartável próprio. Uma revisão adicional desse endurecimento pode ser feita
-  separadamente, preservando opções TLS legítimas.
+- Usar a política de ambiente controlado agora implementada: PGHOSTADDR/serviços
+  herdados não chegam às ligações. TLS deve ser explícito e validado; opções
+  contraditórias são recusadas. Ver o novo guia P1/P2 antes de mudar configurações.
 - As definições administrativas GitHub que não possam ser consultadas com esta
   integração continuam dependentes do proprietário. CI verde não equivale a
   aprovação humana formal nem autorização de deploy.

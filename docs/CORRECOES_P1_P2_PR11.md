@@ -38,7 +38,7 @@ Causa: a validação só examinava flags do role e objetos do esquema corrente.
 esquemas podiam passar despercebidos.
 
 `validate_runtime()` verifica agora CREATE efetivo na base e em todos os esquemas
-persistentes de utilizador, ownership de esquemas, relações/sequências, funções
+persistentes, incluindo pg_catalog, ownership de esquemas, relações/sequências, funções
 e tipos, incluindo fora do search_path. `has_*_privilege` deteta também concessões
 por PUBLIC. Recusa TRIGGER, REFERENCES, TRUNCATE, MAINTAIN, grant options indevidos
 e UPDATE direto de sequências, mantendo SELECT/INSERT nos livros imutáveis.
@@ -119,7 +119,7 @@ credenciais aleatórias e a conta runtime restrita, com remoção do contentor f
 |---|---|---|
 | Corpo lento, pedidos recusados e grants exteriores | 15 falhas reproduzidas | Cenários incluídos na suite completa aprovada |
 | Encaminhamento PGHOSTADDR/serviços, contra a versão anterior | 1 falha reproduzida | Regressão aprovada para pg_dump e pg_restore |
-| Suite PostgreSQL completa | Versão vulnerável já tinha CI verde, sem estas regressões | 287 aprovados, zero omitidos |
+| Primeira suite PostgreSQL completa corrigida | Versão vulnerável já tinha CI verde, sem estas regressões | 287 aprovados, zero omitidos; depois acrescentado também o caso pg_catalog |
 | Suite SQLite Linux | Não cobre semântica NTFS | 74 aprovados; 213 casos PostgreSQL omitidos |
 
 Windows/NTFS é validado pelo job Windows com casos negativos próprios; o resultado

@@ -113,7 +113,7 @@ def test_rejected_post_does_not_wait_for_write_lock(restricted_web, case):
     assert response.status_code == (409 if case == 'context' else 403)
 
 
-@pytest.mark.parametrize('case', ['database', 'public_database', 'schema_create', 'system_schema_create', 'schema_owner', 'table_owner', 'function_owner', 'type_owner', 'public_create', 'public_audit_delete', 'grant_option'])
+@pytest.mark.parametrize('case', ['database', 'public_database', 'schema_create', 'system_schema_create', 'toast_schema_create', 'schema_owner', 'table_owner', 'function_owner', 'type_owner', 'public_create', 'public_audit_delete', 'grant_option'])
 def test_runtime_rejects_privileges_outside_current_schema(restricted_web, case):
     app, owner, runtime, role, accounts, tokens = restricted_web
     administrator = create_engine(make_url(os.environ['WMS_TEST_POSTGRES_URL']).set(database=owner.url.database))
@@ -128,6 +128,8 @@ def test_runtime_rejects_privileges_outside_current_schema(restricted_web, case)
                     sql.SQL('PUBLIC') if case == 'public_create' else sql.Identifier(role))
             elif case == 'system_schema_create':
                 statement = sql.SQL('GRANT CREATE ON SCHEMA pg_catalog TO {}').format(sql.Identifier(role))
+            elif case == 'toast_schema_create':
+                statement = sql.SQL('GRANT CREATE ON SCHEMA pg_toast TO {}').format(sql.Identifier(role))
             elif case == 'schema_owner':
                 statement = sql.SQL('ALTER SCHEMA audit_extra OWNER TO {}').format(sql.Identifier(role))
             elif case == 'table_owner':

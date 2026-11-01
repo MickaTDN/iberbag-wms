@@ -27,7 +27,7 @@ def validate_runtime(connection, role=None):
     # Inspect persistent schemas including pg_catalog, not just current_schema.
     # has_*_privilege includes PUBLIC and other effective grants.
     if connection.scalar(text('''SELECT count(*) FROM pg_namespace n
-            WHERE n.nspname !~ '^pg_(toast|temp)(_|$)'
+            WHERE n.nspname !~ '^pg_(toast_)?temp_[0-9]+$'
             AND (n.nspowner=:oid OR has_schema_privilege(:r,n.oid,'CREATE'))'''), {'oid':oid,'r':role}):
         raise ValueError('Conta web não pode possuir ou criar objetos em esquemas da base.')
     if connection.scalar(text('''SELECT count(*) FROM (
@@ -35,7 +35,7 @@ def validate_runtime(connection, role=None):
             UNION ALL SELECT pronamespace, proowner FROM pg_proc
             UNION ALL SELECT typnamespace, typowner FROM pg_type) o
             JOIN pg_namespace n ON n.oid=o.namespace
-            WHERE n.nspname !~ '^pg_(toast|temp)(_|$)'
+            WHERE n.nspname !~ '^pg_(toast_)?temp_[0-9]+$'
             AND o.owner=:oid'''), {'oid':oid}):
         raise ValueError('Conta web não pode ser owner de objetos, mesmo fora do esquema corrente.')
     schema = connection.scalar(text('SELECT current_schema()'))
@@ -57,7 +57,7 @@ def validate_runtime(connection, role=None):
             if connection.scalar(text('SELECT has_table_privilege(:r,:t,:p)'), {'r':role,'t':relation,'p':privilege}):
                 raise ValueError('Conta web tem privilégios adicionais de DDL, manutenção ou delegação.')
     if connection.scalar(text('''SELECT count(*) FROM pg_class s JOIN pg_namespace n ON n.oid=s.relnamespace
-            WHERE n.nspname !~ '^pg_(toast|temp)(_|$)'
+            WHERE n.nspname !~ '^pg_(toast_)?temp_[0-9]+$'
             AND CASE WHEN s.relkind='S' THEN has_sequence_privilege(:r,s.oid,'UPDATE') ELSE false END'''), {'r':role}):
         raise ValueError('Conta web não pode alterar diretamente sequências.')
 

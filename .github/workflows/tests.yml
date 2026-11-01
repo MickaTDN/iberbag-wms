@@ -33,7 +33,7 @@ jobs:
           python scripts/verify_test_report.py .test-results/postgres.xml --backend postgres --output .test-results/postgres-proof.json
       - name: Archive test evidence without traces or fixture secrets
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: security-integration-proof-linux-${{ github.run_attempt }}
           path: .test-results/*-proof.json
@@ -60,7 +60,7 @@ jobs:
         run: python scripts/verify_test_report.py .test-results/windows-sqlite.xml --backend sqlite --output .test-results/windows-sqlite-proof.json
       - name: Archive test evidence without traces or fixture secrets
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: security-integration-proof-windows-${{ github.run_attempt }}
           path: .test-results/*-proof.json

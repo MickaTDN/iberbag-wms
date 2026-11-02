@@ -1,31 +1,36 @@
-# Instruções para o Codex — Iberbag WMS
+# AGENTS.md — DDN WMS (Distribuição David Neto)
 
-## Objetivo
-Evoluir a aplicação de demonstração existente (FastAPI, SQLAlchemy, Jinja2) para um WMS multiutilizador na rede local do armazém. Não recomeçar do zero nem alterar dados de produção sem autorização explícita.
+## Objetivo e fontes de verdade
+Evoluir **o código existente**, sem recomeçar do zero, para um WMS de escritório, multiutilizador na rede local e com vários clientes/armazéns. Nome visível: **DDN WMS**; repositório e pacote Python `iberbag` mantêm-se por compatibilidade. Não confundir o cliente **proprietário do stock** com o cliente/destino comercial de uma encomenda.
 
-## Estado atual
-Esta base é a versão 2.3 (protótipo de consulta): login, administração de utilizadores, consulta de stock, detalhe da carga, mapa do armazém, Definições > Localizações e auditoria administrativa. **Não existem ainda módulos operacionais de entradas, saídas ou transferências.** SQLite é apenas para desenvolvimento; PostgreSQL é o destino de produção.
+Antes de cada alteração, consultar o código e apenas a documentação relevante; especificações históricas podem descrever versões anteriores. Referências principais:
+- `docs/DDN_FASE1_MULTICLIENTE.md` e `docs/REVISAO_FINAL_PR10.md`: arquitetura, isolamento e localizações.
+- `docs/INTEGRACAO_SEGURANCA_MULTICLIENTE.md`, `docs/CORRECOES_P1_P2_PR11.md` e `SECURITY.md`: segurança, migrações, backup e riscos.
+- Documentos `docs/ENTRADAS_E_ARRUMACAO.md`, `docs/SAIDAS_E_FIFO.md`, `docs/TRANSFERENCIAS.md`, `docs/ETAPA6_ESCRITORIO_E_INVENTARIO.md` e `docs/ETAPA7_PENDENTES_E_PROCESSOS_EXCEL.md`: fluxos Iberbag já desenvolvidos e respetivos limites.
+- `docs/ESPECIFICACAO.md`: contexto histórico; **não** sobrepor regras antigas à implementação e documentação mais recentes.
 
-## Regras de negócio confirmadas
-- Unidade: **paletes**, agrupadas por artigo, lote, carga e localização; sem identificador individual de palete.
-- Uma posição física tem no máximo **1 palete**. A localização `Chão` não tem limite. A ocupação soma artigos/lotes/cargas distintos.
-- O armazém possui corredores A–S; A–K e N–S têm 4 andares e L/M têm 5; posições 01–27 por andar. Ex.: `C214` = corredor C, andar 2, posição 14. É um mapa inicial configurável, não prova de existência física.
-- Definições > Localizações (administrador): gerir corredores/andares/posições; não apagar/renomear posições ocupadas. Mapa do armazém acessível aos operadores. Consulta de stock permite pesquisar por **artigo, lote e localização**; nunca apresentar filtro de carga.
-- Na consulta principal, não mostrar carga nem data de entrada. Ao abrir os detalhes, apresentar carga, data de entrada e quem arrumou. O Excel anterior regista operador por carga, não necessariamente por palete.
-- Operadores e administradores têm contas individuais, e autorizações devem ser verificadas no servidor.
-- Saídas: o **sistema** seleciona automaticamente as quantidades e as localizações por FIFO com data de entrada da carga para artigo/lote solicitado; operador não escolhe paletes. Diferenças exigem registo e tratamento seguro.
-- Movimentos devem ter transações atómicas, auditoria e validação concorrente para evitar stock negativo ou ocupação acima da capacidade.
-- O Excel pode conter registos incompletos/anómalos. Nunca deduzir datas, pessoas ou localizações em falta, nem alterar dados automaticamente.
+## Estado implementado (verificar sempre a branch atual)
+- Fase 1 multicliente/multi-armazém e integração de segurança foram integradas na `main` (PRs #10 e #11). Não voltar a executar esses PRs ou a migração como se fossem novos; confirmar o estado atual do repositório antes de trabalhar.
+- FastAPI, SQLAlchemy, Jinja2, PostgreSQL 17; SQLite destina-se a ensaios limitados, **não** a operações de stock/produção. Múltiplos PCs acedem à mesma aplicação; operações críticas devem ser transacionais e seguras perante concorrência.
+- Existem receção, arrumação, saídas com FIFO, reservas, transferências, preparações, pendentes, inventários/ajustes, documentos PDF, utilizadores e auditoria para os processos já suportados, sobretudo Iberbag. **Não** inferir daí que os fluxos específicos dos outros clientes estejam implementados.
+- Contextos iniciais: **Iberbag/Ovar, Valmet/Ovar, Cosmopak/Ovar, Alcobre/Ovar e NKT/Escapães**. `Warehouse`, `Client`, `StorageContext` e `context_id` isolam stock, cargas, movimentos, pendentes, inventários e documentos. Respeitar filtragem nas consultas, IDs/relações, escrita, relatórios, backups e revalidação do contexto dos formulários. Utilizadores são internos DDN (Administrador/Operador); não existem logins externos por cliente nem RLS.
+- Por agora, uma localização física normal (armazém + código normalizado) pertence exclusivamente a um contexto, protegida por `physical_location_claims`. **Não** duplicar códigos/ocupações para contornar a exclusividade. A partilha física real entre clientes, nomeadamente Iberbag/Cosmopak, requer uma arquitetura posterior de capacidade/ocupação e bloqueios comuns. `Chão` é uma zona lógica ilimitada por contexto; capacidades das restantes posições são configuráveis, não universalmente uma palete.
+- Catálogo histórico Iberbag: corredores A–S, geralmente 4 andares; L/M com 5, posições 01–27. É um mapa teórico inicial, a conferir fisicamente; não o copiar automaticamente para outros clientes.
 
-## Dados e segurança
-- NUNCA incluir no Git: `.db`, `.sqlite*`, Excel `.xls*`, ZIP de exportação VBA, `.env`, credenciais, logs, cópias de segurança ou dados reais.
-- Não usar credenciais fixas no código, commits ou testes. Testes usam dados fictícios.
-- Antes de importações/migrações: backup verificável, pré-visualização, relatório de diferenças e testes de idempotência. Não reimportar automaticamente em base de dados já preenchida.
-- Não abrir operações de stock em produção até existirem testes de transação, permissões e concorrência.
+## Regras funcionais e limites
+- **Iberbag:** stock agrupado por artigo + lote + carga + localização, medido em paletes e sem ID individual obrigatório; pesquisa de stock por artigo, lote e localização (não por carga). Na lista, não expor carga/data; no detalhe, apresentar carga, data e arrumador se conhecidos. FIFO por entrada da carga, com desempate determinístico e reservas respeitadas; operador não escolhe arbitrariamente paletes. Não inventar lotes, datas, arrumadores ou localizações em falta.
+- **Outros clientes (processos específicos ainda a desenvolver):** Valmet inclui paletes, caixas de madeira individualizadas, rolos e saídas para LAB; Cosmopak usa caixas por palete completa/incompleta; NKT identifica paletes por PEG individual; Alcobre identifica bobines individualmente, sem obrigar a artigo/lote. Estas diferenças **não** devem ser reduzidas ao modelo de paletes agrupadas da Iberbag. Confirmar os requisitos particulares na tarefa antes de implementar.
+- **Requisitos futuros, não declarar como implementados:** reorganização dos menus e Definições; numeração anual DDN de cargas a partir de 2027 (`27-001`, depois `28-001`, global entre clientes/armazéns, sem reutilização); processos especiais de cada cliente; partilha física segura; alterações às encomendas Iberbag. Nestas últimas, permitir futuramente uma linha por **artigo sem lote** quando a palete ainda não chegou, sem criar stock/reserva fictícios: sugerir associação quando chegar mercadoria desse artigo, mas exigir confirmação humana. Campo opcional de data/nota; na folha impressa, apresentar por exemplo **«Chega 05/11»** na coluna **Localização** até ser associada à palete real. Implementar apenas em tarefa autorizada.
 
-## Procedimento de trabalho
-1. Ler este ficheiro e `docs/ESPECIFICACAO.md` antes de alterar código.
-2. Criar branch/PR pequeno e documentar alterações e migrações.
-3. Executar `python -m pytest -q` (instalar `pytest`, `httpx`, `python-multipart`, `openpyxl` e `requirements.txt` se necessário).
-4. Não fazer deploy no servidor Windows sem aprovação explícita; separar testes locais e produção.
-5. Primeiro trabalho recomendado: inventariar arquitetura, riscos de segurança, caminho SQLite -> PostgreSQL, migrações versionadas e cobertura de testes. Só depois implementar entradas/arrumação.
+## Segurança, integridade e migrações
+- Preservar autenticação, autorização no servidor, CSRF, contexto original dos formulários e revalidação de sessão/permissões dentro da transação. Não obter locks globais antes de autenticar/validar nem durante receção de POST lento; manter limites de corpo/tempo e testes de concorrência.
+- Conta PostgreSQL de execução com privilégios mínimos, separada da manutenção; auditoria e registos históricos imutáveis. Manter controlo das variáveis libpq, TLS explícito e verificações de privilégios; não colocar credenciais em comandos, relatórios ou commits.
+- Backups cifrados/autenticados, restauro com reconciliação e pastas privadas; validar proprietário/ACL dos **ficheiros** no Windows e permissões equivalentes onde aplicável. Antes de atualização real: aplicação parada, backup, ensaio de restauro numa base separada/vazia, pré-visualização e aplicação explícita; preservar bytes dos PDFs, IDs, quantidades e históricos. Nunca reimportar ou recontar silenciosamente.
+- Migrações Alembic publicadas são imutáveis. A integração de segurança usa a head `ddn_security_0001` (pais `0007` e `ddn_0002`); para novas alterações, criar revisões adequadas sem `stamp`, manipulação destrutiva de heads ou migração automática no arranque. Confirmar sempre a head efetiva.
+- **Nunca** publicar dados reais, Excel, `.db`, `.sqlite*`, `.env`, credenciais, arquivos, logs sensíveis ou chaves no Git. Usar dados fictícios. Não usar nem contornar alertas de antivírus associados a executáveis antigos. Homologação física Windows 11 + PostgreSQL nativo e recuperação continuam necessárias antes de produção.
+
+## Modo de trabalho para Codex
+1. Respeitar estritamente o âmbito do pedido; reutilizar código, abrir só os ficheiros relevantes e evitar refatorizações/repetições desnecessárias. **Compactar o relatório, nunca cortar requisitos, testes ou salvaguardas.**
+2. Criar branch e PR próprios; **não fazer merge, deploy, alterações em produção ou dados reais** sem pedido explícito. Não alterar outras branches/PRs sem necessidade/autorização.
+3. Executar testes proporcionais à alteração e as suites aplicáveis: `python -m pytest -q`, `python scripts/test_postgres.py` (PostgreSQL descartável, quando aplicável), CI Windows/SQLite e Security. Para mudanças sensíveis, acrescentar testes negativos, concorrência, permissões, isolamento entre contextos, migração e restauro.
+4. Entregar resumo breve: alterações, testes aprovados/omitidos, riscos e pendências, link do PR. Não declarar funcionalidades previstas como concluídas nem testes Windows/SQLite como homologação de produção.

@@ -12,6 +12,7 @@ from test_receiving import warehouse
 from test_ddn_contexts import scoped, add_context
 from test_transfer import docker_client, pg_databases
 from conftest import login_data, BACKUP_PASSWORD
+from test_security_regressions import restricted_web
 
 
 def entry(engine, actor, scope=1, year=2027, key=None):
@@ -37,7 +38,7 @@ def test_owner_year_warehouse_numbering_and_history(warehouse):
         assert set(db.scalars(select(Carga.codigo))) == {'27-001', '28-001'}
 
 
-def test_concurrent_numbering_retry_and_rollback(warehouse):
+def test_concurrent_numbering_retry_and_rollback(warehouse,monkeypatch):
     engine, accounts = warehouse; actor = accounts['operador'][0]
     with ThreadPoolExecutor(max_workers=4) as pool:
         codes = list(pool.map(lambda _: entry(engine, actor), range(4)))
@@ -46,7 +47,16 @@ def test_concurrent_numbering_retry_and_rollback(warehouse):
         ident = receiving.save_receipt(db, actor, secrets.token_hex(16), '', '2027-01-01', [('ART','LOT','1')])
         with pytest.raises(receiving.ReceivingError):receiving.confirm_receipt(db, accounts['other'][0], ident, 1)
         assert db.scalar(select(func.count()).select_from(LoadNumber)) == 4
-    assert entry(engine, actor) == '27-005'
+        from iberbag import commercial
+        original=commercial.allocate_incoming
+        def fail(*args):raise RuntimeError('Fictitious failure after allocation')
+        monkeypatch.setattr(commercial,'allocate_incoming',fail)
+        with pytest.raises(RuntimeError):receiving.confirm_receipt(db,actor,ident,1)
+        assert db.scalar(select(func.count()).select_from(LoadNumber)) == 4
+        monkeypatch.setattr(commercial,'allocate_incoming',original)
+        receiving.confirm_receipt(db,actor,ident,1)
+        assert db.get(Receipt,ident).code=='27-005'
+    assert entry(engine, actor) == '27-006'
     for sql in ('DELETE FROM load_numbers','UPDATE load_numbers SET number=900','TRUNCATE load_numbers'):
         with engine.begin() as conn, pytest.raises(DBAPIError):conn.execute(text(sql))
 
@@ -122,3 +132,12 @@ def test_sqlite_migration_preserves_references_but_refuses_stock_writes(tmp_path
         with Session(engine) as db,pytest.raises(receiving.ReceivingError,match='PostgreSQL'):
             receiving.save_receipt(db,1,secrets.token_hex(16),'','2027-01-01',[('A','L','1')])
     finally:engine.dispose()
+
+
+def test_restricted_runtime_numbers_but_cannot_rewrite_ledger(restricted_web):
+    app,owner,runtime,role,accounts,tokens=restricted_web
+    assert entry(runtime,accounts['operador'][0]) == '27-001'
+    for sql in ('UPDATE load_numbers SET number=500','DELETE FROM load_numbers','TRUNCATE load_numbers'):
+        with runtime.begin() as conn,pytest.raises(DBAPIError):conn.execute(text(sql))
+    with runtime.connect() as conn:
+        assert conn.scalar(text('SELECT count(*) FROM load_numbers'))==1

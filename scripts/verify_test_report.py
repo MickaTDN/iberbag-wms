@@ -63,6 +63,7 @@ REQUIRED_POSTGRES |= {
     'test_phase2a.test_numbering_backup_restore_preserves_next_number',
     'test_phase2a.test_office_navigation_context_roles_csrf',
     'test_phase2a.test_prior_security_head_upgrades_without_rewriting_loads',
+    'test_phase2a.test_restricted_runtime_numbers_but_cannot_rewrite_ledger',
 }
 REQUIRED_WINDOWS = {
     'test_private_file_security.test_windows_refuses_permissive_backup_file',

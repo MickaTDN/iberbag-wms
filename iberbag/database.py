@@ -232,6 +232,17 @@ class Receipt(Scoped, Base):
     )
 
 
+class LoadNumber(Base):
+    """Append-only allocation, shared by the owner's warehouses, never by owners."""
+    __tablename__ = 'load_numbers'
+    client_id: Mapped[int] = mapped_column(ForeignKey('clients.id'), primary_key=True)
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    number: Mapped[int] = mapped_column(Integer, primary_key=True)
+    receipt_id: Mapped[int] = mapped_column(ForeignKey('receipts.id'), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+    __table_args__ = (CheckConstraint('year >= 2027 AND number > 0', name='load_number_valid'),)
+
+
 class ReceiptLine(Scoped, Base):
     __tablename__ = 'receipt_lines'
     id: Mapped[int] = mapped_column(primary_key=True)

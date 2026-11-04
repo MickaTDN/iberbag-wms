@@ -92,7 +92,10 @@ def unauthorized(user, require_admin=False):
     return user is None or (require_admin and user.role != 'admin')
 
 def context(request, user, sess, **kwargs):
+    active = next((row for row in getattr(request.state, 'ddn_contexts', [])
+                   if row[0].id == getattr(request.state, 'ddn_context', 1)), None)
     return {'request': request, 'user': user, 'csrf': sess.csrf_token if sess else '',
+            'office_context': active, 'office_operations': bool(active and active[1].pallet_operations),
             'active_context_id': getattr(request.state, 'ddn_context', 1),
             'ddn_contexts': getattr(request.state, 'ddn_contexts', []), **kwargs}
 

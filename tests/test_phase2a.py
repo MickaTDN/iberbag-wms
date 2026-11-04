@@ -93,6 +93,16 @@ def test_office_navigation_context_roles_csrf(warehouse,monkeypatch):
     with TestClient(web.app) as client:
         client.post('/login',data=login_data(client,{'username':'operador','password':accounts['operador'][1]}))
         assert 'href="/receipts"' in client.get('/').text
+        import re
+        csrf=re.search('name="csrf" value="([^"]+)"',client.get('/receipts/new').text)[1]
+        response=client.post('/receipts/review',data={'csrf':csrf,'context_id':1,
+            'request_key':secrets.token_hex(16),'received_on':'2027-01-01',
+            'artigo_0':'ART','lote_0':'LOT','quantidade_0':'1'},follow_redirects=False)
+        assert response.status_code==303
+        path=response.headers['location']
+        assert 'name="code" value=""' in client.get(path+'/edit').text
+        assert client.post(path+'/confirm',data={'csrf':csrf,'context_id':1,'version':1},follow_redirects=False).status_code==303
+        assert '27-001' in client.get(path).text
         assert client.get('/settings/locations').status_code==403
         client.cookies.set('ddn_context','2')
         page=client.get('/').text

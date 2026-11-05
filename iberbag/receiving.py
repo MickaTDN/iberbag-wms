@@ -80,11 +80,11 @@ def request_key(value):
 
 
 def receipt_payload(code, received_on, rows):
-    code = required(code, 'Carga')
     try:
         received = datetime.combine(date.fromisoformat(received_on), datetime.min.time())
     except (ValueError, TypeError):
         raise ReceivingError('Indica uma data de entrada válida.', 400)
+    code = 'Automática na confirmação' if received.year >= 2027 else required(code, 'Carga')
     if not 1 <= len(rows) <= 20:
         raise ReceivingError('Cada carga permite 1–20 grupos de artigo/lote por registo.', 400)
     lines = [(required(a, 'Artigo'), required(l, 'Lote'), quantity(q)) for a, l, q in rows]
@@ -144,6 +144,9 @@ def confirm_receipt(db, actor, receipt_id, version):
         raise ReceivingError('A revisão apresentada está desatualizada. Revê novamente os dados.')
     if record.status == 'confirmed':
         return record.id  # Retry of the same confirmation has no side effects.
+    if record.received_on.year >= 2027:
+        from .load_numbering import allocate
+        record.code = allocate(db, record)
     if db.scalar(select(Carga.id).where(Carga.codigo == record.code)) is not None:
         raise ReceivingError('Já existe uma carga com este código. A entrada não foi duplicada.')
     if not db.scalar(select(ReceiptLine.id).where(ReceiptLine.receipt_id == record.id)):

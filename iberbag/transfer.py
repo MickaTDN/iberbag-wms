@@ -20,6 +20,7 @@ _claim = next(t for t in TABLES if t.name == 'physical_location_claims')
 TABLES.remove(_claim)
 TABLES.insert(next(i for i,t in enumerate(TABLES) if t.name == 'storage_contexts')+1, _claim)
 PHYSICAL_TABLES = {'physical_location_claims'}
+NUMBER_TABLES = {'load_numbers'}
 LOCK = 72834002
 RECEIVING_TABLES = {'receipts', 'receipt_lines', 'putaways'}
 DISPATCH_TABLES = {'dispatch_orders', 'dispatch_lines', 'dispatch_picks'}
@@ -53,7 +54,7 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
-    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES
+    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES
     legacy_revision = {frozenset(OPERATIONAL_TABLES): '0001',
         frozenset(DISPATCH_TABLES | TRANSFER_TABLES | INVENTORY_TABLES | COMMERCIAL_TABLES): '0002',
         frozenset(TRANSFER_TABLES | INVENTORY_TABLES | COMMERCIAL_TABLES): '0003',
@@ -71,7 +72,8 @@ def read_data(connection):
         elif missing & PHYSICAL_TABLES:
             allowed = {frozenset({'ddn_0001'}),frozenset({'ddn_0001','0007'})}
         else:
-            allowed = {frozenset({'ddn_0002'}),frozenset({'ddn_0002','0007'}),frozenset({REVISION})}
+            allowed = ({frozenset({'ddn_0002'}),frozenset({'ddn_0002','0007'}),frozenset({'ddn_security_0001'})}
+                       if missing & NUMBER_TABLES else {frozenset({REVISION})})
         if versions not in allowed:
             raise ValueError('Revisão/heads incompatíveis com o esquema. Não usar stamp para contornar.')
     if connection.dialect.name == 'sqlite':
@@ -146,7 +148,11 @@ def archive_inventory(connection, expected):
     data = read_data(connection)
     wanted = set(expected.get('tables', {}))
     current = {t.name for t in TABLES}
-    legacy = current - CONTEXT_TABLES - PHYSICAL_TABLES
+    if wanted == current - NUMBER_TABLES:
+        if data['load_numbers']:
+            raise ValueError('Backup anterior não abrange numeração emitida; fazer novo backup.')
+        return inventory({name: rows for name, rows in data.items() if name not in NUMBER_TABLES})
+    legacy = current - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES
     if wanted == current:
         return inventory(data)
     if wanted != legacy or set(inspect(connection).get_table_names()) & (CONTEXT_TABLES | PHYSICAL_TABLES):

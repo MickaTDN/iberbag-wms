@@ -6,7 +6,8 @@
 <form method="post" action="/receipts/review" class="panel">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="context_id" value="{{ active_context_id }}"><input type="hidden" name="request_key" value="{{ request_key }}">
 {% if receipt %}<input type="hidden" name="receipt_id" value="{{ receipt.id }}"><input type="hidden" name="version" value="{{ receipt.version }}">{% endif %}
-<label>Código da carga <input required maxlength="120" name="code" value="{{ receipt.code if receipt else '' }}"></label>
+<label>Referência histórica (entradas anteriores a 2027) <input maxlength="120" name="code" value="{{ receipt.code if receipt and receipt.received_on.year < 2027 else '' }}"></label>
+<p>A partir de 2027 a referência é atribuída automaticamente ao confirmar, pelo ano da data efetiva de entrada: 27-001, 27-002… Cada proprietário tem a sua sequência, partilhada entre os seus armazéns. Na revisão ainda não existe número emitido.</p>
 <label>Data de entrada <input required type="date" name="received_on" value="{{ receipt.received_on.strftime('%Y-%m-%d') if receipt else '' }}"></label>
 <p>Preencher uma linha por artigo/lote. Quantidades em paletes inteiras; deixar as restantes linhas vazias. Até 20 grupos por carga.</p>
 <table><thead><tr><th>Artigo</th><th>Lote</th><th>Paletes</th></tr></thead><tbody>

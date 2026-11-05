@@ -56,6 +56,15 @@ REQUIRED_POSTGRES |= {
     'test_pg_client_routing.test_pg_clients_drop_inherited_hostaddr_and_services',
     'test_private_files.test_private_outputs_are_exclusive_and_temporaries_removed_on_error',
 }
+REQUIRED_POSTGRES |= {
+    'test_phase2a.test_owner_year_warehouse_numbering_and_history',
+    'test_phase2a.test_concurrent_numbering_retry_and_rollback',
+    'test_phase2a.test_legacy_collision_all_warehouses_and_unchanged_references',
+    'test_phase2a.test_numbering_backup_restore_preserves_next_number',
+    'test_phase2a.test_office_navigation_context_roles_csrf',
+    'test_phase2a.test_prior_security_head_upgrades_without_rewriting_loads',
+    'test_phase2a.test_restricted_runtime_numbers_but_cannot_rewrite_ledger',
+}
 REQUIRED_WINDOWS = {
     'test_private_file_security.test_windows_refuses_permissive_backup_file',
     'test_private_file_security.test_windows_refuses_moved_permissive_file',

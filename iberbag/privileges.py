@@ -7,7 +7,8 @@ IMMUTABLE = {'audit', 'dispatch_documents', 'receipt_documents', 'stock_adjustme
              'lot_resolutions', 'preparation_completions', 'preparation_compensations',
              'customer_pending', 'pending_allocations', 'allocation_collections',
              'physical_location_claims', 'load_numbers', 'valmet_owners', 'valmet_units',
-             'valmet_numbers', 'valmet_identifications', 'valmet_items'}
+             'valmet_numbers', 'valmet_identifications', 'valmet_items',
+             'valmet_plan_revisions','valmet_reservations','valmet_handling'}
 
 
 def role_flags(connection, role):

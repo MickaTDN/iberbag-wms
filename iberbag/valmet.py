@@ -12,7 +12,7 @@ from .database import (ValmetOwner, ValmetEntry, ValmetUnit, ValmetNumber,
 from .contexts import require_context
 from .receiving import ReceivingError, required, quantity, request_key
 
-KINDS = {'paletes':'Paletes', 'fio':'Paletes Fio', 'prateleiras':'Prateleiras',
+KINDS = {'lab':'Bobines LAB', 'paletes':'Paletes', 'fio':'Paletes Fio', 'prateleiras':'Prateleiras',
          'rolos':'ROLOS', 'caixas':'Caixas', 'vazias':'Caixas Vazias',
          'pecas':'Caixas com Peças', 'vasilhame':'Vasilhame'}
 GROUPED = {'paletes','fio','prateleiras','vasilhame'}
@@ -214,10 +214,13 @@ def stock(db,filters=None,page=1):
             ~select(ValmetIdentification.id).where(ValmetIdentification.unit_id==ValmetUnit.id).correlate(ValmetUnit).exists())).exists())
     count=db.scalar(select(func.count()).select_from(query.subquery()))
     units=db.scalars(query.order_by(ValmetUnit.id).offset((page-1)*100).limit(100)).all()
+    from .valmet_planning import reserved_physical,source
+    eligible_units={unit['id'] for unit in source(db,unit_ids=[u.id for u in units])}
     result=[]
     for unit in units:
         identification=db.scalar(select(ValmetIdentification).where(ValmetIdentification.unit_id==unit.id))
         items=db.scalars(select(ValmetItem).where(ValmetItem.unit_id==unit.id,
             ValmetItem.identification_id==identification.id if identification else ValmetItem.identification_id.is_(None)).order_by(ValmetItem.id)).all()
-        result.append((unit,identification,items,unit.physical_quantity if identification and unit.local and not unit.legacy_unnumbered else 0))
+        reserved=reserved_physical(db,unit)
+        result.append((unit,identification,items,max(0,unit.physical_quantity-reserved) if unit.id in eligible_units else 0))
     return result,count

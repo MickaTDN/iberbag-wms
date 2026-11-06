@@ -96,10 +96,11 @@ unidade com todos os seus lotes/quantidades, responsável e data de identificaç
 Paginação de 100 unidades; totais físicos por tipo explicitamente relativos à
 página, sem duplicar unidades com vários conteúdos.
 
-Reservado é zero e está identificado como funcionalidade não implementada.
-Disponível significa identificado e localizado; material por localizar ou caixas
-históricas sem número não são disponibilizados. Nenhuma seleção para saída está
-habilitada nesta fase, mesmo para unidades com disponibilidade positiva.
+Na Fase 2B.2A, reservado/disponível passam a refletir reservas reais por unidade
+e composição: ver `VALMET_PREPARACOES_E_RESERVAS.md`. A confirmação da preparação
+não desconta stock físico. Material sem identificação suficiente continua
+indisponível; exceções históricas de vasilhame e caixas vazias exigem comprovação
+administrativa explícita. Saída definitiva ainda não implementada.
 
 ## Atualização, segurança e ensaio
 

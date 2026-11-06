@@ -1,0 +1,3 @@
+{% extends 'base.html' %}{% block content %}<h1>Valmet — Preparações e reservas</h1>
+<a href="/valmet/preparations/new">Nova preparação</a><p>Preparar/reservar não desconta stock físico. Expedição e folhas de recolha serão implementadas na Fase 2B.2B.</p>
+<table>{% for r in records %}<tr><td><a href="/valmet/preparations/{{ r.id }}">{{ r.id }}</a></td><td>{{ {'draft':'Rascunho','reserved':'Confirmada / reservada','cancelled':'Cancelada'}[r.status] }}</td><td>{{ r.created_at }}</td></tr>{% endfor %}</table>{% endblock %}

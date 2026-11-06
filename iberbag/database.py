@@ -617,6 +617,56 @@ class ValmetItem(Scoped, Base):
     quantity: Mapped[int | None] = mapped_column(Integer)
     __table_args__ = (CheckConstraint('quantity IS NULL OR quantity > 0', name='valmet_item_quantity'),)
 
+class ValmetPreparation(Scoped, Base):
+    __tablename__='valmet_preparations'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    review: Mapped[str | None]=mapped_column(Text)
+    version: Mapped[int]=mapped_column(Integer,nullable=False,default=1)
+    status: Mapped[str]=mapped_column(String(20),nullable=False,default='draft')
+    active_revision: Mapped[int | None]=mapped_column(Integer)
+    created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint("status IN ('draft','reserved','cancelled') AND version>0",name='valmet_preparation_status'),
+        Index('ix_valmet_preparations_active','context_id','active_revision'))
+
+class ValmetPlanRevision(Scoped, Base):
+    __tablename__='valmet_plan_revisions'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    preparation_id: Mapped[int]=mapped_column(ForeignKey('valmet_preparations.id'),nullable=False)
+    version: Mapped[int]=mapped_column(Integer,nullable=False)
+    action: Mapped[str]=mapped_column(String(20),nullable=False)
+    snapshot: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(Index('ix_valmet_revisions_preparation','context_id','preparation_id','id'),)
+
+class ValmetReservation(Scoped, Base):
+    __tablename__='valmet_reservations'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    revision_id: Mapped[int]=mapped_column(ForeignKey('valmet_plan_revisions.id'),nullable=False)
+    unit_id: Mapped[int]=mapped_column(ForeignKey('valmet_units.id'),nullable=False)
+    physical: Mapped[int]=mapped_column(Integer,nullable=False)
+    materials: Mapped[str]=mapped_column(Text,nullable=False)
+    exclusive: Mapped[bool]=mapped_column(Boolean,nullable=False)
+    __table_args__=(CheckConstraint('physical>0',name='valmet_reservation_positive'),
+        UniqueConstraint('revision_id','unit_id',name='uq_valmet_reservation_unit'),
+        Index('ix_valmet_reservations_unit','context_id','unit_id'))
+
+class ValmetHandling(Scoped, Base):
+    __tablename__='valmet_handling'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    unit_id: Mapped[int]=mapped_column(ForeignKey('valmet_units.id'),nullable=False)
+    separation: Mapped[str]=mapped_column(String(12),nullable=False)
+    reconciled: Mapped[bool]=mapped_column(Boolean,nullable=False,default=False)
+    unlocated: Mapped[bool]=mapped_column(Boolean,nullable=False,default=False)
+    note: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint("separation IN ('yes','no','unknown')",name='valmet_separation'),
+        Index('ix_valmet_handling_unit','context_id','unit_id','id'))
+
 # Every business key lives inside an immutable client/warehouse context. IDs stay
 # globally unique, preserving all historical references and archived documents.
 for _table in list(Base.metadata.tables.values()):

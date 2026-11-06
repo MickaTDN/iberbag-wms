@@ -284,9 +284,12 @@ def test_planning_http_runtime_csrf_context_and_balances(restricted_web):
         assert client.get('/valmet/preparations/new').status_code==200
         data=dict(csrf=tokens['operador'][1],context_id=2,key=secrets.token_hex(16),reference='TEST',day='2027-02-01',destination='D',kind0='paletes',lot0='LOT',q0='1')
         bad=dict(data,csrf='invalid');assert client.post('/valmet/preparations/save',data=bad).status_code==403
+        assert client.post('/valmet/preparations/save',data=dict(data,kind0='')).status_code==400
         result=client.post('/valmet/preparations/save',data=data,follow_redirects=False);assert result.status_code==303
         path=result.headers['location'];form=dict(csrf=data['csrf'],context_id=2,version=1)
         assert client.get(path).status_code==200
+        filtered=client.get(path+'?candidate_local=Chão')
+        assert filtered.status_code==200 and 'name="candidate_number"' in filtered.text
         assert client.post(path+'/review',data=form,follow_redirects=False).status_code==303
         html=client.get(path).text;review_key=re.search('name="review_key" value="([^"]+)"',html)[1]
         assert client.post(path+'/confirm',data=dict(form,review_key=review_key,context_id=1)).status_code==409
@@ -295,6 +298,8 @@ def test_planning_http_runtime_csrf_context_and_balances(restricted_web):
         assert '1 / 1 / 0' in stock and 'Reservado: zero' not in stock
         assert client.get('/valmet/preparations').status_code==200
         assert client.get(path+'/edit').status_code==200
+        other=draft(runtime,a['admin'][0],[('paletes','LOT','1')])
+        assert client.get(f'/valmet/preparations/{other}/edit').status_code==403
         uid=units(owner)[0].id
         assert client.post(f'/valmet/units/{uid}/handling',data=dict(form,separation='yes',note='X')).status_code==403
         client.cookies.set('ddn_context','1');assert client.get(path).status_code==403

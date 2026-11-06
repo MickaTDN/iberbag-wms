@@ -62,7 +62,7 @@ sem número não reconciliados ficam indisponíveis. m² e notas VALMET 2 conser
 A otimização exata de peças tem limites explícitos de 128 caixas candidatas e
 50000 somas distintas; excedê-los pede seleção manual, sem trocar silenciosamente
 por uma heurística. Formulário: 20 linhas de pedido, revisão manual até 100 linhas
-candidatas. O planeamento recusa mais de 10000 unidades no contexto em vez de
+candidatas, filtráveis por N.º Armazém e localização e limitadas aos lotes pedidos. O planeamento recusa mais de 10000 unidades no contexto em vez de
 omitir stock silenciosamente. Não são garantidos resultados comerciais ótimos
 conjuntos entre diferentes lotes de caixas multilote: cada linha é planeada na
 ordem introduzida e conteúdos já selecionados contam para as linhas seguintes.

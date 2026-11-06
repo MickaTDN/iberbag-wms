@@ -19,14 +19,14 @@ def listing(request:Request,db=Depends(database)):
 @router.get('/valmet/preparations/new')
 def new(request:Request,db=Depends(database)):
     user,sess=access(request,db)
-    return render(request,'valmet_preparation_form.html',context(request,user,sess,record=None,data={},kinds=v.KINDS,key=secrets.token_hex(16)))
+    return render(request,'valmet_preparation_form.html',context(request,user,sess,record=None,data={},kinds=v.KINDS,brands=v.BRANDS,key=secrets.token_hex(16)))
 
 @router.get('/valmet/preparations/{ident}/edit')
 def edit(ident:int,request:Request,db=Depends(database)):
     user,sess=access(request,db);record=db.get(Prep,ident)
     try:p.access(record,user)
     except v.ReceivingError as error:return failure(request,user,sess,error)
-    return render(request,'valmet_preparation_form.html',context(request,user,sess,record=record,data=json.loads(record.payload),kinds=v.KINDS,key=record.request_key))
+    return render(request,'valmet_preparation_form.html',context(request,user,sess,record=record,data=json.loads(record.payload),kinds=v.KINDS,brands=v.BRANDS,key=record.request_key))
 
 @router.post('/valmet/preparations/save')
 def save(request:Request,data:dict=Depends(receiving_form),db=Depends(database)):
@@ -40,7 +40,7 @@ def save(request:Request,data:dict=Depends(receiving_form),db=Depends(database))
     except v.ReceivingError as e:return failure(request,user,sess,e)
 
 @router.get('/valmet/preparations/{ident}')
-def detail(ident:int,request:Request,db=Depends(database)):
+def detail(ident:int,request:Request,candidate_number:str='',candidate_local:str='',db=Depends(database)):
     user,sess=access(request,db);record=db.get(Prep,ident)
     if not record:raise HTTPException(404,'Preparação inexistente.')
     revisions=db.scalars(select(Rev).where(Rev.preparation_id==ident).order_by(Rev.id.desc())).all()
@@ -48,9 +48,18 @@ def detail(ident:int,request:Request,db=Depends(database)):
     previous=db.scalars(select(Prep).where(Prep.id!=ident).order_by(Prep.id.desc()).limit(100)).all()
     try:candidates=p.source(db,ident)
     except v.ReceivingError as error:return failure(request,user,sess,error)
-    return render(request,'valmet_preparation.html',context(request,user,sess,record=record,data=json.loads(record.payload),
+    data=json.loads(record.payload);requested={(line['kind'],line['lot']) for line in data['lines']}
+    candidate_number=candidate_number.strip()[:120];candidate_local=candidate_local.strip()[:120]
+    candidates=[dict(u,available={lot:q for lot,q in u['available'].items()
+        if (u['kind'],lot) in requested and (q is None or q>0)}) for u in candidates
+        if candidate_number.casefold() in (u['number'] or '').casefold()
+        and candidate_local.casefold() in (u['local'] or 'Por localizar').casefold()]
+    candidates=[u for u in candidates if u['available']]
+    return render(request,'valmet_preparation.html',context(request,user,sess,record=record,data=data,
         plan=json.loads(record.review) if record.review else None,revisions=revisions,previous=previous,
-        candidates=candidates,kinds=v.KINDS,review_key=p.review_key(record),active_plan=json.loads(db.get(Rev,record.active_revision).snapshot) if record.active_revision else None))
+        candidates=candidates,candidate_number=candidate_number,candidate_local=candidate_local,
+        candidate_count=sum(len(u['available']) for u in candidates),kinds=v.KINDS,review_key=p.review_key(record),
+        active_plan=json.loads(db.get(Rev,record.active_revision).snapshot) if record.active_revision else None))
 
 @router.post('/valmet/preparations/{ident}/review')
 def review(ident:int,request:Request,data:dict=Depends(receiving_form),db=Depends(database)):

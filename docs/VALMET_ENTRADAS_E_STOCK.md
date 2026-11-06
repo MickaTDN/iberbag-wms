@@ -51,10 +51,17 @@ o Chão não estiver configurado/ativo, a confirmação é recusada sem efeitos.
 Estas caixas são identificadas por lote/N.º Armazém, sem as marcar pendentes
 apenas porque falta o artigo. Rascunhos antigos são revalidados na confirmação.
 
-Quando falta artigo e/ou lote, marcar «Aguarda identificação Valmet». Dados parciais
+Preencher sempre o artigo quando conhecido. A sua ausência na documentação é
+guardada como nulo em todas as categorias, nunca como artigo fictício. Lote,
+identidade física exigida e composição/quantidades suficientes permitem stock
+disponível mesmo sem artigo. A pesquisa por lote e N.º Armazém não depende dele.
+Marcar «Aguarda identificação Valmet» apenas com identificação operacional
+realmente insuficiente (por exemplo, falta de lote ou composição incompleta).
+Se o formulário assinalar pendência mas todos esses dados estiverem completos,
+o servidor não mantém o material pendente apenas por faltar artigo. Dados parciais
 conhecidos ficam estruturados, pesquisáveis e conservados como evidência original;
 não se substituem por valores inventados. A unidade conta no stock físico e na
-ocupação. Disponível é zero enquanto não estiver integralmente identificada.
+ocupação. Disponível é zero enquanto faltarem dados operacionais suficientes.
 
 Após resposta da Valmet, abrir Completar identificação no stock de cada grupo/
 unidade original. Preencher manualmente os artigos, lotes e quantidades daquela
@@ -105,6 +112,12 @@ Nenhuma quantidade, referência, data, PDF ou revisão publicada anterior é alt
 Correção aditiva `ddn_0005` (pai `ddn_0004`): permite artigo nulo em composições
 de Caixas Vazias e valida Chão/lote para novas unidades também em PostgreSQL.
 Não altera caixas históricas já confirmadas nem reescreve `ddn_0004`.
+Correção aditiva `ddn_0006` (pai `ddn_0005`): artigo nulo permitido em composições
+operacionalmente identificadas de todas as categorias; lote e vínculo à unidade
+continuam validados no servidor/PostgreSQL. Nenhuma pendência histórica é promovida
+automaticamente na migração; completar manualmente a identificação original com
+os dados suficientes. Localização desconhecida, identidade física em falta e
+quantidades divergentes continuam a bloquear a disponibilidade/operação aplicável.
 Atualização explícita requer aplicação parada, backup cifrado, restauro reconciliado
 numa base separada/vazia, preview/apply e revisão dos grants runtime. Arranque não
 migra produção; sem downgrade destrutivo. Backups incluem todas as unidades,

@@ -91,6 +91,13 @@ REQUIRED_POSTGRES |= {
     'test_valmet_corrections.test_corrected_boxes_http_permissions_and_search',
     'test_valmet_corrections.test_upgrade_preserves_confirmed_old_boxes_and_verified_backup',
 }
+REQUIRED_POSTGRES |= {
+    'test_valmet_article.test_known_lot_without_article_available_by_category',
+    'test_valmet_article.test_incomplete_lot_stays_physical_and_completion_needs_no_fake_article',
+    'test_valmet_article.test_article_exception_does_not_relax_physical_identity_or_totals',
+    'test_valmet_article.test_unknown_article_http_authentication_and_csrf',
+    'test_valmet_article.test_article_migration_and_encrypted_recovery_preserve_history',
+}
 REQUIRED_WINDOWS = {
     'test_private_file_security.test_windows_refuses_permissive_backup_file',
     'test_private_file_security.test_windows_refuses_moved_permissive_file',

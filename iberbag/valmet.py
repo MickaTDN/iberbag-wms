@@ -51,10 +51,10 @@ def optional(value,limit=120):
 
 def composition(kind, physical, total, items):
     if len(items)>100:raise ReceivingError('Demasiadas linhas de composição.',400)
-    result=[((optional(a) or None) if kind=='vazias' else required(a,'Artigo'),required(l,'Lote'),quantity(q) if q not in (None,'') else None) for a,l,q in items]
+    result=[(optional(a) or None,required(l,'Lote'),quantity(q) if q not in (None,'') else None) for a,l,q in items]
     if kind!='vasilhame' and not result:
         if kind=='vazias':raise ReceivingError('Caixas Vazias: indicar lote; artigo pode ser desconhecido.',400)
-        raise ReceivingError('Artigo e lote obrigatórios; usar Aguarda identificação Valmet quando desconhecidos.',400)
+        raise ReceivingError('Indicar lote e composição; usar Aguarda identificação Valmet se a identificação operacional for insuficiente.',400)
     if kind=='paletes' and physical==1:
         # Several lots may be present on ONE physical pallet. These are
         # associations, not disjoint extra pallets. Never add their counts.
@@ -96,6 +96,12 @@ def payload(received_on,code,rows):
             # Lot + manual warehouse number identify an empty box, even if its
             # article is unknown. This alone must not make it unavailable.
             pending=False
+        elif pending:
+            # Missing article alone is not an operational identity failure.
+            # Keep pending only if the lot/composition/totals are insufficient.
+            try:composition(kind,physical,total,items)
+            except ReceivingError:pass
+            else:pending=False
         if pending:
             items=[(optional(a) or None,optional(l) or None,quantity(q) if q not in ('',None) else None) for a,l,q in items]
             bound=physical if kind in ('paletes','fio','prateleiras') else total

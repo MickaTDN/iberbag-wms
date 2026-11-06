@@ -1,5 +1,6 @@
 {% extends 'base.html' %}{% block content %}
 <h1>Valmet — {{ 'Rever rascunho' if entry else 'Nova entrada' }}</h1>
+<p>Preencher o artigo quando conhecido; se ausente da documentação, deixar vazio. Lote, identificação física e quantidades suficientes permitem disponibilidade sem artigo. Usar «Aguarda identificação» apenas quando faltam dados operacionais, não apenas o artigo.</p>
 <p>Até oito grupos/unidades por formulário, seis linhas de composição por unidade. Quantidade física é independente de rolos, peças e m². Cada ROLOS/caixa é uma unidade indivisível com N.º Armazém manual. Para o mesmo N.º Armazém, reunir todos os lotes no mesmo grupo.</p>
 <p>Paletes normais multilote: um grupo com uma palete física e todos os seus lotes; vazio ou 1 por lote significa presença na mesma palete, não paletes adicionais. Grupos de várias paletes mantêm quantidades disjuntas por lote. Paletes Fio e Prateleiras não mudam.</p>
 <p>Caixas Vazias: lote e N.º Armazém obrigatórios; artigo apenas quando conhecido. A falta de artigo não obriga a identificação pendente. Chão é atribuído e validado pelo servidor, independentemente da localização preenchida.</p>

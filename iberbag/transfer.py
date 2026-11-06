@@ -79,7 +79,7 @@ def read_data(connection):
             allowed = {frozenset({'ddn_0001'}),frozenset({'ddn_0001','0007'})}
         else:
             allowed = ({frozenset({'ddn_0002'}),frozenset({'ddn_0002','0007'}),frozenset({'ddn_security_0001'})}
-                       if missing & NUMBER_TABLES else ({frozenset({'ddn_0003'})} if missing & VALMET_TABLES else {frozenset({'ddn_0004'}),frozenset({REVISION})}))
+                       if missing & NUMBER_TABLES else ({frozenset({'ddn_0003'})} if missing & VALMET_TABLES else {frozenset({'ddn_0004'}),frozenset({'ddn_0005'}),frozenset({REVISION})}))
         if versions not in allowed:
             raise ValueError('Revisão/heads incompatíveis com o esquema. Não usar stamp para contornar.')
     if connection.dialect.name == 'sqlite':

@@ -97,7 +97,7 @@ def test_valmet_m2_vasilhame_and_unknown_location(valmet):
 
 @pytest.mark.parametrize('bad',[
     dict(physical_quantity=2),dict(number=''),dict(content_total=6),dict(material_m2='1.2'),
-    dict(items=[('','LOT','5')]),dict(items=[('A','','5')]),dict(items=[('A','L','-1')]),
+    dict(items=[]),dict(items=[('A','','5')]),dict(items=[('A','L','-1')]),
     dict(local='Z999'),dict(physical_quantity=0)])
 def test_valmet_invalid_entries_rollback(valmet,bad):
     engine,accounts=valmet

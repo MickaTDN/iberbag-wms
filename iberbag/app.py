@@ -567,3 +567,5 @@ app.include_router(commercial_router)
 from . import context_routes  # noqa: E402,F401
 from .valmet_routes import router as valmet_router
 app.include_router(valmet_router)
+from .valmet_planning_routes import router as valmet_planning_router
+app.include_router(valmet_planning_router)

@@ -98,6 +98,26 @@ REQUIRED_POSTGRES |= {
     'test_valmet_article.test_unknown_article_http_authentication_and_csrf',
     'test_valmet_article.test_article_migration_and_encrypted_recovery_preserve_history',
 }
+REQUIRED_POSTGRES |= {
+    'test_valmet_planning.test_planning_multilot_physical_shortage_and_cancel',
+    'test_valmet_planning.test_planning_grouped_partial_and_shared_location',
+    'test_valmet_planning.test_planning_roll_separability_and_extras',
+    'test_valmet_planning.test_planning_whole_boxes_extra_lots_and_article_null',
+    'test_valmet_planning.test_planning_piece_box_optimization',
+    'test_valmet_planning.test_planning_two_warehouses_never_share_reservations',
+    'test_valmet_planning.test_planning_duplicate_confirmation_and_partial_race',
+    'test_valmet_planning.test_planning_empty_boxes_and_reconciled_legacy_groups',
+    'test_valmet_planning.test_planning_lab_partial_without_physical_debit',
+    'test_valmet_planning.test_planning_vasilhame_unlocated_requires_two_validations',
+    'test_valmet_planning.test_planning_edit_reservations_and_rollback',
+    'test_valmet_planning.test_planning_concurrent_different_lots_same_box',
+    'test_valmet_planning.test_planning_permissions_context_and_insufficient_identity',
+    'test_valmet_planning.test_planning_manual_review_staleness_and_snapshot',
+    'test_valmet_planning.test_planning_http_runtime_csrf_context_and_balances',
+    'test_valmet_planning.test_planning_immutable_audit_and_database_overbooking',
+    'test_valmet_planning.test_planning_backup_restore_reconciles_all_revisions',
+    'test_valmet_planning.test_planning_ddn6_migration_preserves_every_legacy_byte',
+}
 REQUIRED_WINDOWS = {
     'test_private_file_security.test_windows_refuses_permissive_backup_file',
     'test_private_file_security.test_windows_refuses_moved_permissive_file',

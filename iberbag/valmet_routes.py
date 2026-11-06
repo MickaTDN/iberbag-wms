@@ -82,7 +82,8 @@ def stock(request:Request,page:int=1,db=Depends(database)):
     user,sess=access(request,db)
     filters={key:request.query_params.get(key,'')[:120] for key in ('article','lot','number','kind','local','guide','notes')}
     page=max(1,min(page,10000));rows,total=service.stock(db,filters,page)
-    return render(request,'valmet_stock.html',context(request,user,sess,rows=rows,total=total,page=page,filters=filters,kinds=service.KINDS))
+    from .valmet_planning import stock_details
+    return render(request,'valmet_stock.html',context(request,user,sess,rows=rows,total=total,page=page,filters=filters,kinds=service.KINDS,details=stock_details(db,rows)))
 
 @router.get('/valmet/units/{ident}/identify')
 def identification(ident:int,request:Request,db=Depends(database)):

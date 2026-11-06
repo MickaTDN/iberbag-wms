@@ -23,6 +23,7 @@ TABLES.insert(next(i for i,t in enumerate(TABLES) if t.name == 'storage_contexts
 PHYSICAL_TABLES = {'physical_location_claims'}
 NUMBER_TABLES = {'load_numbers'}
 VALMET_TABLES = {'valmet_owners','valmet_entries','valmet_units','valmet_numbers','valmet_identifications','valmet_items'}
+PLANNING_TABLES = {'valmet_preparations','valmet_plan_revisions','valmet_reservations','valmet_handling'}
 LOCK = 72834002
 RECEIVING_TABLES = {'receipts', 'receipt_lines', 'putaways'}
 DISPATCH_TABLES = {'dispatch_orders', 'dispatch_lines', 'dispatch_picks'}
@@ -58,7 +59,10 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
-    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES
+    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES - PLANNING_TABLES
+    if missing & PLANNING_TABLES not in (set(),PLANNING_TABLES):raise ValueError('Esquema de reservas incompleto.')
+    if not missing & PLANNING_TABLES and missing & (VALMET_TABLES|NUMBER_TABLES|PHYSICAL_TABLES|CONTEXT_TABLES):
+        raise ValueError('Reservas sem esquema multicliente/Valmet completo.')
     if missing & VALMET_TABLES not in (set(),VALMET_TABLES):
         raise ValueError('Esquema Valmet incompleto.')
     legacy_revision = {frozenset(OPERATIONAL_TABLES): '0001',
@@ -79,7 +83,8 @@ def read_data(connection):
             allowed = {frozenset({'ddn_0001'}),frozenset({'ddn_0001','0007'})}
         else:
             allowed = ({frozenset({'ddn_0002'}),frozenset({'ddn_0002','0007'}),frozenset({'ddn_security_0001'})}
-                       if missing & NUMBER_TABLES else ({frozenset({'ddn_0003'})} if missing & VALMET_TABLES else {frozenset({'ddn_0004'}),frozenset({'ddn_0005'}),frozenset({REVISION})}))
+                       if missing & NUMBER_TABLES else ({frozenset({'ddn_0003'})} if missing & VALMET_TABLES else
+                       ({frozenset({'ddn_0004'}),frozenset({'ddn_0005'}),frozenset({'ddn_0006'})} if missing & PLANNING_TABLES else {frozenset({REVISION})})))
         if versions not in allowed:
             raise ValueError('Revisão/heads incompatíveis com o esquema. Não usar stamp para contornar.')
     if connection.dialect.name == 'sqlite':
@@ -156,6 +161,9 @@ def archive_inventory(connection, expected):
     data = read_data(connection)
     wanted = set(expected.get('tables', {}))
     current = {t.name for t in TABLES}
+    if not wanted & PLANNING_TABLES:
+        if any(data[name] for name in PLANNING_TABLES):raise ValueError('Backup não abrange reservas/revisões novas.')
+        current-=PLANNING_TABLES
     if wanted in (current-VALMET_TABLES,current-VALMET_TABLES-NUMBER_TABLES):
         if any(data[name] for name in VALMET_TABLES-{'valmet_owners'}) or ('load_numbers' not in wanted and data['load_numbers']):
             raise ValueError('Backup anterior não abrange movimentos novos.')
@@ -163,10 +171,10 @@ def archive_inventory(connection, expected):
     if wanted == current - NUMBER_TABLES:
         if data['load_numbers']:
             raise ValueError('Backup anterior não abrange numeração emitida; fazer novo backup.')
-        return inventory({name: rows for name, rows in data.items() if name not in NUMBER_TABLES})
+        return inventory({name: rows for name, rows in data.items() if name in wanted})
     legacy = current - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES
     if wanted == current:
-        return inventory(data)
+        return inventory({name:rows for name,rows in data.items() if name in current})
     if wanted != legacy or set(inspect(connection).get_table_names()) & (CONTEXT_TABLES | PHYSICAL_TABLES):
         raise ValueError('Inventário histórico incompatível; não ocultar clientes/tabelas.')
     projected = {name:[{k:v for k,v in row.items() if k!='context_id'} for row in data[name]] for name in legacy}
@@ -255,7 +263,7 @@ def require_empty(connection):
 def apply(bundle, engine):
     require_test_target(engine)
     data, report = load_bundle(bundle)
-    if any(data[name] for name in VALMET_TABLES-{'valmet_owners'}):
+    if any(data[name] for name in (VALMET_TABLES-{'valmet_owners'})|PLANNING_TABLES):
         raise ValueError('Importação operacional Valmet não implementada. Usar backup/restauro PostgreSQL verificado.')
     with engine.begin() as connection:
         connection.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK})

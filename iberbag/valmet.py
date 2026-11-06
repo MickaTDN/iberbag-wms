@@ -195,9 +195,11 @@ def identify(db,actor,unit_id,key,items,total=None,notes=''):
     return unit.id
 
 def stock(db,filters=None,page=1):
-    filters=filters or {};query=select(ValmetUnit)
+    from .database import ValmetPosition
+    from . import valmet_balances as balances
+    filters=filters or {};query=select(ValmetUnit,ValmetPosition).join(ValmetPosition,ValmetPosition.unit_id==ValmetUnit.id).where(ValmetPosition.physical_quantity>0)
     if filters.get('entry_id') is not None:query=query.where(ValmetUnit.entry_id==filters['entry_id'])
-    for field,column in [('number',ValmetUnit.number),('kind',ValmetUnit.kind),('local',ValmetUnit.local),('guide',ValmetUnit.guide)]:
+    for field,column in [('number',ValmetUnit.number),('kind',ValmetUnit.kind),('local',ValmetPosition.local),('guide',ValmetUnit.guide)]:
         term=filters.get(field,'').strip()
         if term:query=query.where(func.coalesce(column,'Por localizar').icontains(term,autoescape=True))
     note=filters.get('notes','').strip()
@@ -209,18 +211,22 @@ def stock(db,filters=None,page=1):
         term=filters.get(field,'').strip()
         if term:composition_filters.append(column.icontains(term,autoescape=True))
     if composition_filters:
+        if db.bind.dialect.name=='postgresql':
+            from sqlalchemy import cast
+            from sqlalchemy.dialects.postgresql import JSONB
+            composition_filters.append(or_(ValmetUnit.kind=='vasilhame',ValmetItem.identification_id.is_(None),cast(ValmetPosition.materials,JSONB).op('?')(ValmetItem.lot)))
         query=query.where(select(ValmetItem.id).where(ValmetItem.unit_id==ValmetUnit.id,
             *composition_filters,or_(ValmetItem.identification_id.is_not(None),
             ~select(ValmetIdentification.id).where(ValmetIdentification.unit_id==ValmetUnit.id).correlate(ValmetUnit).exists())).exists())
     count=db.scalar(select(func.count()).select_from(query.subquery()))
-    units=db.scalars(query.order_by(ValmetUnit.id).offset((page-1)*100).limit(100)).all()
+    units=db.execute(query.order_by(ValmetUnit.id,ValmetPosition.id).offset((page-1)*100).limit(100)).all()
     from .valmet_planning import reserved_physical,source
-    eligible_units={unit['id'] for unit in source(db,unit_ids=[u.id for u in units])}
+    eligible_units={unit['id'] for unit in source(db,unit_ids=[u.id for u,z in units])}
     result=[]
-    for unit in units:
+    for unit,pos in units:
         identification=db.scalar(select(ValmetIdentification).where(ValmetIdentification.unit_id==unit.id))
         items=db.scalars(select(ValmetItem).where(ValmetItem.unit_id==unit.id,
             ValmetItem.identification_id==identification.id if identification else ValmetItem.identification_id.is_(None)).order_by(ValmetItem.id)).all()
-        reserved=reserved_physical(db,unit)
-        result.append((unit,identification,items,max(0,unit.physical_quantity-reserved) if unit.id in eligible_units else 0))
+        current=balances.view(pos,unit);reserved=reserved_physical(db,current)
+        result.append((current,identification,items,max(0,pos.physical_quantity-reserved) if current.id in eligible_units else 0))
     return result,count

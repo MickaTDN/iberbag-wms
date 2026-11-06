@@ -150,6 +150,9 @@ REQUIRED_POSTGRES |= {
 REQUIRED_POSTGRES |= {
     'test_valmet_shipping.test_shipping_unknown_lab_return_location_preserves_block_and_idempotence',
 }
+REQUIRED_POSTGRES |= {
+    'test_valmet_shipping.test_shipping_sqlite_refuses_every_operational_write',
+}
 REQUIRED_WINDOWS = {
     'test_private_file_security.test_windows_refuses_permissive_backup_file',
     'test_private_file_security.test_windows_refuses_moved_permissive_file',
@@ -161,6 +164,7 @@ REQUIRED_WINDOWS = {
 }
 
 REQUIRED_WINDOWS.add('test_valmet_shipping.test_shipping_pdf_and_reference_rules_on_windows_sqlite_without_writes')
+REQUIRED_WINDOWS.add('test_valmet_shipping.test_shipping_sqlite_refuses_every_operational_write')
 
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()

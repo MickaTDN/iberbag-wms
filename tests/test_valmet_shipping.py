@@ -317,6 +317,19 @@ def test_shipping_unknown_lab_return_location_preserves_block_and_idempotence(va
         assert physical(engine)==1 and not p.source(db)
         assert len(s.shipments(db,ident))==1 and db.get(Prep,ident).status=='shipped'
 
+@pytest.mark.parametrize('name',['ready','report','resolve','relocate','ship','issue_document'])
+def test_shipping_sqlite_refuses_every_operational_write(tmp_path,name):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    cases=dict(ready=(1,1),report=(1,1,1,'missing','Fictício'),resolve=(1,'Fictício'),
+        relocate=(1,1,1,'H2',1,'Prova fictícia'),ship=(1,1,secrets.token_hex(16),'2027-03-01',['GT FICT']),issue_document=(1,1))
+    engine=create_engine('sqlite:///'+str(tmp_path/'limited.sqlite'))
+    with Session(engine) as db:
+        with pytest.raises(v.ReceivingError,match='PostgreSQL') as error:getattr(s,name)(db,1,*cases[name])
+        assert error.value.status==503
+    engine.dispose()
+    assert not list(tmp_path.iterdir())  # refusal happens before even opening SQLite
+
 def test_shipping_invalid_refs_over_quantity_and_rollback(valmet,monkeypatch):
     engine,a=valmet;actor=a['admin'][0]
     entry(engine,actor,[row('paletes',None,physical_quantity=3,content_total=None,items=[('','A','3')])]);uid=units(engine)[0].id

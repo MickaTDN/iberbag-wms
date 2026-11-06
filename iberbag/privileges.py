@@ -6,7 +6,8 @@ from sqlalchemy import text
 IMMUTABLE = {'audit', 'dispatch_documents', 'receipt_documents', 'stock_adjustments',
              'lot_resolutions', 'preparation_completions', 'preparation_compensations',
              'customer_pending', 'pending_allocations', 'allocation_collections',
-             'physical_location_claims', 'load_numbers'}
+             'physical_location_claims', 'load_numbers', 'valmet_owners', 'valmet_units',
+             'valmet_numbers', 'valmet_identifications', 'valmet_items'}
 
 
 def role_flags(connection, role):

@@ -1,0 +1,15 @@
+{% extends 'base.html' %}{% block content %}
+<h1>Valmet — Consulta de stock</h1>
+<p>Stock físico inclui material a identificar. Reservado: zero — reservas/saídas Valmet ainda não implementadas. Disponível indica apenas material identificado e localizado; não permite picking nesta fase.</p>
+<form method="get">{% for key,label in [('article','Artigo'),('lot','Lote'),('number','N.º Armazém'),('local','Localização'),('guide','Guia'),('notes','Notas')] %}<label>{{ label }}<input name="{{ key }}" maxlength="120" value="{{ filters[key] }}"></label>{% endfor %}<label>Tipo<select name="kind"><option value="">Todos</option>{% for key,label in kinds.items() %}<option value="{{ key }}" {{ 'selected' if filters.kind==key else '' }}>{{ label }}</option>{% endfor %}</select></label><button>Pesquisar</button></form>
+<p>{{ total }} grupos/unidades encontrados. Página {{ page }} (até 100 unidades; cada linha física é contada uma vez).</p>
+<table><tr><th>Unidade / entrada</th><th>Tipo</th><th>Localização</th><th>Físico / reservado / disponível</th><th>Composição e identificação</th><th>Fornecedor / guia / notas</th></tr>
+{% for unit,identification,items,available in rows %}<tr><td>{{ unit.number or ('Sem N.º Armazém histórico' if unit.legacy_unnumbered else 'Grupo sem identificação individual') }}<br><a href="/valmet/entries/{{ unit.entry_id }}">Entrada {{ unit.entry_id }}</a></td><td>{{ kinds[unit.kind] }}{% if unit.brand %} · {{ unit.brand }}{% endif %}</td><td>{{ unit.local or 'Por localizar' }}</td><td>{{ unit.physical_quantity }} / 0 / {{ available }}{% if unit.material_m2 is not none %}<br>{{ unit.material_m2 }} m² (material){% endif %}</td><td>
+{% if identification %}{{ identification.actor }} · {{ identification.created_at }}<br>{{ identification.notes }}
+{% else %}<strong>Aguarda identificação Valmet</strong><br><a href="/valmet/units/{{ unit.id }}/identify">Completar identificação na entrada original</a>{% endif %}
+{% for item in items %}<br>{{ item.article or 'Artigo desconhecido' }} · {{ item.lot or 'Lote desconhecido' }} · {{ item.quantity if item.quantity is not none else 'quantidade de material não indicada' }}{% endfor %}
+</td><td>{{ unit.supplier }} / {{ unit.guide }}<br>{{ unit.notes }}</td></tr>{% endfor %}</table>
+<p>Totais físicos desta página, por tipo (não somam linhas de lotes/rolos):</p>
+{% for kind,label in kinds.items() %}{% set sums=namespace(physical=0,available=0) %}{% for u,i,items,a in rows %}{% if u.kind==kind %}{% set sums.physical=sums.physical+u.physical_quantity %}{% set sums.available=sums.available+a %}{% endif %}{% endfor %}{% if sums.physical %}<p>{{ label }}: {{ sums.physical }} físico / 0 reservado / {{ sums.available }} disponível.</p>{% endif %}{% endfor %}
+{% if page>1 %}<a href="{{ request.url.include_query_params(page=page-1) }}">Anterior</a>{% endif %}{% if page*100<total %}<a href="{{ request.url.include_query_params(page=page+1) }}">Seguinte</a>{% endif %}
+{% endblock %}

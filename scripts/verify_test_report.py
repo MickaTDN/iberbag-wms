@@ -65,6 +65,19 @@ REQUIRED_POSTGRES |= {
     'test_phase2a.test_prior_security_head_upgrades_without_rewriting_loads',
     'test_phase2a.test_restricted_runtime_numbers_but_cannot_rewrite_ledger',
 }
+REQUIRED_POSTGRES |= {
+    'test_valmet.test_valmet_composition_counts_physical_units_once',
+    'test_valmet.test_valmet_pending_identification_keeps_original_units_and_locations',
+    'test_valmet.test_valmet_m2_vasilhame_and_unknown_location',
+    'test_valmet.test_valmet_invalid_entries_rollback',
+    'test_valmet.test_valmet_ids_capacity_and_confirmations_are_concurrent_safe',
+    'test_valmet.test_valmet_owner_wide_manual_ids_and_context_isolation',
+    'test_valmet.test_valmet_backup_restore_and_upgrade_preserve_units',
+    'test_valmet.test_valmet_security_head_migration_and_recovery',
+    'test_valmet.test_valmet_http_roles_csrf_and_restricted_runtime',
+    'test_valmet.test_valmet_identification_race_and_audit',
+    'test_valmet.test_valmet_error_after_physical_insert_rolls_back',
+}
 REQUIRED_WINDOWS = {
     'test_private_file_security.test_windows_refuses_permissive_backup_file',
     'test_private_file_security.test_windows_refuses_moved_permissive_file',

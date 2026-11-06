@@ -5,7 +5,9 @@ from .contexts import require_context
 
 
 def allocate(db, receipt):
-    ctx, owner, warehouse = require_context(db, operational=True)
+    # Capability/authorization is checked by the calling receipt service. The
+    # owner-wide allocator is shared by grouped and individually tracked goods.
+    ctx, owner, warehouse = require_context(db)
     year = receipt.received_on.year
     if year < 2027:
         return receipt.code

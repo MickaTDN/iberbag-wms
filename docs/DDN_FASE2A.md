@@ -1,5 +1,9 @@
 # Fase 2A — Escritório e numeração de cargas
 
+> Evolução Valmet: entradas e consulta próprias na Fase 2B.1, descritas em
+> [Entradas e stock Valmet](VALMET_ENTRADAS_E_STOCK.md). A indicação histórica
+> abaixo de que o processo Valmet ainda não existe aplica-se apenas à Fase 2A.
+
 O seletor Cliente / armazém continua a usar os contextos ativos autorizados pelo
 servidor para utilizadores internos DDN. A navegação identifica o contexto atual.
 Iberbag mantém todas as operações existentes. Clientes sem processo habilitado

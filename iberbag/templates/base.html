@@ -15,6 +15,7 @@
     <div class="side-label">{% if office_context %}{{ office_context[1].name }} · {{ office_context[2].name }}{% else %}MENU PRINCIPAL{% endif %}</div>
     <nav aria-label="Principal">
       <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">◫ &nbsp; Visão geral</a>
+      {% if office_valmet %}<a href="/valmet/entries">Entradas Valmet</a><a href="/valmet/stock">Stock Valmet</a>{% endif %}
       {% if office_operations %}
       <a href="/receipts" class="{% if request.url.path.startswith('/receipts') %}active{% endif %}">Entradas</a>
       <a href="/putaway" class="{% if request.url.path.startswith('/putaway') %}active{% endif %}">Arrumação</a>
@@ -24,10 +25,11 @@
       <a href="/transfers" class="{% if request.url.path.startswith('/transfers') %}active{% endif %}">Transferências</a>
       <a href="/inventory" class="{% if request.url.path.startswith('/inventory') %}active{% endif %}">Inventário</a>
       {% endif %}
-      <a href="/stock" class="{% if request.url.path.startswith('/stock') %}active{% endif %}">▤ &nbsp; Consulta de stock</a>
+      {% if not office_valmet %}<a href="/stock" class="{% if request.url.path.startswith('/stock') %}active{% endif %}">▤ &nbsp; Consulta de stock</a>
       <a href="/map" class="{% if request.url.path == '/map' %}active{% endif %}">▦ &nbsp; Mapa do armazém</a>
+      {% endif %}
     </nav>
-    {% if office_context and not office_operations %}<p class="side-label">Estrutura configurada. Processo específico ainda não implementado.</p>{% endif %}
+    {% if office_valmet %}<p class="side-label">Entradas e consulta Valmet. Saídas, inventários e transferências ainda não implementados.</p>{% elif office_context and not office_operations %}<p class="side-label">Estrutura configurada. Processo específico ainda não implementado.</p>{% endif %}
     {% if user.role == 'admin' %}
     <div class="side-label">ADMINISTRAÇÃO</div>
     <nav aria-label="Administração">

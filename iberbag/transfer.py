@@ -21,6 +21,7 @@ TABLES.remove(_claim)
 TABLES.insert(next(i for i,t in enumerate(TABLES) if t.name == 'storage_contexts')+1, _claim)
 PHYSICAL_TABLES = {'physical_location_claims'}
 NUMBER_TABLES = {'load_numbers'}
+VALMET_TABLES = {'valmet_owners','valmet_entries','valmet_units','valmet_numbers','valmet_identifications','valmet_items'}
 LOCK = 72834002
 RECEIVING_TABLES = {'receipts', 'receipt_lines', 'putaways'}
 DISPATCH_TABLES = {'dispatch_orders', 'dispatch_lines', 'dispatch_picks'}
@@ -54,7 +55,9 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
-    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES
+    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES
+    if missing & VALMET_TABLES not in (set(),VALMET_TABLES):
+        raise ValueError('Esquema Valmet incompleto.')
     legacy_revision = {frozenset(OPERATIONAL_TABLES): '0001',
         frozenset(DISPATCH_TABLES | TRANSFER_TABLES | INVENTORY_TABLES | COMMERCIAL_TABLES): '0002',
         frozenset(TRANSFER_TABLES | INVENTORY_TABLES | COMMERCIAL_TABLES): '0003',
@@ -73,7 +76,7 @@ def read_data(connection):
             allowed = {frozenset({'ddn_0001'}),frozenset({'ddn_0001','0007'})}
         else:
             allowed = ({frozenset({'ddn_0002'}),frozenset({'ddn_0002','0007'}),frozenset({'ddn_security_0001'})}
-                       if missing & NUMBER_TABLES else {frozenset({REVISION})})
+                       if missing & NUMBER_TABLES else ({frozenset({'ddn_0003'})} if missing & VALMET_TABLES else {frozenset({REVISION})}))
         if versions not in allowed:
             raise ValueError('Revisão/heads incompatíveis com o esquema. Não usar stamp para contornar.')
     if connection.dialect.name == 'sqlite':
@@ -115,6 +118,8 @@ def read_data(connection):
     if not any(row['key'] == 'warehouse_layout_seeded_vba' and row['value'] == '1'
                for row in result['app_config']):
         raise ValueError('Catálogo v2.3 não inicializado. Não será deduzido automaticamente.')
+    if missing & VALMET_TABLES:
+        result['valmet_owners']=[dict(client_id=row['id']) for row in result['clients'] if row['name']=='Valmet']
     return result
 
 
@@ -148,11 +153,15 @@ def archive_inventory(connection, expected):
     data = read_data(connection)
     wanted = set(expected.get('tables', {}))
     current = {t.name for t in TABLES}
+    if wanted in (current-VALMET_TABLES,current-VALMET_TABLES-NUMBER_TABLES):
+        if any(data[name] for name in VALMET_TABLES-{'valmet_owners'}) or ('load_numbers' not in wanted and data['load_numbers']):
+            raise ValueError('Backup anterior não abrange movimentos novos.')
+        return inventory({name:rows for name,rows in data.items() if name in wanted})
     if wanted == current - NUMBER_TABLES:
         if data['load_numbers']:
             raise ValueError('Backup anterior não abrange numeração emitida; fazer novo backup.')
         return inventory({name: rows for name, rows in data.items() if name not in NUMBER_TABLES})
-    legacy = current - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES
+    legacy = current - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES
     if wanted == current:
         return inventory(data)
     if wanted != legacy or set(inspect(connection).get_table_names()) & (CONTEXT_TABLES | PHYSICAL_TABLES):
@@ -243,12 +252,17 @@ def require_empty(connection):
 def apply(bundle, engine):
     require_test_target(engine)
     data, report = load_bundle(bundle)
+    if any(data[name] for name in VALMET_TABLES-{'valmet_owners'}):
+        raise ValueError('Importação operacional Valmet não implementada. Usar backup/restauro PostgreSQL verificado.')
     with engine.begin() as connection:
         connection.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK})
         require_empty(connection)
         cfg = config()
         cfg.attributes['connection'] = connection
         command.upgrade(cfg, 'head')
+        owners=connection.execute(select(Base.metadata.tables['valmet_owners'])).mappings().all()
+        if list(owners)!=data['valmet_owners']:
+            raise ValueError('Configuração Valmet divergente; reconciliar numa cópia, sem substituir atribuições.')
         # The migration seeds only empty administrative catalogues; a snapshot
         # carries their exact values, including subsequently added clients.
         for name in ('storage_contexts','clients','warehouses'):
@@ -256,6 +270,7 @@ def apply(bundle, engine):
         connection.execute(text('ALTER TABLE stock DISABLE TRIGGER stock_clock'))
         connection.execute(text('ALTER TABLE locations DISABLE TRIGGER catalogue_clock'))
         for table in TABLES:
+            if table.name=='valmet_owners':continue  # Verified immutable seed, never disable its guards.
             if data[table.name]:
                 rows = data[table.name]
                 if table.name == 'receipts':

@@ -1,6 +1,6 @@
 """Global administration and explicit stock-owner/warehouse/area boundaries."""
 from sqlalchemy import select, text
-from .database import Client, Warehouse, StorageContext, Location, Audit, User, context_id
+from .database import Client, Warehouse, StorageContext, Location, Audit, User, context_id, ValmetOwner
 
 WAREHOUSES = ((1, 'Ovar'), (2, 'Escapães'))
 CLIENTS = ((1, 'Iberbag', 'grouped', 'palete', True, 1),
@@ -22,6 +22,7 @@ def seed_contexts(db):
     for ident, name, tracking, unit, enabled, wh in CLIENTS:
         db.add(StorageContext(id=ident, client_id=ident, warehouse_id=wh, area=name, active=True))
     db.flush()
+    db.add(ValmetOwner(client_id=2))
 
 
 def available(db):
@@ -37,7 +38,8 @@ def require_context(db, ident=None, operational=False):
         Client.active.is_(True), Warehouse.active.is_(True))).first()
     if row is None:
         raise ValueError('Contexto cliente/armazém inexistente ou inativo.')
-    if operational and not row[1].pallet_operations:
+    from .database import ValmetOwner
+    if operational and (not row[1].pallet_operations or db.get(ValmetOwner,row[1].id) is not None):
         raise ValueError('Este cliente tem apenas estrutura configurada. O seu processo operacional exige uma fase posterior.')
     return row
 

@@ -53,12 +53,20 @@ def corridor_locations(db, code):
 def occupied(db, codes):
     if not codes:
         return []
-    return db.execute(select(Stock.local, func.sum(Stock.quantidade))
+    rows=db.execute(select(Stock.local, func.sum(Stock.quantidade))
                       .where(Stock.local.in_(sorted(codes)), Stock.quantidade > 0)
                       .group_by(Stock.local)).all()
+    from .database import ValmetUnit
+    return rows+db.execute(select(ValmetUnit.local,func.sum(ValmetUnit.physical_quantity)).where(
+        ValmetUnit.local.in_(sorted(codes))).group_by(ValmetUnit.local)).all()
 
 def validate_location(db, code):
     code = (code or '').strip().upper()
+    from .valmet import enabled
+    if enabled(db) and is_floor(code):return 'Chão'
+    if enabled(db) and re.fullmatch(r'[A-Z][1-9][0-9]{0,2}',code):
+        exclusive_codes(db,[code])
+        return code
     match = CODE.fullmatch(code)
     if not match:
         raise WarehouseError('Código inválido. Exemplo: C214 (letra + andar + posição de dois dígitos).')
@@ -150,7 +158,7 @@ def add_location(db: Session, user, code):
         raise WarehouseError(f'A localização {code} já existe.')
     if occupied(db, [code]):
         raise WarehouseError('Há stock nesta posição sem registo no catálogo; verifica-o primeiro.')
-    db.add(Location(codigo=code, capacidade=1))
+    db.add(Location(codigo=code, capacidade=None if is_floor(code) else 1))
     audit(db, user, 'CRIAR_LOCALIZACAO', code)
     db.commit()
     return code

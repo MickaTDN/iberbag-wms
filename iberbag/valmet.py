@@ -51,7 +51,7 @@ def optional(value,limit=120):
 
 def composition(kind, physical, total, items):
     if len(items)>100:raise ReceivingError('Demasiadas linhas de composição.',400)
-    result=[(optional(a) or None,required(l,'Lote'),quantity(q) if q not in (None,'') else None) for a,l,q in items]
+    result=[(required(a,'Artigo') if (a or '').strip() else None,required(l,'Lote'),quantity(q) if q not in (None,'') else None) for a,l,q in items]
     if kind!='vasilhame' and not result:
         if kind=='vazias':raise ReceivingError('Caixas Vazias: indicar lote; artigo pode ser desconhecido.',400)
         raise ReceivingError('Indicar lote e composição; usar Aguarda identificação Valmet se a identificação operacional for insuficiente.',400)

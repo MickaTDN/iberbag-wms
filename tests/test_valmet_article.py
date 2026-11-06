@@ -40,7 +40,7 @@ def test_incomplete_lot_stays_physical_and_completion_needs_no_fake_article(valm
         assert db.scalar(select(func.count()).select_from(ValmetUnit))==1
         assert db.scalar(select(func.count()).select_from(Receipt))==1
 
-@pytest.mark.parametrize('change',[{'number':''},{'items':[('','','5')]},{'content_total':6},{'physical_quantity':2}])
+@pytest.mark.parametrize('change',[{'number':''},{'items':[('','','5')]},{'items':[('A\nB','LOT','5')]},{'content_total':6},{'physical_quantity':2}])
 def test_article_exception_does_not_relax_physical_identity_or_totals(valmet,change):
     engine,accounts=valmet
     data=row(items=[('','LOT','5')]);data.update(change)

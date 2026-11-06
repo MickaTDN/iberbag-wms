@@ -163,9 +163,11 @@ def test_planning_empty_boxes_and_reconciled_legacy_groups(valmet):
         assert all(x['id']!=uid for x in p.source(db))
         p.configure(db,actor,uid,'unknown',reconciled=True,note='Conferência física fictícia 18 caixas, lote comprovado')
     prep=draft(engine,actor,[('vazias','LEGACY','5')]);plan=propose(engine,actor,prep)
-    assert plan['physical']==5 and not plan['selections'][0]['unit']['number'];confirm(engine,actor,prep)
+    # Final 2B.2B decision supersedes dispatchability of quantitative legacy boxes:
+    # keep the historical shape/reconciliation, but no new reservation without ID.
+    assert plan['physical']==0 and plan['shortages'][0]['quantity']==5;confirm(engine,actor,prep)
     with scoped(engine,2) as db:
-        assert p.source(db)[-1]['available']=={'LEGACY':13}
+        assert all(u['origin_id']!=uid for u in p.source(db)) and not p.active(db)
         assert db.get(ValmetUnit,uid).physical_quantity==18
         assert db.scalar(select(ValmetUnit.local).where(ValmetUnit.number=='BOX'))=='Chão'
 
@@ -355,7 +357,7 @@ def test_planning_ddn6_migration_preserves_every_legacy_byte(pg_databases,tmp_pa
     assert apply_upgrade(engine,folder)['revision']==REVISION
     with engine.connect() as c:
         assert transfer.inventory(transfer.read_data(c))==expected
-        assert c.scalar(text('SELECT version_num FROM alembic_version'))=='ddn_0007'
+        assert c.scalar(text('SELECT version_num FROM alembic_version'))==REVISION
     prep=draft(engine,actor,[('rolos','LOT','5')]);propose(engine,actor,prep);confirm(engine,actor,prep)
 
 def test_planning_sqlite_never_performs_operational_writes(tmp_path):

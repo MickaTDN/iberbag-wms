@@ -118,6 +118,38 @@ REQUIRED_POSTGRES |= {
     'test_valmet_planning.test_planning_backup_restore_reconciles_all_revisions',
     'test_valmet_planning.test_planning_ddn6_migration_preserves_every_legacy_byte',
 }
+REQUIRED_POSTGRES |= {
+    'test_valmet_shipping.test_shipping_without_pdf_or_individual_checks_and_repeated_confirmation',
+    'test_valmet_shipping.test_shipping_partial_groups_multiple_loads_keep_remaining_reservations',
+    'test_valmet_shipping.test_shipping_whole_multilot_units_only_once',
+    'test_valmet_shipping.test_shipping_rolls_remainders_and_indivisibility',
+    'test_valmet_shipping.test_shipping_lab_partial_keeps_pallet_and_unknown_saldo_block',
+    'test_valmet_shipping.test_shipping_vasilhame_all_brands_no_pdf_or_destination',
+    'test_valmet_shipping.test_shipping_piece_optimization_excess_actuals_and_close_partial',
+    'test_valmet_shipping.test_shipping_pdf_is_optional_a4_immutable_and_current_revision',
+    'test_valmet_shipping.test_shipping_missing_block_substitution_and_admin_resolution',
+    'test_valmet_shipping.test_shipping_location_proof_splits_groups_and_preserves_original_entry',
+    'test_valmet_shipping.test_shipping_location_capacity_failure_rolls_back_and_direct_observation',
+    'test_valmet_shipping.test_shipping_concurrency_and_runtime_projection_protection',
+    'test_valmet_shipping.test_shipping_invalid_refs_over_quantity_and_rollback',
+    'test_valmet_shipping.test_shipping_backup_restores_ledger_positions_documents_and_history',
+    'test_valmet_shipping.test_shipping_pdf_and_reference_rules_on_windows_sqlite_without_writes',
+    'test_valmet_shipping.test_shipping_http_permissions_csrf_context_documents_and_history',
+    'test_valmet_shipping.test_shipping_edit_after_collection_no_mandatory_pdf_and_real_shortage',
+    'test_valmet_shipping.test_shipping_same_owner_other_warehouse_cannot_read_documents_or_debit',
+    'test_valmet_shipping.test_shipping_migrate_ddn7_preserves_old_legacy_box_reservations_but_blocks_loading',
+}
+REQUIRED_POSTGRES |= {
+    'test_valmet_shipping.test_shipping_definer_functions_refuse_temp_trigger_spoofing',
+    'test_valmet_shipping.test_shipping_confirmed_contents_cannot_recreate_debited_stock',
+    'test_valmet_shipping.test_shipping_races_new_reservation_without_resurrecting_original_quantity',
+}
+REQUIRED_POSTGRES |= {
+    'test_valmet_shipping.test_shipping_lab_pallet_leaves_only_by_explicit_choice_and_number_never_reused',
+}
+REQUIRED_POSTGRES |= {
+    'test_valmet_shipping.test_shipping_unknown_lab_return_location_preserves_block_and_idempotence',
+}
 REQUIRED_WINDOWS = {
     'test_private_file_security.test_windows_refuses_permissive_backup_file',
     'test_private_file_security.test_windows_refuses_moved_permissive_file',
@@ -128,6 +160,7 @@ REQUIRED_WINDOWS = {
     'test_security_hardening.test_private_directory_restricts_inheritance_and_refuses_links',
 }
 
+REQUIRED_WINDOWS.add('test_valmet_shipping.test_shipping_pdf_and_reference_rules_on_windows_sqlite_without_writes')
 
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()

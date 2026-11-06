@@ -6,7 +6,8 @@ from collections import defaultdict
 from sqlalchemy import select
 from . import valmet as v
 from .database import (ValmetPreparation as Prep,ValmetPlanRevision as Rev,ValmetReservation as Hold,
-    ValmetHandling as Policy,ValmetUnit,ValmetIdentification,ValmetItem,Audit,Location)
+    ValmetHandling as Policy,ValmetUnit,ValmetIdentification,ValmetItem,Audit,Location,ValmetPosition)
+from . import valmet_balances as balances
 from .receiving import ReceivingError,required,quantity,request_key
 
 def dump(data):return json.dumps(data,sort_keys=True,ensure_ascii=False)
@@ -15,7 +16,7 @@ def review_key(record):return hashlib.sha256((record.review or '').encode()).hex
 
 def active(db,exclude=None):
     query=select(Hold).join(Rev,Hold.revision_id==Rev.id).join(Prep,Rev.preparation_id==Prep.id).where(
-        Prep.status=='reserved',Prep.active_revision==Rev.id)
+        Prep.status.in_(('reserved','ready')),Prep.active_revision==Rev.id)
     if exclude is not None:query=query.where(Prep.id!=exclude)
     return db.scalars(query).all()
 
@@ -32,15 +33,15 @@ def materials_for(unit,items):
     return {unit.brand:unit.physical_quantity} if unit.kind=='vasilhame' else dict(materials)
 
 def stock_details(db,rows):
-    holds=active(db);result={}
-    candidates={u['id']:u for u in source(db,unit_ids=[row[0].id for row in rows])}
+    holds=balances.allocation_rows(db);result={}
+    candidates={u['id']:u for u in source(db,unit_ids=[getattr(row[0],'origin_id',row[0].id) for row in rows])}
     for unit,ident,items,_ in rows:
-        held=[h for h in holds if h.unit_id==unit.id];reserved=defaultdict(int)
+        held=[h for h in holds if h['unit']['id']==unit.id];reserved=defaultdict(int)
         for h in held:
-            for lot,q in json.loads(h.materials).items():reserved[lot]+=q
-        result[unit.id]=dict(reserved=min(unit.physical_quantity,sum(h.physical for h in held)),
-            materials=materials_for(unit,items),material_reserved=dict(reserved),
-            available=candidates.get(unit.id,{}).get('available',{}),policy=policy(db,unit.id))
+            for lot,q in h['materials'].items():reserved[lot]+=q
+        result[unit.id]=dict(reserved=min(unit.physical_quantity,sum(h['physical'] for h in held)),
+            materials=unit.materials,material_reserved=dict(reserved),
+            available=candidates.get(unit.id,{}).get('available',{}),policy=policy(db,unit.origin_id))
     return result
 
 @v.command
@@ -61,40 +62,42 @@ def configure(db,actor,uid,separation,reconciled=False,unlocated=False,note=''):
 
 def source(db,exclude=None,unit_ids=None):
     holds=defaultdict(list)
-    for h in active(db,exclude):holds[h.unit_id].append(h)
+    for h in balances.allocation_rows(db,exclude):holds[h['unit']['position_id']].append(h)
     result=[]
-    query=select(ValmetUnit).order_by(ValmetUnit.id).limit(10001)
+    query=select(ValmetUnit,ValmetPosition).join(ValmetPosition,ValmetPosition.unit_id==ValmetUnit.id).where(ValmetPosition.physical_quantity>0).order_by(ValmetUnit.id,ValmetPosition.id).limit(10001)
     if unit_ids is not None:query=query.where(ValmetUnit.id.in_(unit_ids))
-    units=db.scalars(query).all()
+    units=db.execute(query).all()
     if len(units)>10000:raise ReceivingError('Mais de 10000 unidades; reconciliação administrativa necessária para planear com segurança.')
     locations=set(db.scalars(select(Location.codigo).where(Location.active.is_(True))))
-    for u in units:
+    blocked_ids=balances.blocked_units(db)
+    for u,pos in units:
         ident=db.scalar(select(ValmetIdentification).where(ValmetIdentification.unit_id==u.id))
         p=policy(db,u.id)
-        if not ident or (u.legacy_unnumbered and not (u.kind=='vazias' and p and p.reconciled)):continue
-        unlocated=not u.local
+        if not ident or u.legacy_unnumbered or u.id in blocked_ids or pos.uncertain:continue
+        if u.kind=='vazias' and not u.number:continue
+        unlocated=not pos.local
         if unlocated and not (u.kind=='vasilhame' and p and p.unlocated):continue
-        if not unlocated and u.local not in locations:continue
+        if not unlocated and pos.local not in locations:continue
         items=db.scalars(select(ValmetItem).where(ValmetItem.identification_id==ident.id).order_by(ValmetItem.id)).all()
-        materials=materials_for(u,items);articles=defaultdict(set)
+        materials=json.loads(pos.materials);articles=defaultdict(set)
         for item in items:
             if not item.lot:continue
             if item.article:articles[item.lot].add(item.article)
         if not materials:continue
         used=defaultdict(int);blocked=False;phys=0
-        for h in holds[u.id]:
-            blocked|=h.exclusive
-            phys+=h.physical
-            for lot,q in json.loads(h.materials).items():used[lot]+=q
+        for h in holds[pos.id]:
+            blocked|=h['exclusive']
+            phys+=h['physical']
+            for lot,q in h['materials'].items():used[lot]+=q
         if blocked:continue
         available={lot:(None if q is None else max(0,q-used[lot])) for lot,q in materials.items()}
         if u.kind in ('paletes','fio','prateleiras','vasilhame','vazias'):
-            available={lot:min(q,u.physical_quantity-phys) for lot,q in available.items()}
-        result.append(dict(id=u.id,entry_id=u.entry_id,kind=u.kind,number=u.number,local=u.local,physical=u.physical_quantity,
+            available={lot:min(q,max(0,pos.physical_quantity-phys)) for lot,q in available.items()}
+        result.append(dict(id=balances.source_key(pos),origin_id=u.id,position_id=pos.id,original_physical=u.physical_quantity,entry_id=u.entry_id,kind=u.kind,number=u.number,local=pos.local,physical=pos.physical_quantity,
             materials=dict(materials),available=available,articles={k:sorted(a) for k,a in articles.items()},
-            composition=[dict(article=i.article,lot=i.lot,quantity=i.quantity) for i in items],
-            separation=p.separation if p else 'unknown',policy=p.id if p else None,unlocated=unlocated,held=bool(holds[u.id])))
-        result[-1]['free_physical']=max(0,u.physical_quantity-phys)
+            composition=[dict(article=' / '.join(sorted(articles[lot])) or None,lot=lot,quantity=q) for lot,q in materials.items()],
+            separation=p.separation if p else 'unknown',policy=p.id if p else None,unlocated=unlocated,held=bool(holds[pos.id])))
+        result[-1]['free_physical']=max(0,pos.physical_quantity-phys)
     return result
 
 def payload(reference,day,destination,lines):
@@ -115,7 +118,7 @@ def payload(reference,day,destination,lines):
 def access(record,actor):
     if not record:raise ReceivingError('Preparação inexistente.',404)
     if actor.role!='admin' and record.created_by!=actor.id:raise ReceivingError('Sem permissão para alterar esta preparação.',403)
-    if record.status=='cancelled':raise ReceivingError('Preparação cancelada.')
+    if record.status in ('cancelled','shipped'):raise ReceivingError('Preparação cancelada ou expedida.')
 
 def revision(db,record,actor,action,snapshot):
     r=Rev(preparation_id=record.id,version=record.version,action=action,snapshot=dump(snapshot),actor=actor.username)
@@ -133,6 +136,7 @@ def save(db,actor,key,reference,day,destination,lines,ident=None,version=None):
             return record.id
         if record.version!=version or record.request_key!=key:raise ReceivingError('Revisão desatualizada.')
         record.payload=data;record.version+=1;record.review=None
+        if record.status=='ready':record.status='reserved'
     else:
         if ident:raise ReceivingError('Preparação inexistente.',404)
         record=Prep(request_key=key,payload=data,created_by=actor.id);db.add(record);db.flush()
@@ -154,10 +158,10 @@ def boxes(candidates,lot,needed):
     return states[total]
 
 def calculate(db,record,manual=None):
-    data=json.loads(record.payload);units=source(db,record.id);byid={u['id']:u for u in units}
+    data=pending_payload(db,record);units=source(db,record.id);byid={u['id']:u for u in units}
     selected={}
     def add(u,lot,q):
-        single=u['physical']==1
+        single=u.get('original_physical',u['physical'])==1
         whole=(u['kind'] in ('caixas','pecas') or
             (u['kind']=='rolos' and u['separation']!='yes') or
             (u['kind'] in ('paletes','vazias') and single) or
@@ -200,6 +204,16 @@ def calculate(db,record,manual=None):
                 if q<=0:continue
                 add(u,lot,q)
                 need=max(0,line['quantity']-sum(s['materials'].get(lot,0) or 0 for s in selected.values() if s['unit']['kind']==kind))
+    return summarize(db,record,selected)
+
+def pending_payload(db,record):
+    from .valmet_shipping import sent_totals
+    data=json.loads(record.payload);sent=sent_totals(db,record.id)
+    for line in data["lines"]:line["quantity"]=max(0,line["quantity"]-sent.get((line["kind"],line["lot"]),0))
+    return data
+
+def summarize(db,record,selected):
+    data=pending_payload(db,record)
     supplied=defaultdict(int)
     for s in selected.values():
         for lot,q in s['materials'].items():supplied[(s['unit']['kind'],lot)]+=q or 0
@@ -245,9 +259,18 @@ def confirm(db,actor,ident,version,accept_extra=False,accept_unlocated=False,acc
     if current['unlocated'] and not accept_unlocated:raise ReceivingError('Validar explicitamente vasilhame Por localizar.')
     if current['uncontrolled'] and not accept_uncontrolled:raise ReceivingError('Validar bobines LAB sem contagem remanescente controlada.')
     r=revision(db,record,actor,'reserve',current)
-    for s in current['selections']:
-        db.add(Hold(revision_id=r.id,unit_id=s['unit']['id'],physical=s['physical'],materials=dump(s['materials']),exclusive=s['exclusive']))
+    reserve_rows(db,r,current['selections'])
     record.active_revision=r.id;record.status='reserved';return ident
+
+def reserve_rows(db,revision,selections):
+    grouped={}
+    for s in selections:
+        uid=s['unit'].get('origin_id',s['unit']['id'])
+        h=grouped.setdefault(uid,dict(physical=0,materials=defaultdict(int),exclusive=False))
+        h['physical']+=s['physical'];h['exclusive']|=s['exclusive']
+        if s['unit']['kind'] in ('rolos','lab'):h['physical']=1
+        for lot,q in s['materials'].items():h['materials'][lot]+=q
+    for uid,h in grouped.items():db.add(Hold(revision_id=revision.id,unit_id=uid,physical=h['physical'],materials=dump(dict(h['materials'])),exclusive=h['exclusive']))
 
 @v.command
 def cancel(db,actor,ident,version,note):
@@ -255,10 +278,11 @@ def cancel(db,actor,ident,version,note):
     if not record:raise ReceivingError('Preparação inexistente.',404)
     if actor.role!='admin' and record.created_by!=actor.id:raise ReceivingError('Sem permissão.',403)
     if record.status=='cancelled':return ident
+    if record.status=='shipped':raise ReceivingError('Expedição confirmada não é cancelável.')
     if record.version!=version:raise ReceivingError('Revisão desatualizada.')
     record.version+=1;revision(db,record,actor,'cancel',dict(reason=required(note,'Motivo'),previous_revision=record.active_revision))
     record.active_revision=None;record.status='cancelled';return ident
 
 def reserved_physical(db,unit):
-    rows=[h for h in active(db) if h.unit_id==unit.id]
-    return min(unit.physical_quantity,sum(h.physical for h in rows))
+    rows=[h for h in balances.allocation_rows(db) if h['unit']['id']==unit.id]
+    return min(unit.physical_quantity,sum(h['physical'] for h in rows))

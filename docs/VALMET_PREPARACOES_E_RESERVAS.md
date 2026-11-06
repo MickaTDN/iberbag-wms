@@ -1,5 +1,9 @@
 # Valmet — Fase 2B.2A: preparações e reservas
 
+Continuação vigente: `VALMET_RECOLHAS_E_EXPEDICOES.md` (2B.2B). Acrescenta saídas
+e saldos remanescentes preservando os históricos abaixo. A decisão final bloqueia
+caixas históricas sem N.º Armazém, mesmo reconciliadas na 2B.2A.
+
 Esta fase planeia no escritório e reserva material. **Não é uma saída**: o stock
 físico, a ocupação e a entrada original nunca são descontados ou reescritos.
 Iberbag conserva o seu fluxo e FIFO próprios. Valmet propõe unidades por ID

@@ -51,10 +51,16 @@ def optional(value,limit=120):
 
 def composition(kind, physical, total, items):
     if len(items)>100:raise ReceivingError('Demasiadas linhas de composição.',400)
-    result=[(required(a,'Artigo'),required(l,'Lote'),quantity(q) if q not in (None,'') else None) for a,l,q in items]
-    if kind not in ('vasilhame','vazias') and not result:
+    result=[((optional(a) or None) if kind=='vazias' else required(a,'Artigo'),required(l,'Lote'),quantity(q) if q not in (None,'') else None) for a,l,q in items]
+    if kind!='vasilhame' and not result:
+        if kind=='vazias':raise ReceivingError('Caixas Vazias: indicar lote; artigo pode ser desconhecido.',400)
         raise ReceivingError('Artigo e lote obrigatórios; usar Aguarda identificação Valmet quando desconhecidos.',400)
-    if kind in ('paletes','fio','prateleiras','rolos','pecas'):
+    if kind=='paletes' and physical==1:
+        # Several lots may be present on ONE physical pallet. These are
+        # associations, not disjoint extra pallets. Never add their counts.
+        if any(q not in (None,1) for a,l,q in result):
+            raise ReceivingError('Uma palete física: indicar presença (vazio ou 1) por lote, sem multiplicar paletes.',400)
+    elif kind in ('paletes','fio','prateleiras','rolos','pecas'):
         expected=physical if kind in ('paletes','fio','prateleiras') else total
         if expected is None or any(q is None for a,l,q in result) or sum(q for a,l,q in result)!=expected:
             raise ReceivingError('As quantidades identificadas não correspondem ao total físico/material registado.',400)
@@ -86,16 +92,22 @@ def payload(received_on,code,rows):
         pending=row.get('pending',False)
         if not isinstance(pending,bool):raise ReceivingError('Estado de identificação inválido.',400)
         items=row.get('items',[])
+        if kind=='vazias':
+            # Lot + manual warehouse number identify an empty box, even if its
+            # article is unknown. This alone must not make it unavailable.
+            pending=False
         if pending:
             items=[(optional(a) or None,optional(l) or None,quantity(q) if q not in ('',None) else None) for a,l,q in items]
             bound=physical if kind in ('paletes','fio','prateleiras') else total
-            if len(items)>100 or (bound is not None and sum(q or 0 for a,l,q in items)>bound):
+            too_many=(any(q not in (None,1) for a,l,q in items) if kind=='paletes' and physical==1
+                      else bound is not None and sum(q or 0 for a,l,q in items)>bound)
+            if len(items)>100 or too_many:
                 raise ReceivingError('Identificação parcial excede o total físico/material.',400)
         else:items=composition(kind,physical,total,items)
         brand=optional(row.get('brand')) or None
         if kind=='vasilhame' and brand not in BRANDS:raise ReceivingError('Selecionar referência de vasilhame válida.',400)
         cleaned.append(dict(kind=kind,physical_quantity=physical,number=number,
-            local=optional(row.get('local')).upper() or None,content_total=total,
+            local='Chão' if kind=='vazias' else (optional(row.get('local')).upper() or None),content_total=total,
             material_m2=str(m2) if m2 is not None else None, supplier=optional(row.get('supplier')),
             guide=optional(row.get('guide')),notes=optional(row.get('notes'),2000),brand=brand,pending=pending,items=items))
     return json.dumps(dict(received_on=day.isoformat(),code=code,rows=cleaned),ensure_ascii=False,sort_keys=True)
@@ -133,7 +145,10 @@ def confirm_entry(db,actor,ident,version):
     if entry.created_by!=actor.id:raise ReceivingError('Só o autor confirma.',403)
     if entry.version!=version:raise ReceivingError('Revisão desatualizada.')
     if entry.status=='confirmed':return entry.id
-    data=json.loads(entry.payload)
+    original=json.loads(entry.payload)
+    # Drafts saved by a previous application version must pass today's rules;
+    # confirmed history is returned above, never rewritten.
+    data=json.loads(payload(original['received_on'],original['code'],original['rows']))
     receipt=Receipt(request_key=entry.request_key,payload_hash=hashlib.sha256(entry.payload.encode()).hexdigest(),
         code=data['code'],received_on=datetime.combine(date.fromisoformat(data['received_on']),datetime.min.time()),created_by=actor.id)
     db.add(receipt);db.flush()

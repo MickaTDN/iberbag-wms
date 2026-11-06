@@ -78,6 +78,19 @@ REQUIRED_POSTGRES |= {
     'test_valmet.test_valmet_identification_race_and_audit',
     'test_valmet.test_valmet_error_after_physical_insert_rolls_back',
 }
+REQUIRED_POSTGRES |= {
+    'test_valmet_corrections.test_normal_pallet_many_lots_one_physical_place',
+    'test_valmet_corrections.test_composition_limits_do_not_change_other_categories',
+    'test_valmet_corrections.test_pending_multilot_pallet_identified_without_new_stock',
+    'test_valmet_corrections.test_empty_boxes_lot_number_and_automatic_floor',
+    'test_valmet_corrections.test_empty_box_required_identity_not_bypassed_by_pending',
+    'test_valmet_corrections.test_unavailable_floor_rolls_back_entire_receipt',
+    'test_valmet_corrections.test_database_enforces_empty_floor_and_deferred_lot',
+    'test_valmet_corrections.test_old_draft_without_empty_box_lot_is_revalidated',
+    'test_valmet_corrections.test_empty_boxes_concurrent_repeated_number',
+    'test_valmet_corrections.test_corrected_boxes_http_permissions_and_search',
+    'test_valmet_corrections.test_upgrade_preserves_confirmed_old_boxes_and_verified_backup',
+}
 REQUIRED_WINDOWS = {
     'test_private_file_security.test_windows_refuses_permissive_backup_file',
     'test_private_file_security.test_windows_refuses_moved_permissive_file',

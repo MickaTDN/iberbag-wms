@@ -1,6 +1,8 @@
 {% extends 'base.html' %}{% block content %}
 <h1>Valmet — {{ 'Rever rascunho' if entry else 'Nova entrada' }}</h1>
 <p>Até oito grupos/unidades por formulário, seis linhas de composição por unidade. Quantidade física é independente de rolos, peças e m². Cada ROLOS/caixa é uma unidade indivisível com N.º Armazém manual. Para o mesmo N.º Armazém, reunir todos os lotes no mesmo grupo.</p>
+<p>Paletes normais multilote: um grupo com uma palete física e todos os seus lotes; vazio ou 1 por lote significa presença na mesma palete, não paletes adicionais. Grupos de várias paletes mantêm quantidades disjuntas por lote. Paletes Fio e Prateleiras não mudam.</p>
+<p>Caixas Vazias: lote e N.º Armazém obrigatórios; artigo apenas quando conhecido. A falta de artigo não obriga a identificação pendente. Chão é atribuído e validado pelo servidor, independentemente da localização preenchida.</p>
 <form method="post" action="/valmet/entries/review" class="panel">
 <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="context_id" value="{{ active_context_id }}"><input type="hidden" name="request_key" value="{{ key }}">
 {% if entry %}<input type="hidden" name="id" value="{{ entry.id }}"><input type="hidden" name="version" value="{{ entry.version }}">{% endif %}

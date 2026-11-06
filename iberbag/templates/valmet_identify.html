@@ -1,6 +1,7 @@
 {% extends 'base.html' %}{% block content %}<h1>Completar identificação Valmet</h1>
 <p>Entrada original {{ unit.entry_id }} · {{ kinds[unit.kind] }} · N.º Armazém {{ unit.number or '—' }} · {{ unit.physical_quantity }} unidades físicas · {{ unit.local or 'Por localizar' }}. A identificação não altera a quantidade física nem a localização. Distribuir apenas com prova da correspondência; cada grupo/localização é preenchido manualmente.</p>
 <form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="context_id" value="{{ active_context_id }}"><input type="hidden" name="request_key" value="{{ key }}">
+{% if unit.kind=='paletes' and unit.physical_quantity==1 %}<p>Todos os lotes pertencem à mesma palete física: indicar vazio ou 1 para presença por lote. Não somar estas presenças como paletes adicionais.</p>{% endif %}
 <label>Total de rolos / peças / material <input type="number" min="1" name="content_total" value="{{ unit.content_total if unit.content_total is not none else '' }}"></label>
 <table><tr><th>Artigo</th><th>Lote</th><th>Paletes / rolos / peças</th></tr>{% for j in range(6) %}<tr><td><input name="article{{ j }}" maxlength="120"></td><td><input name="lot{{ j }}" maxlength="120"></td><td><input name="amount{{ j }}" type="number" min="1"></td></tr>{% endfor %}</table>
 <label>Comprovação / observação obrigatória <textarea name="notes" required maxlength="120"></textarea></label><button>Confirmar identificação sem nova entrada</button></form>{% endblock %}

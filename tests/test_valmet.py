@@ -218,7 +218,7 @@ def test_valmet_remaining_categories_and_quantities(valmet,kind):
     engine,accounts=valmet
     numbered=kind=='vazias'
     entry(engine,accounts['operador'][0],[row(kind,'EMPTY-01' if numbered else None,
-        physical_quantity=1 if numbered else 3,content_total=None,items=[] if numbered else [('A','L','3')])])
+        physical_quantity=1 if numbered else 3,content_total=None,items=[('','EMPTY-LOT','')] if numbered else [('A','L','3')])])
     with scoped(engine,2) as db:assert v.stock(db)[0][0][0].physical_quantity==(1 if numbered else 3)
 
 

@@ -9,12 +9,20 @@ reservas, picking, inventários, transferências ou importação definitiva Valm
 - Paletes, Paletes Fio e Prateleiras: grupos com quantidade física em paletes,
   localização e composição por artigo/lote. Apenas Paletes admite m² opcionais,
   decimais com três casas, sem qualquer conversão para quantidade de paletes.
+  Nas Paletes normais, um grupo com **uma palete física** pode conter vários
+  lotes: quantidade vazia ou 1 por lote indica presença nessa mesma palete,
+  sem somar presenças como paletes. Para misturas, usar um grupo por palete física.
+  Grupos de várias paletes continuam a representar quantidades disjuntas por lote.
+  Paletes Fio, Prateleiras e ROLOS conservam as validações quantitativas anteriores.
 - ROLOS: uma palete física por N.º Armazém manual, com várias linhas de rolos
   por artigo/lote. Linhas de lote repetido são permitidas; a palete conta uma vez.
 - Caixas, Caixas Vazias e Caixas com Peças: uma caixa física indivisível por
   N.º Armazém. Vários lotes não multiplicam caixas. Peças são inteiros por lote;
   nas caixas sem contagem de material, a composição pode não indicar quantidades.
-  Caixas Vazias podem não ter conteúdo. Não se modelam fracionamentos de caixas.
+  Caixas Vazias exigem lote e N.º Armazém nas novas entradas, mesmo sem conteúdo.
+  Artigo desconhecido é guardado como nulo, sem inventar valores nem bloquear
+  disponibilidade/pesquisa por lote e número. Quando conhecido, preencher o artigo.
+  Não se modelam fracionamentos de caixas.
 - Vasilhame: grupos de paletes, referência Filva, Wetekam, Filkemp, Nextrusion,
   Monosuisse, Trofil, Hahl ou Durafiver. Não se mistura com as outras categorias.
   Localização desconhecida aparece como «Por localizar».
@@ -37,6 +45,11 @@ O formulário suporta oito grupos com seis linhas de composição cada. Guardar
 rascunho, rever, corrigir e confirmar. Só o autor confirma o seu rascunho; ambos
 os perfis podem receber e completar identificações dentro do contexto autorizado.
 Na confirmação registam-se imediatamente unidades físicas e localizações conhecidas.
+Caixas Vazias são sempre atribuídas automaticamente ao Chão ativo/ilimitado do
+contexto. Uma localização enviada pelo formulário não substitui esta regra; se
+o Chão não estiver configurado/ativo, a confirmação é recusada sem efeitos.
+Estas caixas são identificadas por lote/N.º Armazém, sem as marcar pendentes
+apenas porque falta o artigo. Rascunhos antigos são revalidados na confirmação.
 
 Quando falta artigo e/ou lote, marcar «Aguarda identificação Valmet». Dados parciais
 conhecidos ficam estruturados, pesquisáveis e conservados como evidência original;
@@ -83,12 +96,15 @@ habilitada nesta fase, mesmo para unidades com disponibilidade positiva.
 
 ## Atualização, segurança e ensaio
 
-Migração aditiva `ddn_0004`, filha de `ddn_0003`: novas tabelas Valmet, capability
+Migração inicial `ddn_0004`, filha de `ddn_0003`: novas tabelas Valmet, capability
 do proprietário Valmet existente e proteções PostgreSQL. O vínculo usa client_id
 estável depois da migração, mesmo após renomear o cliente. Se o nome histórico
 Valmet já tiver sido alterado antes da migração, reconciliar a configuração numa
 cópia; não adivinhar qual proprietário corresponde à Valmet.
 Nenhuma quantidade, referência, data, PDF ou revisão publicada anterior é alterada.
+Correção aditiva `ddn_0005` (pai `ddn_0004`): permite artigo nulo em composições
+de Caixas Vazias e valida Chão/lote para novas unidades também em PostgreSQL.
+Não altera caixas históricas já confirmadas nem reescreve `ddn_0004`.
 Atualização explícita requer aplicação parada, backup cifrado, restauro reconciliado
 numa base separada/vazia, preview/apply e revisão dos grants runtime. Arranque não
 migra produção; sem downgrade destrutivo. Backups incluem todas as unidades,

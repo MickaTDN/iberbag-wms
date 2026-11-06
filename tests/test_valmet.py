@@ -151,13 +151,16 @@ def test_valmet_owner_wide_manual_ids_and_context_isolation(valmet):
 
 def test_valmet_backup_restore_and_upgrade_preserve_units(valmet,pg_databases,tmp_path):
     engine,accounts=valmet;actor=accounts['admin'][0]
-    entry(engine,actor,[row(),row('paletes',None,physical_quantity=2,content_total=None,pending=True,items=[])])
+    entry(engine,actor,[row(),row('paletes',None,physical_quantity=2,content_total=None,pending=True,items=[]),
+        row('paletes',None,physical_quantity=2,content_total=None,material_m2='123.456',items=[('A','L','2')])])
     with engine.connect() as conn:expected=transfer.inventory(transfer.read_data(conn))
     folder=tmp_path/'valmet-backup';target=pg_databases(restricted=True)
     backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
     assert backup.restore(target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)['status']=='reconciled'
     with target.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==expected
-    with scoped(target,2) as db:assert v.stock(db)[1]==2
+    with scoped(target,2) as db:
+        assert v.stock(db)[1]==3
+        assert str(db.scalar(select(ValmetUnit.material_m2).where(ValmetUnit.material_m2.is_not(None))))=='123.456'
     with pytest.raises(v.ReceivingError):entry(target,actor,[row()])
 
 def test_valmet_security_head_migration_and_recovery(pg_databases,tmp_path):

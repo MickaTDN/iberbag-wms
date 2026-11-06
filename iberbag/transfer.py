@@ -2,6 +2,7 @@
 import argparse
 from collections import Counter
 from datetime import date, datetime
+from decimal import Decimal
 import hashlib
 import base64
 import json
@@ -38,6 +39,8 @@ def digest_file(path):
 
 
 def json_value(value):
+    if isinstance(value,Decimal):
+        return str(value)  # Preserve exact m²; never convert through binary float.
     if isinstance(value, (datetime, date)):
         return value.isoformat()
     if isinstance(value,(bytes,bytearray,memoryview)):

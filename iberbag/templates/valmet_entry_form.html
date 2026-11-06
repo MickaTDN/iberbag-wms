@@ -1,0 +1,26 @@
+{% extends 'base.html' %}{% block content %}
+<h1>Valmet — {{ 'Rever rascunho' if entry else 'Nova entrada' }}</h1>
+<p>Preencher o artigo quando conhecido; se ausente da documentação, deixar vazio. Lote, identificação física e quantidades suficientes permitem disponibilidade sem artigo. Usar «Aguarda identificação» apenas quando faltam dados operacionais, não apenas o artigo.</p>
+<p>Até oito grupos/unidades por formulário, seis linhas de composição por unidade. Quantidade física é independente de rolos, peças e m². Cada ROLOS/caixa é uma unidade indivisível com N.º Armazém manual. Para o mesmo N.º Armazém, reunir todos os lotes no mesmo grupo.</p>
+<p>Paletes normais multilote: um grupo com uma palete física e todos os seus lotes; vazio ou 1 por lote significa presença na mesma palete, não paletes adicionais. Grupos de várias paletes mantêm quantidades disjuntas por lote. Paletes Fio e Prateleiras não mudam.</p>
+<p>Caixas Vazias: lote e N.º Armazém obrigatórios; artigo apenas quando conhecido. A falta de artigo não obriga a identificação pendente. Chão é atribuído e validado pelo servidor, independentemente da localização preenchida.</p>
+<form method="post" action="/valmet/entries/review" class="panel">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="context_id" value="{{ active_context_id }}"><input type="hidden" name="request_key" value="{{ key }}">
+{% if entry %}<input type="hidden" name="id" value="{{ entry.id }}"><input type="hidden" name="version" value="{{ entry.version }}">{% endif %}
+<label>Data efetiva de entrada <input required type="date" name="received_on" value="{{ values.get('received_on','') }}"></label>
+<label>Referência histórica (antes de 2027) <input name="code" maxlength="120" value="{{ values.get('code','') if values.get('received_on','9999') < '2027' else '' }}"></label><p>Desde 2027 a carga é numerada automaticamente por proprietário/ano.</p>
+{% for i in range(8) %}{% set row=rows[i] if i<rows|length else {} %}
+<fieldset><legend>Grupo / unidade {{ i+1 }}</legend>
+<label>Tipo <select name="u{{ i }}_kind"><option value="">Não utilizar este grupo</option>{% for key,label in kinds.items() %}<option value="{{ key }}" {{ 'selected' if row.get('kind')==key else '' }}>{{ label }}</option>{% endfor %}</select></label>
+<label>Paletes / caixas físicas <input type="number" min="1" name="u{{ i }}_physical_quantity" value="{{ row.get('physical_quantity','') }}"></label>
+<label>N.º Armazém <input maxlength="120" name="u{{ i }}_number" value="{{ row.get('number') or '' }}"></label>
+<label>Localização do catálogo (vazio: Por localizar) <input maxlength="120" name="u{{ i }}_local" value="{{ row.get('local') or '' }}"></label>
+<label>m² (opcional, só Paletes) <input name="u{{ i }}_material_m2" value="{{ row.get('material_m2') or '' }}"></label>
+<label>Total de rolos / peças / material (quando conhecido) <input type="number" min="1" name="u{{ i }}_content_total" value="{{ row.get('content_total') or '' }}"></label>
+<label>Fornecedor <input maxlength="120" name="u{{ i }}_supplier" value="{{ row.get('supplier','') }}"></label><label>Número de guia <input maxlength="120" name="u{{ i }}_guide" value="{{ row.get('guide','') }}"></label>
+<label>Vasilhame <select name="u{{ i }}_brand"><option value="">—</option>{% for brand in brands %}<option {{ 'selected' if row.get('brand')==brand else '' }}>{{ brand }}</option>{% endfor %}</select></label>
+<label>Notas livres (incluindo VALMET 2) <textarea name="u{{ i }}_notes" maxlength="2000">{{ row.get('notes','') }}</textarea></label>
+<label><input type="checkbox" name="u{{ i }}_pending" value="yes" {{ 'checked' if row.get('pending') else '' }}>Aguarda identificação Valmet (guardar apenas dados conhecidos, sem inventar artigo/lote)</label>
+<table><tr><th>Artigo</th><th>Lote</th><th>Paletes / rolos / peças nesse lote</th></tr>{% for j in range(6) %}{% set item=row.get('items',[])[j] if j<row.get('items',[])|length else ('','','') %}<tr><td><input maxlength="120" name="u{{ i }}_article{{ j }}" value="{{ item[0] or '' }}"></td><td><input maxlength="120" name="u{{ i }}_lot{{ j }}" value="{{ item[1] or '' }}"></td><td><input type="number" min="1" name="u{{ i }}_amount{{ j }}" value="{{ item[2] if item[2] is not none else '' }}"></td></tr>{% endfor %}</table>
+</fieldset>{% endfor %}<button type="submit">Guardar e rever</button></form>
+{% endblock %}

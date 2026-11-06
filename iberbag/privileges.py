@@ -6,7 +6,8 @@ from sqlalchemy import text
 IMMUTABLE = {'audit', 'dispatch_documents', 'receipt_documents', 'stock_adjustments',
              'lot_resolutions', 'preparation_completions', 'preparation_compensations',
              'customer_pending', 'pending_allocations', 'allocation_collections',
-             'physical_location_claims', 'load_numbers'}
+             'physical_location_claims', 'load_numbers', 'valmet_owners', 'valmet_units',
+             'valmet_numbers', 'valmet_identifications', 'valmet_items'}
 
 
 def role_flags(connection, role):
@@ -54,7 +55,9 @@ def validate_runtime(connection, role=None):
     from .database import Base
     for table in sorted(set(Base.metadata.tables) | {'alembic_version'}):
         relation = quote(schema) + '.' + quote(table)
-        allowed = ('SELECT',) if table == 'alembic_version' else (('SELECT','INSERT') if table in IMMUTABLE else ('SELECT','INSERT','UPDATE','DELETE'))
+        allowed = ('SELECT',) if table in ('alembic_version','valmet_owners') else (('SELECT','INSERT') if table in IMMUTABLE else ('SELECT','INSERT','UPDATE','DELETE'))
+        if table=='valmet_owners' and connection.scalar(text("SELECT has_table_privilege(:r,:t,'INSERT')"),{'r':role,'t':relation}):
+            raise ValueError('Ativação Valmet exige manutenção; runtime apenas pode consultar.')
         for privilege in ('TRIGGER','REFERENCES','TRUNCATE','MAINTAIN', *(p+' WITH GRANT OPTION' for p in allowed)):
             if connection.scalar(text('SELECT has_table_privilege(:r,:t,:p)'), {'r':role,'t':relation,'p':privilege}):
                 raise ValueError('Conta web tem privilégios adicionais de DDL, manutenção ou delegação.')
@@ -78,7 +81,7 @@ def grant_runtime(connection, role, apply=False):
                   f'REVOKE ALL ON ALL TABLES IN SCHEMA {q(schema)} FROM {q(role)}',
                   f'REVOKE ALL ON ALL SEQUENCES IN SCHEMA {q(schema)} FROM {q(role)}']
     for name in sorted(Base.metadata.tables):
-        permissions = 'SELECT, INSERT' if name in IMMUTABLE else 'SELECT, INSERT, UPDATE, DELETE'
+        permissions = 'SELECT' if name=='valmet_owners' else ('SELECT, INSERT' if name in IMMUTABLE else 'SELECT, INSERT, UPDATE, DELETE')
         statements.append(f'GRANT {permissions} ON {q(schema)}.{q(name)} TO {q(role)}')
     statements += [f'GRANT SELECT ON {q(schema)}.alembic_version TO {q(role)}',
                    f'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA {q(schema)} TO {q(role)}']

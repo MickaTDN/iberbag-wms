@@ -106,7 +106,7 @@ def test_office_navigation_context_roles_csrf(warehouse,monkeypatch):
         assert client.get('/settings/locations').status_code==403
         client.cookies.set('ddn_context','2')
         page=client.get('/').text
-        assert 'Valmet' in page and 'Processo específico ainda não implementado' in page
+        assert 'Valmet' in page and 'href="/valmet/entries"' in page
         assert 'href="/receipts"' not in page
         assert client.post('/context',data={'selected_context':1,'context_id':2,'csrf':'invalid'}).status_code==403
         assert client.post('/receipts/review',data={'context_id':2,'csrf':'invalid'}).status_code==403

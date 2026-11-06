@@ -2,7 +2,7 @@
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from sqlalchemy import select, text, create_engine, String, Integer, DateTime, Boolean, BigInteger, LargeBinary, ForeignKey, CheckConstraint, UniqueConstraint, Index, Text, ForeignKeyConstraint, event, inspect as sa_inspect, PrimaryKeyConstraint
+from sqlalchemy import select, text, create_engine, String, Integer, DateTime, Boolean, BigInteger, LargeBinary, ForeignKey, CheckConstraint, UniqueConstraint, Index, Text, ForeignKeyConstraint, event, inspect as sa_inspect, PrimaryKeyConstraint, Numeric
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, relationship, Session, with_loader_criteria
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -557,6 +557,65 @@ class IncompleteComposition(Scoped, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
     __table_args__ = (CheckConstraint('physical_pallets = 1', name='composition_one_physical_pallet'),)
 
+
+class ValmetOwner(Base):
+    __tablename__ = 'valmet_owners'
+    client_id: Mapped[int] = mapped_column(ForeignKey('clients.id',deferrable=True,initially='DEFERRED'), primary_key=True)
+
+class ValmetEntry(Scoped, Base):
+    __tablename__ = 'valmet_entries'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    payload: Mapped[str] = mapped_column(Text, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default='draft')
+    created_by: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+    receipt_id: Mapped[int | None] = mapped_column(ForeignKey('receipts.id'), unique=True)
+    __table_args__ = (CheckConstraint("status IN ('draft','confirmed') AND version > 0 AND ((status='draft' AND receipt_id IS NULL) OR (status='confirmed' AND receipt_id IS NOT NULL))", name='valmet_entry_state'),)
+
+class ValmetUnit(Scoped, Base):
+    __tablename__ = 'valmet_units'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    entry_id: Mapped[int] = mapped_column(ForeignKey('valmet_entries.id'), nullable=False)
+    kind: Mapped[str] = mapped_column(String(30), nullable=False)
+    number: Mapped[str | None] = mapped_column(String(120))
+    legacy_unnumbered: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'), nullable=False)
+    physical_quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    local: Mapped[str | None] = mapped_column(String(120))
+    material_m2: Mapped[object | None] = mapped_column(Numeric(18,3))
+    content_total: Mapped[int | None] = mapped_column(Integer)
+    supplier: Mapped[str] = mapped_column(String(120), nullable=False)
+    guide: Mapped[str] = mapped_column(String(120), nullable=False)
+    notes: Mapped[str] = mapped_column(Text, nullable=False)
+    brand: Mapped[str | None] = mapped_column(String(40))
+    __table_args__ = (CheckConstraint('physical_quantity > 0 AND (content_total IS NULL OR content_total > 0) AND (material_m2 IS NULL OR material_m2 >= 0)', name='valmet_unit_quantities'),)
+
+class ValmetNumber(Base):
+    __tablename__ = 'valmet_numbers'
+    client_id: Mapped[int] = mapped_column(ForeignKey('clients.id'), primary_key=True)
+    number: Mapped[str] = mapped_column(String(120), primary_key=True)
+    unit_id: Mapped[int] = mapped_column(ForeignKey('valmet_units.id'), unique=True, nullable=False)
+
+class ValmetIdentification(Scoped, Base):
+    __tablename__ = 'valmet_identifications'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    unit_id: Mapped[int] = mapped_column(ForeignKey('valmet_units.id'), unique=True, nullable=False)
+    request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    actor: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+    content_total: Mapped[int | None] = mapped_column(Integer)
+    notes: Mapped[str] = mapped_column(Text, nullable=False)
+
+class ValmetItem(Scoped, Base):
+    __tablename__ = 'valmet_items'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    unit_id: Mapped[int] = mapped_column(ForeignKey('valmet_units.id'), nullable=False)
+    identification_id: Mapped[int | None] = mapped_column(ForeignKey('valmet_identifications.id'))
+    article: Mapped[str | None] = mapped_column(String(120))
+    lot: Mapped[str | None] = mapped_column(String(120))
+    quantity: Mapped[int | None] = mapped_column(Integer)
+    __table_args__ = (CheckConstraint('quantity IS NULL OR quantity > 0', name='valmet_item_quantity'),)
 
 # Every business key lives inside an immutable client/warehouse context. IDs stay
 # globally unique, preserving all historical references and archived documents.

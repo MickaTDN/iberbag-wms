@@ -47,6 +47,8 @@ def database(request: Request):
             raise HTTPException(409, str(error)) from error
         request.state.ddn_context = ident
         request.state.ddn_contexts = available(db)
+        from .database import ValmetOwner
+        request.state.office_valmet = db.get(ValmetOwner, owner.id) is not None
         yield db
 
 def identity(request: Request, db: Session, *, data=None, require_admin=False, operational=False):
@@ -95,7 +97,8 @@ def context(request, user, sess, **kwargs):
     active = next((row for row in getattr(request.state, 'ddn_contexts', [])
                    if row[0].id == getattr(request.state, 'ddn_context', 1)), None)
     return {'request': request, 'user': user, 'csrf': sess.csrf_token if sess else '',
-            'office_context': active, 'office_operations': bool(active and active[1].pallet_operations),
+            'office_context': active, 'office_operations': bool(active and active[1].pallet_operations and not getattr(request.state,'office_valmet',False)),
+            'office_valmet': getattr(request.state,'office_valmet',False),
             'active_context_id': getattr(request.state, 'ddn_context', 1),
             'ddn_contexts': getattr(request.state, 'ddn_contexts', []), **kwargs}
 
@@ -235,6 +238,7 @@ async def logout(request: Request, db: Session = Depends(database)):
 def dashboard(request: Request, db: Session = Depends(database)):
     user, sess = identity(request, db)
     if unauthorized(user): return redirect('/login')
+    if getattr(request.state,'office_valmet',False):return redirect('/valmet/stock')
     stats = db.execute(select(func.coalesce(func.sum(Stock.quantidade),0),func.count(func.distinct(Stock.artigo)),
                               func.count(func.distinct(Stock.lote)), func.count(func.distinct(Stock.local))).where(Stock.quantidade > 0)).first()
     occupied = db.execute(select(Stock.local, func.sum(Stock.quantidade)).where(Stock.quantidade > 0).group_by(Stock.local)).all()
@@ -251,6 +255,7 @@ def stock_page(request: Request, artigo: str='', lote: str='', local: str='', pa
                db: Session=Depends(database)):
     user, sess = identity(request, db)
     if unauthorized(user): return redirect('/login')
+    if getattr(request.state,'office_valmet',False):return redirect('/valmet/stock')
     page = max(1, min(page, 10000)); filters = {'artigo': artigo.strip()[:100], 'lote': lote.strip()[:100], 'local': local.strip()[:100]}
     query = select(Stock).where(Stock.quantidade > 0)
     count_query = select(func.count(), func.coalesce(func.sum(Stock.quantidade),0)).select_from(Stock).where(Stock.quantidade > 0)
@@ -323,6 +328,7 @@ def warehouse_map(request: Request, corredor: str='', andar: int=1,
     """
     user, sess = identity(request, db)
     if unauthorized(user): return redirect('/login')
+    if getattr(request.state,'office_valmet',False) and request.url.path=='/map':return redirect('/valmet/stock')
     corridors = db.scalars(select(Corridor).order_by(Corridor.codigo)).all()
     if not corridors:
         totals = db.execute(select(Stock.local, func.sum(Stock.quantidade)).where(
@@ -559,3 +565,5 @@ from .commercial_routes import router as commercial_router
 app.include_router(commercial_router)
 
 from . import context_routes  # noqa: E402,F401
+from .valmet_routes import router as valmet_router
+app.include_router(valmet_router)

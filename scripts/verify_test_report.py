@@ -65,6 +65,39 @@ REQUIRED_POSTGRES |= {
     'test_phase2a.test_prior_security_head_upgrades_without_rewriting_loads',
     'test_phase2a.test_restricted_runtime_numbers_but_cannot_rewrite_ledger',
 }
+REQUIRED_POSTGRES |= {
+    'test_valmet.test_valmet_composition_counts_physical_units_once',
+    'test_valmet.test_valmet_pending_identification_keeps_original_units_and_locations',
+    'test_valmet.test_valmet_m2_vasilhame_and_unknown_location',
+    'test_valmet.test_valmet_invalid_entries_rollback',
+    'test_valmet.test_valmet_ids_capacity_and_confirmations_are_concurrent_safe',
+    'test_valmet.test_valmet_owner_wide_manual_ids_and_context_isolation',
+    'test_valmet.test_valmet_backup_restore_and_upgrade_preserve_units',
+    'test_valmet.test_valmet_security_head_migration_and_recovery',
+    'test_valmet.test_valmet_http_roles_csrf_and_restricted_runtime',
+    'test_valmet.test_valmet_identification_race_and_audit',
+    'test_valmet.test_valmet_error_after_physical_insert_rolls_back',
+}
+REQUIRED_POSTGRES |= {
+    'test_valmet_corrections.test_normal_pallet_many_lots_one_physical_place',
+    'test_valmet_corrections.test_composition_limits_do_not_change_other_categories',
+    'test_valmet_corrections.test_pending_multilot_pallet_identified_without_new_stock',
+    'test_valmet_corrections.test_empty_boxes_lot_number_and_automatic_floor',
+    'test_valmet_corrections.test_empty_box_required_identity_not_bypassed_by_pending',
+    'test_valmet_corrections.test_unavailable_floor_rolls_back_entire_receipt',
+    'test_valmet_corrections.test_database_enforces_empty_floor_and_deferred_lot',
+    'test_valmet_corrections.test_old_draft_without_empty_box_lot_is_revalidated',
+    'test_valmet_corrections.test_empty_boxes_concurrent_repeated_number',
+    'test_valmet_corrections.test_corrected_boxes_http_permissions_and_search',
+    'test_valmet_corrections.test_upgrade_preserves_confirmed_old_boxes_and_verified_backup',
+}
+REQUIRED_POSTGRES |= {
+    'test_valmet_article.test_known_lot_without_article_available_by_category',
+    'test_valmet_article.test_incomplete_lot_stays_physical_and_completion_needs_no_fake_article',
+    'test_valmet_article.test_article_exception_does_not_relax_physical_identity_or_totals',
+    'test_valmet_article.test_unknown_article_http_authentication_and_csrf',
+    'test_valmet_article.test_article_migration_and_encrypted_recovery_preserve_history',
+}
 REQUIRED_WINDOWS = {
     'test_private_file_security.test_windows_refuses_permissive_backup_file',
     'test_private_file_security.test_windows_refuses_moved_permissive_file',

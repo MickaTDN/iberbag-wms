@@ -99,7 +99,9 @@ As escritas usam PostgreSQL 17/READ COMMITTED e o lock transacional existente;
 confirmar, ocupar e atribuir identidades é atómico/idempotente. Rollback integral
 em erro. Proteção CSRF, limite de corpo/tempo e revalidação das sessões mantêm-se.
 Livros e conteúdo confirmado são imutáveis; runtime só recebe SELECT/INSERT nesses
-registos. SQLite permite consulta/migração de ensaio, nunca operações Valmet.
+registos. O registo de ativação `valmet_owners` é só de leitura para runtime;
+nem concessões INSERT por PUBLIC são aceites. SQLite permite consulta/migração
+de ensaio, nunca operações Valmet.
 
 Ensaio fictício: configurar A2 com capacidade 3; receber ROLOS N.º Armazém TESTE-1
 com dois rolos L1 e três L1, e TESTE-2 com outro lote. Ocupação é duas paletes,

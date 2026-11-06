@@ -207,6 +207,10 @@ def test_valmet_http_roles_csrf_and_restricted_runtime(restricted_web):
         assert client.get(path).status_code==403
         assert client.post(path+'/confirm',data={'csrf':tokens['operador'][1],'context_id':2,'version':1}).status_code==409
     with runtime.begin() as conn,pytest.raises(DBAPIError):conn.execute(text('DELETE FROM valmet_numbers'))
+    with runtime.begin() as conn,pytest.raises(DBAPIError):conn.execute(text('INSERT INTO valmet_owners(client_id) VALUES(1)'))
+    from iberbag.privileges import validate_runtime
+    with owner.begin() as conn:conn.execute(text('GRANT INSERT ON valmet_owners TO PUBLIC'))
+    with runtime.connect() as conn,pytest.raises(ValueError,match='manutenção'):validate_runtime(conn)
 
 
 @pytest.mark.parametrize('kind',['fio','prateleiras','vazias'])

@@ -77,6 +77,7 @@ def test_valmet_pending_identification_keeps_original_units_and_locations(valmet
         assert sum(r[3] for r in v.stock(db)[0])==2
         v.identify(db,actor,ids[1],secrets.token_hex(16),[('C','L3','3')],notes='RESPOSTA FICTÍCIA: conferido H2')
         assert sum(r[3] for r in v.stock(db)[0])==5
+        assert v.stock(db,{'notes':'distribuição comprovada A2'})[1]==1
         assert [u.id for u in db.scalars(select(ValmetUnit).order_by(ValmetUnit.id))]==ids
         assert [u.local for u in db.scalars(select(ValmetUnit).order_by(ValmetUnit.id))]==locations
         assert db.scalar(select(func.count()).select_from(Receipt))==1

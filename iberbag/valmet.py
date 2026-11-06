@@ -176,9 +176,13 @@ def identify(db,actor,unit_id,key,items,total=None,notes=''):
 def stock(db,filters=None,page=1):
     filters=filters or {};query=select(ValmetUnit)
     if filters.get('entry_id') is not None:query=query.where(ValmetUnit.entry_id==filters['entry_id'])
-    for field,column in [('number',ValmetUnit.number),('kind',ValmetUnit.kind),('local',ValmetUnit.local),('guide',ValmetUnit.guide),('notes',ValmetUnit.notes)]:
+    for field,column in [('number',ValmetUnit.number),('kind',ValmetUnit.kind),('local',ValmetUnit.local),('guide',ValmetUnit.guide)]:
         term=filters.get(field,'').strip()
         if term:query=query.where(func.coalesce(column,'Por localizar').icontains(term,autoescape=True))
+    note=filters.get('notes','').strip()
+    if note:query=query.where(or_(ValmetUnit.notes.icontains(note,autoescape=True),
+        select(ValmetIdentification.id).where(ValmetIdentification.unit_id==ValmetUnit.id,
+            ValmetIdentification.notes.icontains(note,autoescape=True)).exists()))
     composition_filters=[]
     for field,column in [('article',ValmetItem.article),('lot',ValmetItem.lot)]:
         term=filters.get(field,'').strip()

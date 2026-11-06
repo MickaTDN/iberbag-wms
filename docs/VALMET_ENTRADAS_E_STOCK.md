@@ -68,7 +68,8 @@ agrupado legado no mesmo contexto. Várias unidades cabem numa posição se a su
 capacidade configurada permitir. Ocupação bloqueia eliminação, renomeação,
 desativação ou redução de capacidade incompatível. Chão mantém-se ilimitado.
 
-Pesquisa por artigo, lote, N.º Armazém, tipo, localização, guia e notas. Artigo/lote
+Pesquisa por artigo, lote, N.º Armazém, tipo, localização, guia e notas da receção
+ou da identificação posterior. Artigo/lote
 combinados correspondem à mesma linha de conteúdo. «VALMET 2» é só uma nota livre
 pesquisável; não cria cliente, carga ou armazém separado. A consulta mostra cada
 unidade com todos os seus lotes/quantidades, responsável e data de identificação.

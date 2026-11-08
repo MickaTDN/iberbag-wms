@@ -338,6 +338,8 @@ def test_control_pdf_archived_without_movements_backup_restores_all_contexts(val
         doc=c.issue_document(db,actor,ident,version,'differences');content=bytes(db.get(Document,doc).pdf)
         assert c.issue_document(db,actor,ident,version,'differences')==doc
         assert db.scalar(select(func.count()).select_from(Move))==1
+    pending=inventory(engine,actor)
+    pending_count=count(engine,actor,pending,f'P:{pid}',1,{'LOT':3})
     with engine.connect() as connection:expected=transfer.inventory(transfer.read_data(connection))
     folder=tmp_path/'control';target=pg_databases(restricted=True)
     backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
@@ -347,6 +349,8 @@ def test_control_pdf_archived_without_movements_backup_restores_all_contexts(val
         assert bytes(db.get(Document,doc).pdf)==content
         assert c.issue_document(db,actor,ident,version,'differences')==doc
         assert json.loads(db.get(Position,pid).materials)=={'LOT':4}
+    submit(target,actor,pending);approve(target,actor,pending,pending_count,proven=True)
+    with scoped(target,2) as db:assert json.loads(db.get(Position,pid).materials)=={'LOT':3}
 
 def test_control_http_runtime_csrf_roles_context_forms_and_document_isolation(restricted_web):
     app,owner,runtime,role,a,tokens=restricted_web;actor=a['admin'][0]

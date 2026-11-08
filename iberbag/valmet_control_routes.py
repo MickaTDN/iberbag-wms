@@ -115,9 +115,10 @@ def control_form(request:Request,position:int,kind:str,db=Depends(database)):
 
 @router.post('/valmet/controls/review')
 def review(request:Request,data:dict=Depends(receiving_form),db=Depends(database)):
+    user,sess=authorized(request,db,data)
     kind=data.get('kind')
     if kind not in ('transfer','adjustment'):raise HTTPException(400,'Operação inválida.')
-    user,sess=authorized(request,db,data,admin=kind=='adjustment')
+    if kind=='adjustment' and user.role!='admin':raise HTTPException(403,'Só Administrador pode ajustar stock.')
     try:
         args=(db,user.id,data.get('key'),integer(data.get('position')),data.get('target'),data.get('physical'))
         if kind=='transfer':ident=c.save_transfer(*args,data.get('lot'),data.get('reason'),data.get('evidence'),data.get('located')=='yes')

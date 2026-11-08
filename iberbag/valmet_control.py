@@ -89,16 +89,23 @@ def scope_data(mode,local='',kind='',lot='',number_filter=''):
 def targets(db,scope):
     rows=lookup(db,scope,empty=bool(scope['number']));result={}
     locations=db.scalars(select(Location).where(Location.active.is_(True)).order_by(Location.codigo)).all()
+    # Scope calculation runs for each saved count: batch composition/identity
+    # reads so a full inventory does not issue two queries per physical bucket.
+    unit_ids={u.id for z,u in rows};items=defaultdict(list)
+    if unit_ids:
+        for item in db.scalars(select(ValmetItem).where(ValmetItem.unit_id.in_(unit_ids),ValmetItem.identification_id.is_not(None))):items[item.unit_id].append(item)
+        identified=set(db.scalars(select(ValmetIdentification.unit_id).where(ValmetIdentification.unit_id.in_(unit_ids))))
+    else:identified=set()
     for z,u in rows:
-        current=json.loads(z.materials);keys=sorted(set(current)|set(known(db,u)))
+        original=p.materials_for(u,items[u.id]);current=json.loads(z.materials);keys=sorted(set(current)|set(original))
         if scope['lot']:
-            keys=[k for k in set(current)|set(known(db,u)) if scope['lot'].casefold() in k.casefold()]
+            keys=sorted(k for k in set(current)|set(original) if scope['lot'].casefold() in k.casefold())
         expected={k:current.get(k,None if z.uncertain else 0) for k in keys}
         physical=z.physical_quantity if individual(u) or not scope['lot'] else sum(q or 0 for q in expected.values())
         result[f'P:{z.id}']=dict(key=f'P:{z.id}',position=z.id,unit=u.id,kind=u.kind,number=u.number,local=z.local,
             physical=physical,materials=expected,partial=bool(scope['lot']),keys=keys,source=json.loads(z.materials),source_physical=z.physical_quantity,
             individual=individual(u),grouped=not individual(u),
-            blocked=z.uncertain or u.legacy_unnumbered,legacy=u.legacy_unnumbered,identified=db.scalar(select(ValmetIdentification.id).where(ValmetIdentification.unit_id==u.id)) is not None)
+            blocked=z.uncertain or u.legacy_unnumbered,legacy=u.legacy_unnumbered,identified=u.id in identified)
     if scope['mode']=='complete':places=[l.codigo for l in locations]
     elif scope['local']:places=[l.codigo for l in locations if scope['local'].casefold() in l.codigo.casefold()]
     else:places=sorted({z.local for z,u in rows if z.local is not None})
@@ -109,7 +116,8 @@ def targets(db,scope):
 
 def initial_reference(db,scope,ident):
     selected=targets(db,scope)
-    positions={str(t['position']):db.scalar(text('SELECT valmet_control_position_state(:pid,:ctx,:inv)'),dict(pid=t['position'],ctx=context_id(db),inv=ident)) for t in selected.values() if t['position']}
+    position_ids=[t['position'] for t in selected.values() if t['position']]
+    positions={str(pid):state for pid,state in db.execute(text('SELECT id,valmet_control_position_state(id,:ctx,:inv) FROM valmet_positions WHERE context_id=:ctx AND id=ANY(:ids)'),dict(ctx=context_id(db),inv=ident,ids=position_ids))} if position_ids else {}
     catalog={l.codigo:dict(id=l.id,context_id=l.context_id,codigo=l.codigo,capacidade=l.capacidade,active=l.active) for l in db.scalars(select(Location))}
     return dict(targets=selected,positions=positions,catalogues=catalog)
 
@@ -388,6 +396,7 @@ def issue_document(db,actor,ident,version,kind):
     if existing:return existing.id
     if record.version!=version:raise ReceivingError('Revisão desatualizada; consultar documento já arquivado ou gerar a revisão atual.')
     snapshot=dict(scope=json.loads(record.scope),status=record.status,actor=actor.username,rows=inventory_summary(db,record))
+    if sum(1+len(row['target'].get('materials') or {}) for row in snapshot['rows'])>25000:raise ReceivingError('Documento demasiado extenso; usar folhas de inventários parciais. O inventário continua guardado.')
     created=now_utc();pdf=render_pdf(ident,version,kind,snapshot,created)
     doc=Document(inventory_id=ident,version=version,kind=kind,snapshot=p.dump(snapshot),pdf=pdf,digest=sha256(pdf).hexdigest(),actor=actor.username,created_at=created)
     db.add(doc);db.flush();journal(db,actor,'DOCUMENTO',dict(document=doc.id,inventory=ident,version=version,digest=doc.digest));return doc.id

@@ -5,7 +5,7 @@ from sqlalchemy import select
 from .app import database,render,context,redirect
 from .receiving_routes import receiving_form,failure,integer
 from .valmet_routes import access
-from .database import ValmetPreparation as Prep,ValmetPlanRevision as Rev,ValmetUnit
+from .database import (ValmetPreparation as Prep,ValmetPlanRevision as Rev,ValmetUnit,ValmetPosition,ValmetOccurrence,ValmetDocument)
 from . import valmet as v,valmet_planning as p
 
 router=APIRouter()
@@ -55,11 +55,18 @@ def detail(ident:int,request:Request,candidate_number:str='',candidate_local:str
         if candidate_number.casefold() in (u['number'] or '').casefold()
         and candidate_local.casefold() in (u['local'] or 'Por localizar').casefold()]
     candidates=[u for u in candidates if u['available']]
+    from . import valmet_shipping as shipping,valmet_balances as balances
+    loads=shipping.shipments(db,ident)
+    occurrences=db.scalars(select(ValmetOccurrence).where(ValmetOccurrence.preparation_id==ident).order_by(ValmetOccurrence.id)).all()
+    documents=db.scalars(select(ValmetDocument).where(ValmetDocument.preparation_id==ident).order_by(ValmetDocument.id)).all()
+    seen={s['unit'].get('origin_id',s['unit']['id']) for r in revisions if r.action=='reserve' for s in json.loads(r.snapshot)['selections']}
+    positions=[balances.view(z,u) for z,u in db.execute(select(ValmetPosition,ValmetUnit).join(ValmetUnit,ValmetUnit.id==ValmetPosition.unit_id).where(ValmetUnit.id.in_(seen),ValmetPosition.physical_quantity>0))]
     return render(request,'valmet_preparation.html',context(request,user,sess,record=record,data=data,
         plan=json.loads(record.review) if record.review else None,revisions=revisions,previous=previous,
         candidates=candidates,candidate_number=candidate_number,candidate_local=candidate_local,
         candidate_count=sum(len(u['available']) for u in candidates),kinds=v.KINDS,review_key=p.review_key(record),
-        active_plan=json.loads(db.get(Rev,record.active_revision).snapshot) if record.active_revision else None))
+        active_plan=json.loads(db.get(Rev,record.active_revision).snapshot) if record.active_revision else None,
+        loads=loads,occurrences=occurrences,documents=documents,document_versions={d.id:db.get(Rev,d.revision_id).version for d in documents},positions=positions,shipping_key=secrets.token_hex(16)))
 
 @router.post('/valmet/preparations/{ident}/review')
 def review(ident:int,request:Request,data:dict=Depends(receiving_form),db=Depends(database)):

@@ -1,0 +1,9 @@
+{% extends 'base.html' %}{% block content %}<h1>Valmet — Expedição {{ record.id }}</h1>
+<p>Encomenda {{ snapshot.reference }} · <a href="/valmet/preparations/{{ record.preparation_id }}">Preparação {{ record.preparation_id }}</a> · Data efetiva {{ record.loaded_on.date() }} · {{ record.actor }} · {{ record.created_at }}</p>
+<p>GT/CMR: {{ references|join(' · ') }}. Movimento confirmado imutável. Esta consulta/reimpressão não movimenta stock.</p>
+<table><tr><th>Categoria / N.º Armazém</th><th>Localização de origem / constatada</th><th>Material expedido</th><th>Unidades físicas descontadas</th></tr>{% for row in snapshot.selections %}<tr><td>{{ kinds[row.unit.kind] }} · {{ row.unit.number or 'Grupo quantitativo' }}</td><td>{{ row.unit.local or 'Por localizar' }} / {{ row.observed_local or 'Por localizar' }}</td><td>{% for lot,q in row.materials.items() %}{{ lot }}: {{ q }}<br>{% endfor %}</td><td>{{ row.out_physical }}</td></tr>{% endfor %}</table>
+<h2>Resumo efetivo arquivado na expedição</h2><p>Valores acumulados desta preparação até este carregamento, comparados com o pedido original; versões posteriores não alteram este resumo. Para imprimir, usar Imprimir / Ctrl+P do navegador; o texto pode ser selecionado e copiado.</p>
+<h3>Material não enviado</h3>{% for line in snapshot.actual.shortages %}<p>{{ kinds[line.kind] }} · {{ line.lot }} · {{ line.quantity }}</p>{% else %}<p>Sem faltas.</p>{% endfor %}
+<h3>Material enviado a mais</h3>{% for line in snapshot.actual.extras %}<p>{{ kinds[line.kind] }} · {{ line.lot }} · {{ line.quantity }}</p>{% else %}<p>Sem excesso.</p>{% endfor %}
+{% for line in snapshot.actual.extra_units %}<p>Unidade {{ line.number or line.unit }} · {{ line.lot }} · {{ line.quantity }} adicional.</p>{% endfor %}
+<details><summary>Pedido original e resumo auditável para copiar</summary><pre>{{ record.snapshot }}</pre></details>{% endblock %}

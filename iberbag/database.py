@@ -628,7 +628,7 @@ class ValmetPreparation(Scoped, Base):
     active_revision: Mapped[int | None]=mapped_column(Integer)
     created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
     created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
-    __table_args__=(CheckConstraint("status IN ('draft','reserved','cancelled') AND version>0",name='valmet_preparation_status'),
+    __table_args__=(CheckConstraint("status IN ('draft','reserved','ready','shipped','cancelled') AND version>0",name='valmet_preparation_status'),
         Index('ix_valmet_preparations_active','context_id','active_revision'))
 
 class ValmetPlanRevision(Scoped, Base):
@@ -666,6 +666,83 @@ class ValmetHandling(Scoped, Base):
     created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
     __table_args__=(CheckConstraint("separation IN ('yes','no','unknown')",name='valmet_separation'),
         Index('ix_valmet_handling_unit','context_id','unit_id','id'))
+
+class ValmetPosition(Scoped, Base):
+    """Rebuildable projection; only ledger triggers may write it. No new pallet ID."""
+    __tablename__='valmet_positions'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    unit_id: Mapped[int]=mapped_column(ForeignKey('valmet_units.id'),nullable=False)
+    root: Mapped[bool]=mapped_column(Boolean,nullable=False,default=False)
+    local: Mapped[str | None]=mapped_column(String(120))
+    physical_quantity: Mapped[int]=mapped_column(Integer,nullable=False)
+    materials: Mapped[str]=mapped_column(Text,nullable=False)
+    uncertain: Mapped[bool]=mapped_column(Boolean,nullable=False,default=False)
+    __table_args__=(CheckConstraint('physical_quantity>=0',name='valmet_position_nonnegative'),
+        UniqueConstraint('unit_id','local',name='uq_valmet_positions_local'),Index('ix_valmet_positions_unit','context_id','unit_id'),
+        Index('uq_valmet_positions_root','context_id','unit_id',unique=True,postgresql_where=text('root'),sqlite_where=text('root')))
+
+class ValmetShipment(Scoped, Base):
+    __tablename__='valmet_shipments'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    preparation_id: Mapped[int]=mapped_column(ForeignKey('valmet_preparations.id'),nullable=False)
+    revision_id: Mapped[int]=mapped_column(ForeignKey('valmet_plan_revisions.id'),nullable=False)
+    request_key: Mapped[str]=mapped_column(String(64),nullable=False,unique=True)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    loaded_on: Mapped[datetime]=mapped_column(DateTime,nullable=False)
+    references: Mapped[str]=mapped_column(Text,nullable=False)
+    snapshot: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
+
+class ValmetShipmentLine(Scoped, Base):
+    __tablename__='valmet_shipment_lines'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    shipment_id: Mapped[int]=mapped_column(ForeignKey('valmet_shipments.id'),nullable=False)
+    reservation_id: Mapped[int]=mapped_column(ForeignKey('valmet_reservations.id'),nullable=False)
+    position_id: Mapped[int]=mapped_column(ForeignKey('valmet_positions.id'),nullable=False)
+    physical_quantity: Mapped[int]=mapped_column(Integer,nullable=False)
+    materials: Mapped[str]=mapped_column(Text,nullable=False)
+    unknown_ack: Mapped[bool]=mapped_column(Boolean,nullable=False,default=False)
+    __table_args__=(CheckConstraint('physical_quantity>=0',name='valmet_shipment_nonnegative'),UniqueConstraint('shipment_id','position_id',name='uq_valmet_shipment_position'))
+
+class ValmetOccurrence(Scoped, Base):
+    __tablename__='valmet_occurrences'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    preparation_id: Mapped[int]=mapped_column(ForeignKey('valmet_preparations.id'),nullable=False)
+    unit_id: Mapped[int]=mapped_column(ForeignKey('valmet_units.id'),nullable=False)
+    version: Mapped[int]=mapped_column(Integer,nullable=False)
+    kind: Mapped[str]=mapped_column(String(30),nullable=False)
+    request_key: Mapped[str | None]=mapped_column(String(64),unique=True)
+    resolves_id: Mapped[int | None]=mapped_column(ForeignKey('valmet_occurrences.id'))
+    details: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
+    __table_args__=(UniqueConstraint('resolves_id',name='uq_valmet_occurrence_resolution'),)
+
+class ValmetRelocation(Scoped, Base):
+    __tablename__='valmet_relocations'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    preparation_id: Mapped[int]=mapped_column(ForeignKey('valmet_preparations.id'),nullable=False)
+    position_id: Mapped[int]=mapped_column(ForeignKey('valmet_positions.id'),nullable=False)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    target_local: Mapped[str]=mapped_column(String(120),nullable=False)
+    physical_quantity: Mapped[int]=mapped_column(Integer,nullable=False)
+    materials: Mapped[str]=mapped_column(Text,nullable=False)
+    note: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
+
+class ValmetDocument(Scoped, Base):
+    __tablename__='valmet_documents'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    preparation_id: Mapped[int]=mapped_column(ForeignKey('valmet_preparations.id'),nullable=False)
+    revision_id: Mapped[int]=mapped_column(ForeignKey('valmet_plan_revisions.id'),nullable=False)
+    pdf: Mapped[bytes]=mapped_column(LargeBinary,nullable=False)
+    digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
+    __table_args__=(UniqueConstraint('revision_id',name='uq_valmet_document_revision'),)
 
 # Every business key lives inside an immutable client/warehouse context. IDs stay
 # globally unique, preserving all historical references and archived documents.

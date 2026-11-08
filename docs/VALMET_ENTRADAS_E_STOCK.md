@@ -100,7 +100,7 @@ Na Fase 2B.2A, reservado/disponível passam a refletir reservas reais por unidad
 e composição: ver `VALMET_PREPARACOES_E_RESERVAS.md`. A confirmação da preparação
 não desconta stock físico. Material sem identificação suficiente continua
 indisponível; exceções históricas de vasilhame e caixas vazias exigem comprovação
-administrativa explícita. Saída definitiva ainda não implementada.
+administrativa explícita. Expedição e saldos atuais na Fase 2B.2B: ver `VALMET_RECOLHAS_E_EXPEDICOES.md`; o desconto físico ocorre só na confirmação final.
 
 ## Atualização, segurança e ensaio
 

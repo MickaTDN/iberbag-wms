@@ -56,9 +56,11 @@ def occupied(db, codes):
     rows=db.execute(select(Stock.local, func.sum(Stock.quantidade))
                       .where(Stock.local.in_(sorted(codes)), Stock.quantidade > 0)
                       .group_by(Stock.local)).all()
-    from .database import ValmetUnit
-    return rows+db.execute(select(ValmetUnit.local,func.sum(ValmetUnit.physical_quantity)).where(
-        ValmetUnit.local.in_(sorted(codes))).group_by(ValmetUnit.local)).all()
+    from sqlalchemy import inspect
+    from .database import ValmetPosition,ValmetUnit
+    model=ValmetPosition if inspect(db.connection()).has_table('valmet_positions') else ValmetUnit
+    return rows+db.execute(select(model.local,func.sum(model.physical_quantity)).where(
+        model.local.in_(sorted(codes)),model.physical_quantity>0).group_by(model.local)).all()
 
 def validate_location(db, code):
     code = (code or '').strip().upper()

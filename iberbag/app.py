@@ -569,3 +569,5 @@ from .valmet_routes import router as valmet_router
 app.include_router(valmet_router)
 from .valmet_planning_routes import router as valmet_planning_router
 app.include_router(valmet_planning_router)
+from .valmet_shipping_routes import router as valmet_shipping_router
+app.include_router(valmet_shipping_router)

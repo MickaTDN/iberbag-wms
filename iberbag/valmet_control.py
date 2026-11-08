@@ -373,7 +373,7 @@ def inventory_summary(db,record):
     selected=inventory_targets(db,record)
     for key,count in counts.items():
         if key not in selected:selected[key]=json.loads(count.payload)['target']
-    return [dict(target=t,count=json.loads(counts[key].payload) if key in counts else None,count_id=counts[key].id if key in counts else None,
+    return [dict(target=json.loads(counts[key].payload)['target'] if key in counts else t,count=json.loads(counts[key].payload) if key in counts else None,count_id=counts[key].id if key in counts else None,
         decisions=[dict(id=d.id,kind=d.kind,reason=d.reason,actor=d.actor,move=d.move_id) for d in decisions if key in counts and d.count_id==counts[key].id]) for key,t in selected.items()]
 
 @v.command

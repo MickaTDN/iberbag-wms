@@ -206,6 +206,9 @@ def test_control_inventory_stale_after_movements_partial_reconciliation_and_reco
     with pytest.raises(v.ReceivingError):approve(engine,actor,ident,ca,proven=True)
     approve(engine,actor,ident,cb,proven=True)
     fresh=count(engine,actor,ident,f'P:{first}',2,{'A':2},recount=True,evidence='Nova conferência após o movimento')
+    with scoped(engine,2) as db:
+        report=next(row for row in c.inventory_summary(db,db.get(Inventory,ident)) if row['target'].get('position')==first)
+        assert report['target']['materials']=={'A':4} and report['target']['physical']==4
     submit(engine,actor,ident);approve(engine,actor,ident,fresh,proven=True)
     assert physical(engine)==4
 

@@ -62,3 +62,5 @@ Procedimento manual já existente: parar aplicação, criar backup cifrado/auten
 7. Emitir/reimprimir PDFs; expedir e repor apenas material comprovado com a linha original; repetir confirmação não duplica saldo. Ensaiar backup/restauro com todos os novos livros.
 
 Sem importação Excel, geração/regularização automática de números históricos, criação de identidade por ajuste, anulação automática de saídas ou funções de outros clientes. A evidência é declaração humana auditada; o sistema não consegue comprovar fisicamente a mercadoria. SQLite recusa todas as operações Valmet; testes de consulta/PDF não certificam concorrência. Homologação física Windows 11/PostgreSQL nativo e validação no armazém continuam pendentes antes de produção.
+
+Consultas/âmbito operacional são limitados explicitamente a 10 000 posições; ultrapassar esse limite recusa a operação e pede filtros/reconciliação, nunca trunca silenciosamente o âmbito. Paginação de inventários completos acima desse limite exige evolução posterior antes dessa utilização.

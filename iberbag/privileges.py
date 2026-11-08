@@ -60,7 +60,7 @@ def validate_runtime(connection, role=None):
         relation = quote(schema) + '.' + quote(table)
         allowed = ('SELECT',) if table in READ_ONLY|{'alembic_version'} else (('SELECT','INSERT') if table in IMMUTABLE else ('SELECT','INSERT','UPDATE','DELETE'))
         if table in READ_ONLY and any(connection.scalar(text('SELECT has_table_privilege(:r,:t,:p)'),{'r':role,'t':relation,'p':privilege}) for privilege in ('INSERT','UPDATE','DELETE')):
-            raise ValueError('Ativação e projeção de saldos Valmet são só de leitura para runtime.')
+            raise ValueError('Ativação e projeção de saldos Valmet exigem manutenção; runtime apenas pode consultar.')
         for privilege in ('TRIGGER','REFERENCES','TRUNCATE','MAINTAIN', *(p+' WITH GRANT OPTION' for p in allowed)):
             if connection.scalar(text('SELECT has_table_privilege(:r,:t,:p)'), {'r':role,'t':relation,'p':privilege}):
                 raise ValueError('Conta web tem privilégios adicionais de DDL, manutenção ou delegação.')

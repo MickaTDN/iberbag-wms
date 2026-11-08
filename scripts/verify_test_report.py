@@ -153,6 +153,37 @@ REQUIRED_POSTGRES |= {
 REQUIRED_POSTGRES |= {
     'test_valmet_shipping.test_shipping_sqlite_refuses_every_operational_write',
 }
+REQUIRED_POSTGRES |= {
+    'test_valmet_control.test_control_partial_zero_unknown_revisions_and_counts_do_not_change_stock',
+    'test_valmet_control.test_control_complete_includes_floor_and_uncounted_locations_cannot_close',
+    'test_valmet_control.test_control_lot_scope_preserves_other_materials_and_partial_location_proof',
+    'test_valmet_control.test_control_category_counts_and_positive_or_content_corrections',
+    'test_valmet_control.test_control_unknown_material_found_elsewhere_stays_pending_without_fake_identity',
+    'test_valmet_control.test_control_lab_unknown_needs_explicit_complete_evidence_and_admin_clear',
+    'test_valmet_control.test_control_transfer_partial_groups_atomic_capacity_and_history',
+    'test_valmet_control.test_control_transfer_never_splits_individual_identity_even_separable_rolls',
+    'test_valmet_control.test_control_reserved_ready_and_unresolved_occurrences_block_transfers_and_adjustments',
+    'test_valmet_control.test_control_adjustment_admin_only_reason_identity_and_no_fictitious_lots',
+    'test_valmet_control.test_control_proven_shipment_compensation_never_duplicates_or_rewrites',
+    'test_valmet_control.test_control_inventory_stale_after_movements_partial_reconciliation_and_recount',
+    'test_valmet_control.test_control_parsers_keep_unknown_and_zero_separate_without_postgres',
+    'test_valmet_control.test_control_pdfs_keep_headers_unknowns_versions_and_physical_counts_on_sqlite',
+    'test_valmet_control.test_control_sqlite_rejects_all_operational_commands',
+    'test_valmet_control.test_control_capacity_floor_unknown_vasilhame_and_rollback',
+    'test_valmet_control.test_control_occurrences_require_explicit_resolution_and_no_silent_reservations',
+    'test_valmet_control.test_control_pending_identification_after_count_never_refills_original_stock',
+    'test_valmet_control.test_control_concurrent_confirmation_never_doubles_movements_or_capacity',
+    'test_valmet_control.test_control_simultaneous_inventories_reservation_aba_and_new_receipts',
+    'test_valmet_control.test_control_failure_after_projection_rolls_back_entire_command',
+    'test_valmet_control.test_control_pdf_archived_without_movements_backup_restores_all_contexts',
+    'test_valmet_control.test_control_http_runtime_csrf_roles_context_forms_and_document_isolation',
+    'test_valmet_control.test_control_runtime_guards_immutable_ledgers_and_definer_spoofing',
+    'test_valmet_control.test_control_migrate_ddn8_preserves_shipments_reservations_documents_and_positions',
+    'test_valmet_control.test_control_case_insensitive_lot_scope_and_multilot_pallet_counts_once',
+    'test_valmet_control.test_control_lab_unknown_and_legacy_empty_boxes_cannot_become_available_or_transfer',
+    'test_valmet_control.test_control_legacy_empty_box_identity_not_invented',
+    'test_valmet_control.test_control_multiple_shipment_compensations_bounded_and_reserved_returns_blocked',
+}
 REQUIRED_WINDOWS = {
     'test_private_file_security.test_windows_refuses_permissive_backup_file',
     'test_private_file_security.test_windows_refuses_moved_permissive_file',
@@ -165,6 +196,12 @@ REQUIRED_WINDOWS = {
 
 REQUIRED_WINDOWS.add('test_valmet_shipping.test_shipping_pdf_and_reference_rules_on_windows_sqlite_without_writes')
 REQUIRED_WINDOWS.add('test_valmet_shipping.test_shipping_sqlite_refuses_every_operational_write')
+
+REQUIRED_WINDOWS |= {
+    'test_valmet_control.test_control_parsers_keep_unknown_and_zero_separate_without_postgres',
+    'test_valmet_control.test_control_pdfs_keep_headers_unknowns_versions_and_physical_counts_on_sqlite',
+    'test_valmet_control.test_control_sqlite_rejects_all_operational_commands',
+}
 
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()

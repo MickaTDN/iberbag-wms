@@ -136,3 +136,5 @@ vista, planeamento até 10000 posições; peças até 128 caixas/50000 somas, de
 seleção manual explícita. Não há importação definitiva, inventários, transferências
 gerais ou compensações de saídas nesta PR. Homologação física Windows 11/PostgreSQL
 e aceitação no armazém continuam pendentes; a CI não as substitui.
+
+**Atualização Fase 2B.3:** inventários, transferências gerais e ajustes/compensações controladas estão descritos em [VALMET_INVENTARIOS_TRANSFERENCIAS_AJUSTES.md](VALMET_INVENTARIOS_TRANSFERENCIAS_AJUSTES.md). As limitações históricas acima referem-se à fase original; head atual `ddn_0009`, sem reescrever revisões anteriores.

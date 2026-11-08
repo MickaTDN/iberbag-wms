@@ -189,7 +189,7 @@ def test_existing_pr9_encrypted_archive_uses_original_authenticated_inventory(pg
         conn.execute(text("INSERT INTO stock(artigo,lote,carga,local,quantidade) VALUES ('ART','LOT','SYNTHETIC-LEGACY','A101',3)"))
     native = {}
     with source.connect() as conn:
-        for name in sorted(set(Base.metadata.tables)-transfer.CONTEXT_TABLES-transfer.PHYSICAL_TABLES-transfer.NUMBER_TABLES-transfer.VALMET_TABLES-transfer.PLANNING_TABLES-transfer.SHIPPING_TABLES):
+        for name in sorted(set(Base.metadata.tables)-transfer.CONTEXT_TABLES-transfer.PHYSICAL_TABLES-transfer.NUMBER_TABLES-transfer.VALMET_TABLES-transfer.PLANNING_TABLES-transfer.SHIPPING_TABLES-transfer.CONTROL_TABLES):
             table = Table(name, MetaData(), autoload_with=conn)
             native[name] = [dict(row) for row in conn.execute(select(table).order_by(*table.primary_key.columns)).mappings()]
     original_inventory = transfer.inventory(native)

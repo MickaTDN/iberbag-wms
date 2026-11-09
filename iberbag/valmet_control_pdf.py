@@ -29,6 +29,7 @@ def render_pdf(ident,version,kind,snapshot,created):
             before=expected.get(lot);actual=values.get(lot)
             diff=actual-before if actual is not None and before is not None else 'Por esclarecer'
             rows.append([p('Composição'),p((count or {}).get('observed') or target.get('local') or 'Por localizar'),p(lot),p(q(before)),p(q(actual) if count else 'Não contado'),p(diff)])
+        if count and count.get('roll_ids') is not None:rows.append([p('Rolos contados'),p(''),p(', '.join('R'+str(i) for i in count['roll_ids']) or 'Zero contado'),p(''),p(''),p('')])
         if count and count.get('evidence'):rows.append([p('Observação'),p(''),p(count['evidence']),p(''),p(''),p('')])
     table=LongTable(rows,colWidths=[39*mm,25*mm,42*mm,20*mm,20*mm,32*mm],repeatRows=1)
     table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),.3,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#e2e8f0')),('VALIGN',(0,0),(-1,-1),'TOP')]))

@@ -172,11 +172,11 @@ def project_count(target,baseline,physical,content,local):
     return dict(physical=total,materials=canonical(result),target=local)
 
 @v.command
-def save_count(db,actor,ident,version,key,target_key,kind,physical=None,content=None,observed=None,evidence='',recount=False):
+def save_count(db,actor,ident,version,key,target_key,kind,physical=None,content=None,observed=None,evidence='',recount=False,roll_ids=None):
     record=db.get(Inventory,ident)
     if not record:raise ReceivingError('Inventário inexistente.',404)
     key=request_key(key)
-    intent=dict(version=version,kind=kind,physical=number(physical,unknown=True),materials=materials(content,unknown=True),observed=v.optional(observed),evidence=v.optional(evidence,2000),recount=bool(recount))
+    intent=dict(version=version,kind=kind,physical=number(physical,unknown=True),materials=materials(content,unknown=True),observed=v.optional(observed),evidence=v.optional(evidence,2000),recount=bool(recount),roll_ids=roll_ids)
     existing=db.scalar(select(Count).where(Count.request_key==key))
     if existing:
         if existing.inventory_id!=ident or existing.target!=target_key or json.loads(existing.payload).get('request')!=intent:raise ReceivingError('Chave repetida para outra contagem/dados diferentes.')
@@ -209,8 +209,18 @@ def save_count(db,actor,ident,version,key,target_key,kind,physical=None,content=
         if target['kind']=='vasilhame' and physical is not None:
             brand=db.get(Unit,target['unit']).brand;content={brand:physical}
         after=project_count(target,ref,physical,content,loc)
+    if kind=='count' and target.get('kind')=='rolos':
+        if roll_ids is None:after=None
+        else:
+            from .valmet_rolls import present,material
+            if len(roll_ids)!=len(set(roll_ids)):raise ReceivingError('IDs repetidos na contagem.')
+            current={r['id']:r for r in present(db,target['unit'])}
+            if not set(roll_ids)<=current.keys():raise ReceivingError('Rolos desconhecidos/ausentes: registar ocorrência e reconciliar administrativamente.')
+            counted=material([current[i] for i in roll_ids])
+            other=[r for r in current.values() if target.get('partial') and r['lot'] not in target['keys']]
+            if canonical(content or {})!=counted or physical!=(1 if roll_ids or other else 0):raise ReceivingError('Contagem física/composição não corresponde aos IDs indicados.')
     complete=kind=='omit' or (kind=='count' and ((target['kind']=='location' and physical is not None) or (after is not None and all(q is not None for q in content.values()) and (physical==0 or target['identified'] and not target['legacy']))))
-    payload=dict(physical=physical,materials=content,observed=loc,evidence=v.optional(evidence,2000),complete=complete,after=after,target=target,recount=bool(recount),request=intent)
+    payload=dict(physical=physical,materials=content,observed=loc,evidence=v.optional(evidence,2000),complete=complete,after=after,target=target,recount=bool(recount),request=intent,roll_ids=roll_ids)
     record.version+=1;record.status='draft'
     count=Count(inventory_id=ident,target=target_key,request_key=key,version=record.version,kind=kind,payload=p.dump(payload),reference=p.dump(ref),actor=actor.username)
     db.add(count);db.flush();journal(db,actor,'CONTAGEM',dict(inventory=ident,count=count.id,version=record.version,payload=payload,reference=ref));return count.id
@@ -262,7 +272,7 @@ def validate_after(db,pos,unit,physical,content,proven):
     if unit.kind in ('caixas','vazias') or (unit.kind=='paletes' and unit.physical_quantity==1):
         if any(q!=physical for q in content.values()):raise ReceivingError('Uma unidade física multilote conta uma vez; indicar presença por lote.')
 
-def make_draft(db,actor,key,kind,posid,target,physical,content,reason,evidence,proven=False,clear=False,located=False,basis='count',lineids=(),resolves=(),inventory=None,count=None,baseline=None,ident=None,version=None,counted_keys=None,source_remaining=None,scope_keys=()):
+def make_draft(db,actor,key,kind,posid,target,physical,content,reason,evidence,proven=False,clear=False,located=False,basis='count',lineids=(),resolves=(),inventory=None,count=None,baseline=None,ident=None,version=None,counted_keys=None,source_remaining=None,scope_keys=(),roll_change=None):
     if kind=='adjustment':admin(actor)
     key=request_key(key);pos=db.get(Position,posid)
     if not pos:raise ReceivingError('Posição inexistente.',404)
@@ -288,6 +298,9 @@ def make_draft(db,actor,key,kind,posid,target,physical,content,reason,evidence,p
     payload=dict(target=target,physical=physical,materials=content,reason=reason,evidence=evidence,count_proven=bool(proven),uncertain=bool(uncertain),
         located_proof=bool(located),basis=basis,returns=returns,related_lines=list(sorted(set(lineids))),resolves=list(sorted(set(resolves))),counted_keys=counted_keys)
     payload.update(source_remaining=remaining,scope_keys=list(scope_keys))
+    if kind=='adjustment' and unit.kind=='rolos':
+        from .valmet_rolls import adjustment
+        payload['roll_change']=adjustment(db,pos,physical,content,roll_change)
     data=p.dump(payload);snapshot=baseline or reference(db,posid,target,inventory)
     existing=db.get(Draft,ident) if ident else db.scalar(select(Draft).where(Draft.request_key==key))
     if existing:
@@ -314,8 +327,8 @@ def save_transfer(db,actor,key,posid,target,physical,lot,reason,evidence,located
     return make_draft(db,actor,key,'transfer',posid,target,physical,content,reason,evidence,located=located,ident=ident,version=version)
 
 @v.command
-def save_adjustment(db,actor,key,posid,target,physical,content,reason,evidence,proven=False,clear=False,basis='count',lineids=(),resolves=(),ident=None,version=None):
-    return make_draft(db,actor,key,'adjustment',posid,target,physical,content,reason,evidence,proven,clear,basis=basis,lineids=lineids,resolves=resolves,ident=ident,version=version)
+def save_adjustment(db,actor,key,posid,target,physical,content,reason,evidence,proven=False,clear=False,basis='count',lineids=(),resolves=(),ident=None,version=None,roll_change=None):
+    return make_draft(db,actor,key,'adjustment',posid,target,physical,content,reason,evidence,proven,clear,basis=basis,lineids=lineids,resolves=resolves,ident=ident,version=version,roll_change=roll_change)
 
 def apply_draft(db,actor,record,version):
     permission(record,actor)
@@ -353,12 +366,16 @@ def decide(db,actor,ident,version,count_id,key,action,reason,evidence,proven=Fal
     if action=='approve':
         if count.kind!='count' or not data['complete']:raise ReceivingError('Contagem insuficiente: esclarecer identificação/quantidades ou resolver omissão explicitamente.')
         if data['target'].get('position'):
+            keep_ids=data.get('roll_ids')
+            if keep_ids is not None and data['target'].get('partial'):
+                from .valmet_rolls import present
+                keep_ids=sorted(set(keep_ids)|{r['id'] for r in present(db,data['target']['unit']) if r['lot'] not in data['target']['keys']})
             after=data['after'];before=json.loads(count.reference)
             if before!=reference(db,data['target']['position'],after['target'],ident):raise ReceivingError('Movimentos posteriores à referência; reconferir a parte afetada.')
             old=before['position']
             if after['physical']!=old['physical'] or canonical(after['materials'])!=old['materials'] or after['target']!=old['local'] or clear or resolves:
                 draftid=make_draft(db,actor,key,'adjustment',data['target']['position'],after['target'],after['physical'],after['materials'],reason,evidence,proven,clear,
-                    basis=basis,lineids=lineids,resolves=resolves,inventory=ident,count=count.id,baseline=before,counted_keys=list(data['materials'] or {}),source_remaining=after.get('source_remaining'),scope_keys=after.get('scope_keys',()))
+                    basis=basis,lineids=lineids,resolves=resolves,inventory=ident,count=count.id,baseline=before,counted_keys=list(data['materials'] or {}),source_remaining=after.get('source_remaining'),scope_keys=after.get('scope_keys',()),roll_change=dict(keep=keep_ids,restore=[],add=[]) if keep_ids is not None else None)
                 moveid=apply_draft(db,actor,db.get(Draft,draftid),1)
     decision=Decision(inventory_id=ident,count_id=count.id,move_id=moveid,request_key=key,kind=action,reason=reason+' · '+evidence,actor=actor.username)
     db.add(decision);db.flush();record.version+=1;journal(db,actor,'DECISAO',dict(inventory=ident,count=count.id,decision=decision.id,action=action,move=moveid));return decision.id

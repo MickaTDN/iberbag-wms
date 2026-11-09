@@ -236,6 +236,21 @@ REQUIRED_WINDOWS.add('test_valmet_preview.test_current_layout_xlsx_original_byte
 REQUIRED_POSTGRES.add('test_valmet_preview.test_invalid_roll_markings_still_block')
 REQUIRED_WINDOWS.add('test_valmet_preview.test_invalid_roll_markings_still_block')
 
+REQUIRED_POSTGRES |= {
+    'test_valmet_rolls.test_individual_rolls_select_bundles_and_release_last_pallet',
+    'test_valmet_rolls.test_mixed_multilot_reserves_disjoint_ids_and_never_splits_nondivisible_set',
+    'test_valmet_rolls.test_legacy_policy_never_creates_individual_identity_and_proof_is_required',
+    'test_valmet_rolls.test_rolls_concurrent_reservations_and_idempotent_shipments',
+    'test_valmet_rolls.test_rolls_partial_loading_explicit_ids_cancellation_and_rollback',
+    'test_valmet_rolls.test_rolls_inventory_zero_unknown_transfer_adjustment_and_returns',
+    'test_valmet_rolls.test_rolls_runtime_projection_immutable_permissions_context_and_archived_documents',
+    'test_valmet_rolls.test_rolls_backup_restore_preserves_ids_classes_holds_and_pdf',
+    'test_valmet_rolls.test_rolls_ddn9_upgrade_never_backfills_legacy_or_changes_pdfs',
+    'test_valmet_rolls.test_rolls_admin_historical_difference_reconciliation_and_no_fake_ids',
+    'test_valmet_rolls.test_rolls_parsers_and_sqlite_never_operate_without_postgres',
+}
+REQUIRED_WINDOWS.add('test_valmet_rolls.test_rolls_parsers_and_sqlite_never_operate_without_postgres')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

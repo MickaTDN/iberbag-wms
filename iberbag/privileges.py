@@ -10,8 +10,8 @@ IMMUTABLE = {'audit', 'dispatch_documents', 'receipt_documents', 'stock_adjustme
              'valmet_numbers', 'valmet_identifications', 'valmet_items',
              'valmet_plan_revisions','valmet_reservations','valmet_handling',
              'valmet_shipments','valmet_shipment_lines','valmet_occurrences','valmet_relocations','valmet_documents',
-             'valmet_counts','valmet_control_moves','valmet_inventory_decisions','valmet_control_documents'}
-READ_ONLY = {'valmet_owners','valmet_positions'}
+             'valmet_rolls','valmet_roll_events','valmet_counts','valmet_control_moves','valmet_inventory_decisions','valmet_control_documents'}
+READ_ONLY = {'valmet_owners','valmet_positions','valmet_rolls','valmet_roll_states'}
 
 
 def role_flags(connection, role):

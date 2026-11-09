@@ -23,6 +23,8 @@ def rows(data):
         if not data.get(prefix+'kind'):continue
         row={key:data.get(prefix+key,'') for key in ('kind','physical_quantity','number','local','material_m2','content_total','supplier','guide','notes','brand')}
         row['pending']=data.get(prefix+'pending')=='yes'
+        from .valmet_rolls import parse_lines
+        row['rolls']=parse_lines(data.get(prefix+'rolls',''))
         row['items']=items(data,prefix)
         result.append(row)
     return result

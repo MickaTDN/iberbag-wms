@@ -28,6 +28,11 @@ def render_pdf(ident,version,plan,created):
         for index,(lot,q) in enumerate(s['materials'].items()):
             rows.append([p(KINDS[u['kind']]),p(u['number'] or '—'),p(u['local'] or 'Por localizar'),p(f'{lot}: {q}'),p(s['physical'] if index==0 else '—')])
         totals[u['kind']]['physical']+=s['physical'];totals[u['kind']]['material']+=sum(s['materials'].values())
+    for selection in plan['selections']:
+        if selection.get('roll_ids'):
+            wanted=set(selection['roll_ids'])
+            for roll in selection['unit'].get('all_rolls',[]):
+                if roll['id'] in wanted:rows.append([p('Rolo R'+str(roll['id'])),p(selection['unit']['number']),p(selection['unit']['local']),p(roll['lot']),p('X' if roll['divisible'] else 'Conjunto não divisível')])
     table=LongTable(rows,colWidths=[35*mm,30*mm,25*mm,70*mm,18*mm],repeatRows=1)
     table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.3,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#e2e8f0')),('VALIGN',(0,0),(-1,-1),'TOP'),('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)]))
     content.extend([table,Spacer(1,5*mm),p('Recolher apenas o material indicado. Em ROLOS separáveis/LAB, físico envolvido não significa expedir a palete inteira.'),p('Resumo por categoria (sem somar lotes como unidades físicas):')])

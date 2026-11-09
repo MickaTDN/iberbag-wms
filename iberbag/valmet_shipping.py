@@ -48,6 +48,9 @@ def current(db,record):
         for lot,q in s['materials'].items():
             cap=fresh['available'].get(lot,0)
             if cap is not None and q>cap:raise ReceivingError('Reserva excede o material remanescente; rever.')
+        if 'roll_ids' in s:
+            from .valmet_rolls import selection
+            if selection(fresh,s['roll_ids'])['roll_ids']!=s['roll_ids']:raise ReceivingError('Identidades/conjunto mudaram; rever.')
         s['unit']=fresh
     return selections
 
@@ -193,12 +196,12 @@ def references(values):
     return clean
 
 @v.command
-def ship(db,actor,ident,version,key,day,refs,lines=None,close=False,extra_ack=False,unknown_ack=False,lab_pallets=()):
+def ship(db,actor,ident,version,key,day,refs,lines=None,close=False,extra_ack=False,unknown_ack=False,lab_pallets=(),roll_ids=None):
     record=db.get(Prep,ident);permission(record,actor);key=request_key(key)
     try:loaded=date.fromisoformat(day)
     except (ValueError,TypeError):raise ReceivingError('Data efetiva inválida.')
     refs=references(refs)
-    raw=p.dump(dict(version=version,day=day,refs=refs,lines=lines,close=bool(close),extra_ack=bool(extra_ack),unknown_ack=bool(unknown_ack),lab_pallets=list(lab_pallets)))
+    raw=p.dump(dict(version=version,day=day,refs=refs,lines=lines,close=bool(close),extra_ack=bool(extra_ack),unknown_ack=bool(unknown_ack),lab_pallets=list(lab_pallets),roll_ids=roll_ids))
     existing=db.scalar(select(Shipment).where(Shipment.request_key==key))
     if existing:
         if existing.preparation_id!=ident or existing.payload!=raw:raise ReceivingError('Chave repetida com dados diferentes.')
@@ -214,12 +217,22 @@ def ship(db,actor,ident,version,key,day,refs,lines=None,close=False,extra_ack=Fa
             if k not in selected or lot not in selected[k]['materials']:raise ReceivingError('Material fora da reserva.')
             q=quantity(q)
             amounts[k][lot]=amounts[k].get(lot,0)+q
+    if roll_ids is not None:
+        from .valmet_rolls import material
+        mapping={int(k):ids for k,ids in roll_ids.items()}
+        if not set(mapping)<=selected.keys():raise ReceivingError('IDs de carregamento fora da preparação.')
+        for k,sel in selected.items():
+            if 'roll_ids' in sel:
+                byid={r['id']:r for r in sel['unit']['all_rolls']};ids=mapping.get(k,[])
+                if not set(ids)<=set(sel['roll_ids']) or len(ids)!=len(set(ids)):raise ReceivingError('Rolos repetidos, não reservados ou de outra palete.')
+                amounts[k]=material([byid[i] for i in ids])
     outputs=[];remaining=[]
     for k,s in selected.items():
         chosen=amounts.get(k,{})
         if not chosen:remaining.append(s);continue
         if any(q>s['materials'][lot] for lot,q in chosen.items()):raise ReceivingError('Quantidade excede a reserva.')
         u=s['unit'];whole=u['kind'] in ('caixas','pecas','vazias') or (u['kind']=='paletes' and u['original_physical']==1) or (u['kind']=='rolos' and u['separation']!='yes')
+        if u['kind']=='rolos' and 'roll_ids' in s:whole=False
         if whole and chosen!=s['materials']:raise ReceivingError('A unidade indivisível tem de sair completa, com todos os lotes.')
         after={lot:(None if q is None else q-chosen.get(lot,0)) for lot,q in u['materials'].items()}
         after={lot:q for lot,q in after.items() if q is None or q>0}
@@ -237,9 +250,18 @@ def ship(db,actor,ident,version,key,day,refs,lines=None,close=False,extra_ack=Fa
                 if observed!=u['local'] and physical!=u['physical'] and proof.get('quantity')!=physical:
                     raise ReceivingError('Corrigir a localização efetiva do remanescente antes de expedir parcialmente esta unidade.')
                 break
-        outputs.append(dict(s,materials=chosen,out_physical=physical,observed_local=observed or u['local']))
+        sent_ids=None
+        if 'roll_ids' in s:
+            from .valmet_rolls import pick_shipment
+            sent_ids=pick_shipment(s,chosen,(roll_ids or {}).get(str(k),(roll_ids or {}).get(k)) if roll_ids is not None else None)
+        output=dict(s,materials=chosen,out_physical=physical,observed_local=observed or u['local'])
+        if sent_ids is not None:output['roll_ids']=sent_ids
+        outputs.append(output)
         left={lot:q-chosen.get(lot,0) for lot,q in s['materials'].items() if q>chosen.get(lot,0)}
-        if left and not uncontrolled:remaining.append(dict(s,materials=left,physical=1 if u['kind'] in ('rolos','lab') else sum(left.values())))
+        if left and not uncontrolled:
+            rem=dict(s,materials=left,physical=1 if u['kind'] in ('rolos','lab') else sum(left.values()))
+            if sent_ids is not None:rem['roll_ids']=[i for i in s['roll_ids'] if i not in sent_ids]
+            remaining.append(rem)
     if not outputs:raise ReceivingError('Carregamento sem material; nenhuma saída foi criada.')
     actual=summary(db,record,outputs)
     if actual['extras'] and not extra_ack:raise ReceivingError('Confirmar Material enviado a mais e lotes adicionais efetivamente carregados.')

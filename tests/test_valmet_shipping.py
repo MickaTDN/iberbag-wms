@@ -12,7 +12,7 @@ from iberbag import valmet as v,valmet_planning as p,valmet_shipping as s,backup
 from iberbag.database import (ValmetUnit,ValmetPosition,ValmetPreparation as Prep,ValmetReservation as Hold,
     ValmetPlanRevision as Rev,ValmetShipment as Shipment,ValmetShipmentLine as Line,ValmetOccurrence as Occurrence,
     ValmetDocument as Document,ValmetRelocation as Relocation,Location,Stock,CustomerPending)
-from test_valmet import valmet,row,entry
+from test_valmet import configure,valmet,row,entry
 from test_valmet_planning import draft,propose,confirm,units
 from test_receiving import warehouse
 from test_transfer import pg_databases,docker_client
@@ -94,7 +94,7 @@ def test_shipping_rolls_remainders_and_indivisibility(valmet,separation):
     engine,a=valmet;actor=a['admin'][0]
     entry(engine,actor,[row(items=[('','A','2'),('','B','3')])]);uid=units(engine)[0].id
     if separation!='unknown':
-        with scoped(engine,2) as db:p.configure(db,actor,uid,separation,note='Fictício comprovado')
+        with scoped(engine,2) as db:configure(db,actor,uid,separation,note='Fictício comprovado')
     ident=prepare(engine,actor,[('rolos','A','2')],extra=separation!='yes')
     if separation=='yes':
         send(engine,actor,ident,[(uid,'A','1')]);assert physical(engine)==1
@@ -479,7 +479,7 @@ def test_shipping_migrate_ddn7_preserves_old_legacy_box_reservations_but_blocks_
         db.add(u);db.flush();uid=u.id
         known=ValmetIdentification(unit_id=uid,request_key=secrets.token_hex(16),actor='admin',notes='Prova antiga');db.add(known);db.flush()
         db.add(ValmetItem(unit_id=uid,identification_id=known.id,lot='LEGACY'));db.commit()
-        p.configure(db,actor,uid,'unknown',reconciled=True,note='Contagem histórica comprovada')
+        configure(db,actor,uid,'unknown',reconciled=True,note='Contagem histórica comprovada')
         ident=p.save(db,actor,secrets.token_hex(16),'LEGACY','2027-01-01','D',[('vazias','LEGACY','5')])
         record=db.get(Prep,ident);actor_obj=db.get(User,actor)
         snap=dict(payload=json.loads(record.payload),selections=[dict(unit=dict(id=uid,kind='vazias',number=None,local='Chão'),physical=5,materials={'LEGACY':5},exclusive=False)])

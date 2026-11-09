@@ -144,3 +144,5 @@ Security. Só dados fictícios; homologação física Windows 11/PostgreSQL nati
 continua necessária antes de produção. Não fazer merge ou deploy automaticamente.
 
 **Atualização Fase 2B.3:** inventários, transferências gerais e ajustes/compensações controladas estão descritos em [VALMET_INVENTARIOS_TRANSFERENCIAS_AJUSTES.md](VALMET_INVENTARIOS_TRANSFERENCIAS_AJUSTES.md). As limitações históricas acima referem-se à fase original; head atual `ddn_0009`, sem reescrever revisões anteriores.
+
+**Fase 2B.4B:** a gestão operacional individual dos rolos, comprovação histórica e conjuntos não divisíveis estão descritos em [VALMET_ROLOS_INDIVIDUAIS.md](VALMET_ROLOS_INDIVIDUAIS.md). Substitui a política de divisibilidade por palete para novos fluxos, sem reescrever históricos. Head `ddn_0010`; importação definitiva continua pendente.

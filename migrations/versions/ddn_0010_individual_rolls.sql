@@ -68,7 +68,7 @@ DECLARE row record;uid integer;ids jsonb;
 BEGIN
  PERFORM pg_advisory_xact_lock(72834001);
  FOR row IN SELECT x FROM valmet_preparations prep JOIN valmet_plan_revisions rev ON rev.id=prep.active_revision AND rev.context_id=prep.context_id,
-   LATERAL jsonb_array_elements(rev.snapshot::jsonb->'selections') x WHERE prep.context_id=NEW.context_id AND prep.status IN ('reserved','ready') AND x->'unit'->>'kind'='rolos' LOOP
+   LATERAL jsonb_array_elements(rev.snapshot::jsonb->'selections') x WHERE prep.context_id=NEW.context_id AND prep.id=NEW.id AND prep.status IN ('reserved','ready') AND x->'unit'->>'kind'='rolos' LOOP
    uid=(row.x->'unit'->>'origin_id')::integer;ids=row.x->'roll_ids';
    IF ids IS NULL OR jsonb_array_length(ids)=0 OR NOT valmet_roll_ids_valid(uid,NEW.context_id,ids) OR NOT valmet_roll_bundle(uid,NEW.context_id,ids)
       OR valmet_roll_materials(uid,NEW.context_id,ids) IS DISTINCT FROM row.x->'materials' THEN RAISE EXCEPTION 'Roll identity/bundle reservation invalid or legacy classification unknown'; END IF;

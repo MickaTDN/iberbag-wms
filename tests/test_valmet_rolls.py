@@ -213,6 +213,8 @@ def test_rolls_ddn9_upgrade_never_backfills_legacy_or_changes_pdfs(pg_databases,
         legacy=p.save(db,actor,secrets.token_hex(16),'ANTIGA','2027-01-01','D',[('rolos','LOT',1)])
         p.review(db,actor,legacy,1);p.confirm(db,actor,legacy,1)
         s.issue_document(db,actor,legacy,1)
+        another=p.save(db,actor,secrets.token_hex(16),'OUTRA ANTIGA','2027-01-01','D',[('rolos','LOT',1)])
+        p.review(db,actor,another,1);p.confirm(db,actor,another,1)
     with engine.connect() as conn:before=transfer.inventory(transfer.read_data(conn))
     folder=tmp_path/'ddn9';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD);backup.restore(target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
     assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0010'
@@ -222,6 +224,9 @@ def test_rolls_ddn9_upgrade_never_backfills_legacy_or_changes_pdfs(pg_databases,
         with pytest.raises(v.ReceivingError):s.ready(db,actor,legacy,1)
         with pytest.raises(v.ReceivingError):r.reconcile(db,actor,1,secrets.token_hex(16),[dict(article=None,lot='LOT',divisible=True)]*5,'Prova','Reservas antigas ainda ativas')
         p.cancel(db,actor,legacy,1,'Libertar reserva histórica sem saída')
+        assert len(p.active(db))==1
+        with pytest.raises(v.ReceivingError):r.reconcile(db,actor,1,secrets.token_hex(16),[dict(article=None,lot='LOT',divisible=True)]*5,'Prova','Ainda existe outra reserva histórica')
+        p.cancel(db,actor,another,1,'Libertar segunda reserva preservando histórico')
         r.reconcile(db,actor,1,secrets.token_hex(16),[dict(article=None,lot='LOT',divisible=True)]*5,'Reconciliação','Cada rolo remanescente foi conferido individualmente')
         assert len(r.present(db,1))==5
 

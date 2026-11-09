@@ -144,7 +144,15 @@ def analyze(path,context_id,snapshot=None):
     with ZipFile(path) as archive:
         validate_archive(archive)
         for name,target in _sheet_paths(archive).items():
-            if key(name) in {key(s) for s in SHEETS} and ET.fromstring(archive.read(target),forbid_dtd=True).find('.//x:f',N) is not None:raise ValueError('Fórmulas exigem revisão; pré-visualização recusada.')
+            if key(name) not in {key(s) for s in SHEETS}:continue
+            depth=0
+            with archive.open(target) as stream:
+                for event,node in ET.iterparse(stream,events=('start','end'),forbid_dtd=True):
+                    if event=='start':
+                        depth+=1
+                        if depth>64:raise ValueError('Excel: XML demasiado profundo.')
+                        if node.tag=='{'+N['x']+'}f':raise ValueError('Fórmulas exigem revisão; pré-visualização recusada.')
+                    else:depth-=1;node.clear()
         names=[name for name in _sheet_paths(archive) if key(name) in {key(s) for s in SHEETS}]
     result=analyze_rows(workbook_rows(path,tuple(names)),context_id,snapshot)
     with path.open('rb') as stream:after=stream.read(MAX_FILE+1)

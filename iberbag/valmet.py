@@ -102,7 +102,11 @@ def payload(received_on,code,rows):
                 actual={}
                 for a,l,q in items:actual[l]=actual.get(l,0)+quantity(q)
                 if actual!=expected:raise ReceivingError('Composição agregada diverge dos rolos individuais.')
-            else:items=[(r['article'],r['lot'],1) for r in roll_rows]
+            else:
+                counts={}
+                for r in roll_rows:
+                    pair=(r['article'],r['lot']);counts[pair]=counts.get(pair,0)+1
+                items=[(a,l,q) for (a,l),q in counts.items()]
             if total is not None and total!=len(roll_rows):raise ReceivingError('Total de rolos diverge das identidades.')
             total=len(roll_rows);pending=False
         if kind=='vazias':
@@ -231,9 +235,20 @@ def stock(db,filters=None,page=1):
             from sqlalchemy import cast
             from sqlalchemy.dialects.postgresql import JSONB
             composition_filters.append(or_(ValmetUnit.kind=='vasilhame',ValmetItem.identification_id.is_(None),cast(ValmetPosition.materials,JSONB).op('?')(ValmetItem.lot)))
-        query=query.where(select(ValmetItem.id).where(ValmetItem.unit_id==ValmetUnit.id,
+        legacy=select(ValmetItem.id).where(ValmetItem.unit_id==ValmetUnit.id,
             *composition_filters,or_(ValmetItem.identification_id.is_not(None),
-            ~select(ValmetIdentification.id).where(ValmetIdentification.unit_id==ValmetUnit.id).correlate(ValmetUnit).exists())).exists())
+            ~select(ValmetIdentification.id).where(ValmetIdentification.unit_id==ValmetUnit.id).correlate(ValmetUnit).exists())).exists()
+        from sqlalchemy import inspect
+        if inspect(db.bind).has_table('valmet_rolls'):
+            from .database import ValmetRoll,ValmetRollState
+            terms=[]
+            for field,col in [('article',ValmetRoll.article),('lot',ValmetRoll.lot)]:
+                term=filters.get(field,'').strip()
+                if term:terms.append(col.icontains(term,autoescape=True))
+            registered=select(ValmetRoll.id).where(ValmetRoll.unit_id==ValmetUnit.id).exists()
+            current=select(ValmetRoll.id).join(ValmetRollState,ValmetRollState.id==ValmetRoll.id).where(ValmetRoll.unit_id==ValmetUnit.id,ValmetRollState.present.is_(True),*terms).exists()
+            query=query.where(or_(and_(ValmetUnit.kind=='rolos',registered,current),and_(or_(ValmetUnit.kind!='rolos',~registered),legacy)))
+        else:query=query.where(legacy)
     count=db.scalar(select(func.count()).select_from(query.subquery()))
     units=db.execute(query.order_by(ValmetUnit.id,ValmetPosition.id).offset((page-1)*100).limit(100)).all()
     from .valmet_planning import reserved_physical,source

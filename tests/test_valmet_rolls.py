@@ -254,3 +254,16 @@ def test_rolls_parsers_and_sqlite_never_operate_without_postgres():
     with Session(create_engine('sqlite://')) as db:
         with pytest.raises(v.ReceivingError,match='PostgreSQL'):r.reconcile(db,1,1,secrets.token_hex(16),[],'','')
         with pytest.raises(v.ReceivingError,match='PostgreSQL'):r.classify(db,1,1,secrets.token_hex(16),{},'','')
+
+
+def test_rolls_stock_article_search_uses_remaining_identities_not_original_totals(valmet):
+    engine,a=valmet;actor=a['admin'][0]
+    entry(engine,actor,[row('rolos','ARTICLES',content_total=2,items=[],rolls=[dict(article='ART-A',lot='L',divisible=True),dict(article='ART-B',lot='L',divisible=True)])])
+    with scoped(engine,2) as db:
+        ids=[x['id'] for x in r.present(db,1)]
+        assert v.stock(db,{'article':'ART-A','lot':'L'})[1]==1
+    order=reserve(engine,actor,[('rolos','L','1')],ids=[ids[0]]);send(engine,actor,order)
+    with scoped(engine,2) as db:
+        assert v.stock(db,{'article':'ART-A','lot':'L'})[1]==0
+        assert v.stock(db,{'article':'ART-B','lot':'L'})[1]==1
+        assert p.source(db)[0]['articles']=={'L':['ART-B']}

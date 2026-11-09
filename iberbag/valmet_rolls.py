@@ -11,7 +11,7 @@ def clean_rows(rows):
     if not isinstance(rows,list) or not 1<=len(rows)<=500:raise ReceivingError('Indicar 1–500 rolos individuais comprovados.')
     clean=[]
     for row in rows:
-        if not isinstance(row,dict) or not isinstance(row.get('divisible'),bool):raise ReceivingError('Cada rolo exige classificação individual X / Não divisível comprovada.')
+        if not isinstance(row,dict) or set(row)-{'article','lot','divisible'} or not isinstance(row.get('divisible'),bool) or not isinstance(row.get('lot'),str) or (row.get('article') is not None and not isinstance(row.get('article'),str)):raise ReceivingError('Cada rolo exige classificação individual X / Não divisível comprovada.')
         clean.append(dict(article=v.optional(row.get('article')) or None,lot=v.required(row.get('lot'),'Lote'),divisible=row['divisible']))
     return clean
 

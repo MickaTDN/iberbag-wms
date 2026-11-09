@@ -112,6 +112,11 @@ def source(db,exclude=None,unit_ids=None):
                 result.pop();continue
             used_ids={rid for h in holds[pos.id] for rid in h.get('roll_ids',[])}
             free=[r for r in all_rows if r['id'] not in used_ids]
+            articles=defaultdict(set)
+            for roll in all_rows:
+                if roll['article']:articles[roll['lot']].add(roll['article'])
+            result[-1]['articles']={lot:sorted(values) for lot,values in articles.items()}
+            result[-1]['composition']=[dict(article=' / '.join(sorted(articles[lot])) or None,lot=lot,quantity=q) for lot,q in materials.items()]
             result[-1].update(all_rolls=all_rows,rolls=free,roll_version=rolls.event_version(db,u.id),available={lot:rolls.material(free).get(lot,0) for lot in materials})
     return result
 

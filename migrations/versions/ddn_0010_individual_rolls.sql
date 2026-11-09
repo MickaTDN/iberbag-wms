@@ -100,7 +100,7 @@ END $$;
 CREATE TRIGGER valmet_roll_line AFTER INSERT ON valmet_shipment_lines FOR EACH ROW EXECUTE FUNCTION valmet_roll_line_apply();
 
 CREATE FUNCTION valmet_roll_control_apply() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=__WMS_SCHEMA__,pg_catalog,pg_temp AS $$
-DECLARE d record;u record;data jsonb;keep jsonb;restore jsonb;oldids jsonb;rid integer;
+DECLARE d record;u record;data jsonb;keep jsonb;restore jsonb;oldids jsonb;rid integer;last_loss timestamp;last_ship timestamp;
 BEGIN
  IF TG_RELID<>'valmet_control_moves'::regclass OR TG_OP<>'INSERT' OR TG_WHEN<>'AFTER' THEN RAISE EXCEPTION 'Invalid roll control trigger'; END IF;
  SELECT draft.*,z.unit_id INTO d FROM valmet_control_drafts draft JOIN valmet_positions z ON z.id=draft.position_id AND z.context_id=draft.context_id WHERE draft.id=NEW.draft_id AND draft.context_id=NEW.context_id;
@@ -109,7 +109,19 @@ BEGIN
  data=d.payload::jsonb;keep=data->'roll_change'->'keep';restore=COALESCE(data->'roll_change'->'restore','[]'::jsonb);
  IF keep IS NULL OR NOT valmet_roll_ids_valid(u.id,NEW.context_id,keep) OR NOT valmet_roll_ids_valid(u.id,NEW.context_id,restore,false)
    OR EXISTS(SELECT 1 FROM valmet_active_allocations() a WHERE a.ctx=NEW.context_id AND a.unit=u.id) THEN RAISE EXCEPTION 'Explicit proven roll identities required for adjustment'; END IF;
+ IF EXISTS(SELECT 1 FROM valmet_rolls WHERE unit_id=u.id AND context_id=NEW.context_id) AND NOT EXISTS(SELECT 1 FROM valmet_roll_states WHERE unit_id=u.id AND context_id=NEW.context_id AND present)
+     AND jsonb_array_length(COALESCE(data->'roll_change'->'add','[]'::jsonb))>0 THEN RAISE EXCEPTION 'Do not recreate absent individual identities'; END IF;
+ IF jsonb_array_length(COALESCE(data->'roll_change'->'add','[]'::jsonb))>0 AND (d.reference::jsonb->'position'->>'physical')::integer=0
+     AND EXISTS(SELECT 1 FROM valmet_shipment_lines l JOIN valmet_positions z ON z.id=l.position_id AND z.context_id=l.context_id WHERE z.unit_id=u.id AND z.context_id=NEW.context_id AND l.physical_quantity>0)
+     AND (data->>'basis'<>'return' OR jsonb_array_length(COALESCE(data->'returns','[]'::jsonb))=0) THEN RAISE EXCEPTION 'Historical shipment compensation reference required'; END IF;
+ SELECT COALESCE(jsonb_agg(id ORDER BY id),'[]'::jsonb) INTO oldids FROM valmet_roll_states WHERE unit_id=u.id AND context_id=NEW.context_id AND present AND NOT keep @> to_jsonb(ARRAY[id]);
+ IF oldids IS DISTINCT FROM data->'roll_change'->'removed' THEN RAISE EXCEPTION 'Stale individual adjustment reference'; END IF;
  FOR rid IN SELECT value::integer FROM jsonb_array_elements_text(restore) LOOP
+   SELECT max(m.created_at) INTO last_loss FROM valmet_control_moves m JOIN valmet_control_drafts prior ON prior.id=m.draft_id AND prior.context_id=m.context_id
+     WHERE m.context_id=NEW.context_id AND m.unit_id=u.id AND prior.payload::jsonb->'roll_change'->'removed' @> to_jsonb(ARRAY[rid]);
+   SELECT max(h.created_at) INTO last_ship FROM valmet_shipment_lines l JOIN valmet_shipments h ON h.id=l.shipment_id AND h.context_id=l.context_id,
+     LATERAL jsonb_array_elements(h.snapshot::jsonb->'selections') x WHERE l.context_id=NEW.context_id AND (x->'unit'->>'position_id')::integer=l.position_id AND x->'roll_ids' @> to_jsonb(ARRAY[rid]);
+   IF last_loss IS NOT NULL AND (last_ship IS NULL OR last_loss>last_ship) THEN CONTINUE; END IF;
    IF NOT EXISTS(SELECT 1 FROM valmet_shipment_lines l JOIN valmet_shipments h ON h.id=l.shipment_id AND h.context_id=l.context_id,
      LATERAL jsonb_array_elements(h.snapshot::jsonb->'selections') x,LATERAL jsonb_array_elements(COALESCE(data->'returns','[]'::jsonb)) claim
      WHERE l.context_id=NEW.context_id AND l.id=(claim->>'line')::integer AND (x->'unit'->>'position_id')::integer=l.position_id AND x->'roll_ids' @> to_jsonb(ARRAY[rid])

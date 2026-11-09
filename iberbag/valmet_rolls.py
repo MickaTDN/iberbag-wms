@@ -53,7 +53,7 @@ def reconcile(db,actor,uid,key,rows,reason,evidence):
     return register(db,actor,uid,key,rows,reason,evidence)
 
 @v.command
-def classify(db,actor,uid,key,flags,reason,evidence):
+def classify(db,actor,uid,key,flags,reason,evidence,expected_version=None):
     if actor.role!='admin':raise ReceivingError('Só Administrador pode corrigir classificações comprovadas.',403)
     if not isinstance(flags,dict) or not flags or any(not isinstance(value,bool) for value in flags.values()):raise ReceivingError('Classificação explícita por ID obrigatório.')
     current={r['id'] for r in present(db,uid)}
@@ -64,6 +64,7 @@ def classify(db,actor,uid,key,flags,reason,evidence):
     if existing:
         if existing.unit_id!=uid or existing.payload!=payload or existing.reason!=reason or existing.evidence!=evidence:raise ReceivingError('Identificador repetido com outra classificação.')
         return existing.id
+    if expected_version is not None and event_version(db,uid)!=expected_version:raise ReceivingError('Classificação mudou desde a revisão; voltar a conferir os IDs.')
     record=Event(unit_id=uid,request_key=key,action='classify',payload=payload,reason=reason,evidence=evidence,actor=actor.username);db.add(record);db.flush()
     db.add(Audit(username=actor.username,action='VALMET_ROLOS_CLASSIFICAR',details=dump(dict(event=record.id,unit=uid,flags=flags,reason=reason,evidence=evidence))))
     return record.id
@@ -114,7 +115,9 @@ def adjustment(db,pos,physical,content,change):
         roll=db.get(Roll,ident);state=db.get(State,ident)
         if not roll or not state or roll.unit_id!=pos.unit_id or state.present!=wanted:raise ReceivingError('ID ausente, já em stock ou de outra palete/contexto.')
         rows.append(dict(id=roll.id,lot=roll.lot,article=roll.article,divisible=state.divisible))
-    if new:new=clean_rows(new);rows+=new
+    if new:
+        if db.scalar(select(Roll.id).where(Roll.unit_id==pos.unit_id).limit(1)) and not present(db,pos.unit_id):raise ReceivingError('Palete individualizada ausente: repor os IDs originais comprovados, sem reconstruir identidades.')
+        new=clean_rows(new);rows+=new
     if not db.scalar(select(Roll.id).where(Roll.unit_id==pos.unit_id).limit(1)) and pos.physical_quantity>0 and physical>0 and not new:raise ReceivingError('Reconciliar identidades históricas antes de ajustar o remanescente.')
     if material(rows)!=content or physical!=(1 if rows else 0):raise ReceivingError('IDs individuais divergem do saldo físico/composição propostos.')
-    return dict(keep=sorted(keep),restore=sorted(restore),add=new)
+    return dict(keep=sorted(keep),restore=sorted(restore),add=new,removed=sorted({r['id'] for r in present(db,pos.unit_id)}-set(keep)))

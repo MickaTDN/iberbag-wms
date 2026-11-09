@@ -28,7 +28,7 @@ def preview(engine):
     configure_process(engine.url)
     with engine.connect().execution_options(isolation_level='REPEATABLE READ') as connection:
         old=revision(connection)
-        changes=[] if old==REVISION else ['migrações aditivas; inventários, transferências e ajustes Valmet auditados; referências, stock e documentos históricos preservados']
+        changes=[] if old==REVISION else ['migrações aditivas; identidades individuais de rolos Valmet sem classificação automática, inventários e movimentos auditados; referências, stock e documentos históricos preservados']
         return {'from':old,'to':REVISION,'schema_changes':changes,
                 'data':inventory(read_data(connection)),'existing_data_changes':'none'}
 

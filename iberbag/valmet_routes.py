@@ -69,7 +69,7 @@ def detail(ident:int,request:Request,db=Depends(database)):
     if not entry:raise HTTPException(404,'Entrada inexistente.')
     receipt=db.get(Receipt,entry.receipt_id) if entry.receipt_id else None
     current_rows=service.stock(db,{'entry_id':entry.id})[0] if receipt else []
-    return render(request,'valmet_entry.html',context(request,user,sess,entry=entry,receipt=receipt,current_rows=current_rows,values=json.loads(entry.payload),kinds=service.KINDS))
+    return render(request,'valmet_entry.html',context(request,user,sess,entry=entry,receipt=receipt,current_rows=current_rows,roll_units=db.scalars(select(ValmetUnit).where(ValmetUnit.entry_id==ident,ValmetUnit.kind=='rolos')).all() if receipt else [],values=json.loads(entry.payload),kinds=service.KINDS))
 
 @router.post('/valmet/entries/{ident}/confirm')
 def confirm(ident:int,request:Request,data:dict=Depends(receiving_form),db=Depends(database)):

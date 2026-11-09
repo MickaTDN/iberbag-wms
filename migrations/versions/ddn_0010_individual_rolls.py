@@ -35,6 +35,10 @@ def upgrade():
         epoch=epoch.replace('CREATE FUNCTION','CREATE OR REPLACE FUNCTION',1)
         epoch=epoch.replace('\n$$;', "\n|| CASE WHEN EXISTS(SELECT 1 FROM valmet_roll_events WHERE context_id=ctx AND unit_id=uid) THEN jsonb_build_object('rolls',(SELECT max(id) FROM valmet_roll_events WHERE context_id=ctx AND unit_id=uid)) ELSE '{}'::jsonb END\n$$;")
         conn.exec_driver_sql(epoch)
+        controls=Path(__file__).with_name('ddn_0009_valmet_control.sql').read_text(encoding='utf-8')
+        definition=re.search(r'CREATE FUNCTION valmet_apply_control\(\).*?END \$\$;',controls,re.S).group().replace('CREATE FUNCTION','CREATE OR REPLACE FUNCTION',1)
+        definition=definition.replace('ELSIF individual AND after_phy>0',"ELSIF individual AND u.kind<>'rolos' AND after_phy>0")
+        conn.exec_driver_sql(definition.replace('__WMS_SCHEMA__',quote))
         conn.exec_driver_sql(Path(__file__).with_suffix('.sql').read_text(encoding='utf-8').replace('__WMS_SCHEMA__',quote))
 
 def downgrade():raise RuntimeError('Restore a verified backup; do not discard roll identities/history.')

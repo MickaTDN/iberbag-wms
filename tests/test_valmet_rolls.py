@@ -140,6 +140,9 @@ def test_rolls_inventory_zero_unknown_transfer_adjustment_and_returns(valmet):
         draftid=c.save_adjustment(db,actor,secrets.token_hex(16),current.id,'H2',1,{'A':1,'B':1},'Reposição comprovada','Este ID regressou fisicamente',True,basis='return',lineids=[line],roll_change=change)
         c.confirm(db,actor,draftid,1)
         assert [x['id'] for x in r.present(db,1)]==ids[1:] and db.scalar(select(func.count()).select_from(Roll))==3
+        found=c.save_adjustment(db,actor,secrets.token_hex(16),current.id,'H2',1,{'A':2,'B':1},'ID encontrado após inventário','ID original efetivamente encontrado, sem saída desse ID',True,roll_change=dict(keep=ids[1:],restore=[ids[0]],add=[]))
+        c.confirm(db,actor,found,1)
+        assert [x['id'] for x in r.present(db,1)]==ids
 
 
 def test_rolls_runtime_projection_immutable_permissions_context_and_archived_documents(restricted_web):

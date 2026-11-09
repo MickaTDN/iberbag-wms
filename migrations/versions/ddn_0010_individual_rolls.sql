@@ -4,7 +4,7 @@ CREATE FUNCTION valmet_roll_materials(uid integer,ctx integer,ids jsonb DEFAULT 
  WHERE r.unit_id=uid AND r.context_id=ctx AND (CASE WHEN ids IS NULL THEN s.present ELSE ids @> to_jsonb(ARRAY[r.id]) END) GROUP BY r.lot) x
 $$;
 CREATE FUNCTION valmet_roll_ids_valid(uid integer,ctx integer,ids jsonb,wanted_present boolean DEFAULT true) RETURNS boolean LANGUAGE sql STABLE SET search_path=__WMS_SCHEMA__,pg_catalog,pg_temp AS $$
- SELECT CASE WHEN jsonb_typeof(ids)<>'array' THEN false ELSE
+ SELECT CASE WHEN ids IS NULL OR jsonb_typeof(ids)<>'array' THEN false ELSE
  (SELECT count(*)=count(DISTINCT value) FROM jsonb_array_elements_text(ids)) AND
  NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text(ids) j WHERE NOT EXISTS(
  SELECT 1 FROM valmet_rolls r JOIN valmet_roll_states s ON s.id=r.id AND s.context_id=r.context_id
@@ -17,7 +17,7 @@ $$;
 CREATE FUNCTION valmet_roll_add(uid integer,ctx integer,data jsonb,eventid integer,moveid integer) RETURNS void LANGUAGE plpgsql SET search_path=__WMS_SCHEMA__,pg_catalog,pg_temp AS $$
 DECLARE item jsonb;rid integer;
 BEGIN
- IF pg_trigger_depth()<1 OR jsonb_typeof(data)<>'array' OR jsonb_array_length(data)>500 THEN RAISE EXCEPTION 'Invalid individual roll input'; END IF;
+ IF pg_trigger_depth()<1 OR data IS NULL OR jsonb_typeof(data)<>'array' OR jsonb_array_length(data)>500 THEN RAISE EXCEPTION 'Invalid individual roll input'; END IF;
  IF jsonb_array_length(data)>0 AND NOT EXISTS(SELECT 1 FROM valmet_units WHERE id=uid AND context_id=ctx AND kind='rolos' AND number IS NOT NULL AND NOT legacy_unnumbered) THEN RAISE EXCEPTION 'Manual warehouse identity required'; END IF;
  FOR item IN SELECT value FROM jsonb_array_elements(data) LOOP
    IF jsonb_typeof(item->'divisible')<>'boolean' OR btrim(COALESCE(item->>'lot',''))='' OR length(item->>'lot')>120 OR length(item->>'article')>120
@@ -42,11 +42,14 @@ BEGIN
    OR valmet_missing(u.id,u.context_id) THEN RAISE EXCEPTION 'Reserved/inventoried/blocked roll unit'; END IF;
  data=NEW.payload::jsonb;
  IF NEW.action='register' THEN
+   IF COALESCE(jsonb_typeof(data->'rolls'),'null')<>'array' OR jsonb_array_length(data->'rolls')=0 THEN RAISE EXCEPTION 'Explicit individual roll proof required'; END IF;
    IF EXISTS(SELECT 1 FROM valmet_rolls WHERE unit_id=u.id AND context_id=u.context_id) THEN RAISE EXCEPTION 'Roll identities already registered'; END IF;
    SELECT * INTO pos FROM valmet_positions WHERE unit_id=u.id AND context_id=u.context_id AND physical_quantity=1;
    IF pos.id IS NULL OR pos.uncertain OR NOT EXISTS(SELECT 1 FROM valmet_identifications WHERE unit_id=u.id AND context_id=u.context_id) THEN RAISE EXCEPTION 'Identify/reconcile physical stock first'; END IF;
    PERFORM valmet_roll_add(u.id,u.context_id,data->'rolls',NEW.id,NULL);
  ELSIF NEW.action='classify' THEN
+   IF COALESCE(jsonb_typeof(data->'flags'),'null')<>'array' OR jsonb_array_length(data->'flags')=0 OR NOT valmet_roll_ids_valid(u.id,u.context_id,data->'ids')
+      OR jsonb_array_length(data->'flags')<>jsonb_array_length(data->'ids') OR (SELECT count(DISTINCT value->>'id') FROM jsonb_array_elements(data->'flags'))<>jsonb_array_length(data->'flags') THEN RAISE EXCEPTION 'Explicit classification IDs required'; END IF;
    IF who.role<>'admin' OR EXISTS(SELECT 1 FROM valmet_shipment_lines l JOIN valmet_positions z ON z.id=l.position_id AND z.context_id=l.context_id WHERE z.unit_id=u.id AND z.context_id=u.context_id)
      OR NOT valmet_roll_ids_valid(u.id,u.context_id,data->'ids') THEN RAISE EXCEPTION 'Classification cannot rewrite shipped/reserved identity'; END IF;
    FOR item IN SELECT value FROM jsonb_array_elements(data->'flags') LOOP

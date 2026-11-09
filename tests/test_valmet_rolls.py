@@ -274,6 +274,11 @@ def test_rolls_postgres_rejects_forged_partial_bundle_and_temp_writer_trigger(va
     from iberbag.database import ValmetShipment
     engine,a=valmet;actor=a['admin'][0];receive(engine,actor,[True,False,False],['A','B','C'])
     with scoped(engine,2) as db:ids=[x['id'] for x in r.present(db,1)]
+    with scoped(engine,2) as db:
+        assert db.scalar(text('SELECT valmet_roll_ids_valid(1,2,NULL)')) is False
+        with pytest.raises(DBAPIError,match='Explicit classification IDs required'):
+            db.add(Event(unit_id=1,request_key=secrets.token_hex(16),action='classify',payload=p.dump(dict(flags=[dict(id=ids[0],divisible=False)])),reason='Prova inválida',evidence='IDs em falta devem ser recusados no PostgreSQL',actor='admin'));db.flush()
+        db.rollback()
     order=reserve(engine,actor,[('rolos','B','1')],ids=[ids[1]],extra=True)
     with scoped(engine,2) as db:
         s.ready(db,actor,order,1);prep=db.get(Prep,order)

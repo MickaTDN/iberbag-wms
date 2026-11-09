@@ -12,7 +12,7 @@ from alembic import command
 from iberbag import valmet as v,valmet_planning as p,transfer,backup
 from iberbag.database import (ValmetUnit,ValmetPreparation as Prep,ValmetReservation as Hold,
     ValmetPlanRevision as Rev,ValmetIdentification,ValmetHandling,ValmetItem,Audit,Stock,StorageContext,User,CustomerPending)
-from test_valmet import valmet,row,entry
+from test_valmet import configure,valmet,row,entry
 from test_receiving import warehouse
 from test_transfer import pg_databases,docker_client
 from test_ddn_contexts import scoped
@@ -68,7 +68,7 @@ def test_planning_roll_separability_and_extras(valmet,separation):
     engine,a=valmet;actor=a['admin'][0]
     entry(engine,actor,[row(items=[('','A','2'),('','B','3')])]);uid=units(engine)[0].id
     if separation!='unknown':
-        with scoped(engine,2) as db:p.configure(db,actor,uid,separation,note='Regra comprovada fictícia')
+        with scoped(engine,2) as db:configure(db,actor,uid,separation,note='Regra comprovada fictícia')
     ident=draft(engine,actor,[('rolos','A','1')]);plan=propose(engine,actor,ident)
     if separation=='yes':
         assert not plan['extras'];confirm(engine,actor,ident)
@@ -83,7 +83,7 @@ def test_planning_roll_separability_and_extras(valmet,separation):
         confirm(engine,actor,ident,accept_extra=True)
         other=draft(engine,actor,[('rolos','B','2')]);assert propose(engine,actor,other)['shortages'][0]['quantity']==2
     with scoped(engine,2) as db:
-        with pytest.raises(v.ReceivingError):p.configure(db,actor,uid,'yes',note='Bloqueada por reserva')
+        with pytest.raises(v.ReceivingError):configure(db,actor,uid,'yes',note='Bloqueada por reserva')
 
 @pytest.mark.parametrize('kind',['caixas','vazias'])
 def test_planning_whole_boxes_extra_lots_and_article_null(valmet,kind):
@@ -161,7 +161,7 @@ def test_planning_empty_boxes_and_reconciled_legacy_groups(valmet):
         identification=ValmetIdentification(unit_id=uid,request_key=secrets.token_hex(16),actor='admin',notes='Prova histórica');db.add(identification);db.flush()
         db.add(ValmetItem(unit_id=uid,identification_id=identification.id,lot='LEGACY'));db.commit()
         assert all(x['id']!=uid for x in p.source(db))
-        p.configure(db,actor,uid,'unknown',reconciled=True,note='Conferência física fictícia 18 caixas, lote comprovado')
+        configure(db,actor,uid,'unknown',reconciled=True,note='Conferência física fictícia 18 caixas, lote comprovado')
     prep=draft(engine,actor,[('vazias','LEGACY','5')]);plan=propose(engine,actor,prep)
     # Final 2B.2B decision supersedes dispatchability of quantitative legacy boxes:
     # keep the historical shape/reconciliation, but no new reservation without ID.
@@ -190,7 +190,7 @@ def test_planning_vasilhame_unlocated_requires_two_validations(valmet):
     entry(engine,actor,[row('vasilhame',None,physical_quantity=4,content_total=None,brand='Filva',local='',items=[])])
     uid=units(engine)[0].id;prep=draft(engine,actor,[('vasilhame','Filva','3')],destination='')
     assert propose(engine,actor,prep)['shortages'][0]['quantity']==3
-    with scoped(engine,2) as db:p.configure(db,actor,uid,'unknown',unlocated=True,note='Histórico comprovado e seleção segura fictícia')
+    with scoped(engine,2) as db:configure(db,actor,uid,'unknown',unlocated=True,note='Histórico comprovado e seleção segura fictícia')
     plan=propose(engine,actor,prep);assert plan['unlocated']
     with pytest.raises(v.ReceivingError):confirm(engine,actor,prep)
     confirm(engine,actor,prep,accept_unlocated=True)
@@ -253,7 +253,7 @@ def test_planning_permissions_context_and_insufficient_identity(valmet):
     with scoped(engine,2) as db:
         assert not p.active(db)
         with pytest.raises(v.ReceivingError):p.cancel(db,a['other'][0],prep,1,'Sem permissão')
-        with pytest.raises(v.ReceivingError):p.configure(db,actor,units(engine)[0].id,'yes',note='Sem permissão')
+        with pytest.raises(v.ReceivingError):configure(db,actor,units(engine)[0].id,'yes',note='Sem permissão')
         db.get(User,actor).active=False;db.commit()
         with pytest.raises(v.ReceivingError):p.cancel(db,actor,prep,1,'Conta desativada')
     for scope in (1,3,4,5):
@@ -264,7 +264,7 @@ def test_planning_permissions_context_and_insufficient_identity(valmet):
 def test_planning_manual_review_staleness_and_snapshot(valmet):
     engine,a=valmet;actor=a['admin'][0]
     entry(engine,actor,[row(number='N1'),row(number='N2')]);uid=units(engine)[1].id
-    with scoped(engine,2) as db:p.configure(db,actor,uid,'yes',note='Comprovado')
+    with scoped(engine,2) as db:configure(db,actor,uid,'yes',note='Comprovado')
     prep=draft(engine,actor,[('rolos','LOT','2')]);propose(engine,actor,prep,manual=[(uid,'LOT','2')])
     with scoped(engine,2) as db:old=p.review_key(db.get(Prep,prep))
     with pytest.raises(v.ReceivingError):propose(engine,actor,prep,manual=[(uid,'OTHER','1')])
@@ -327,7 +327,7 @@ def test_planning_immutable_audit_and_database_overbooking(valmet):
 def test_planning_backup_restore_reconciles_all_revisions(valmet,pg_databases,tmp_path):
     engine,a=valmet;actor=a['admin'][0]
     entry(engine,actor,[row()]);uid=units(engine)[0].id
-    with scoped(engine,2) as db:p.configure(db,actor,uid,'yes',note='Prova fictícia')
+    with scoped(engine,2) as db:configure(db,actor,uid,'yes',note='Prova fictícia')
     prep=draft(engine,actor,[('rolos','LOT','2')]);propose(engine,actor,prep);confirm(engine,actor,prep)
     with engine.connect() as c:expected=transfer.inventory(transfer.read_data(c))
     target=pg_databases(restricted=True);folder=tmp_path/'planning-backup'

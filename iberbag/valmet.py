@@ -92,6 +92,23 @@ def payload(received_on,code,rows):
         pending=row.get('pending',False)
         if not isinstance(pending,bool):raise ReceivingError('Estado de identificação inválido.',400)
         items=row.get('items',[])
+        roll_rows=None
+        if row.get('rolls') is not None:
+            if kind!='rolos':raise ReceivingError('Identidades de rolo apenas em ROLOS.')
+            from .valmet_rolls import clean_rows,material
+            roll_rows=clean_rows(row['rolls'])
+            expected=material(roll_rows)
+            if items:
+                actual={}
+                for a,l,q in items:actual[l]=actual.get(l,0)+quantity(q)
+                if actual!=expected:raise ReceivingError('Composição agregada diverge dos rolos individuais.')
+            else:
+                counts={}
+                for r in roll_rows:
+                    pair=(r['article'],r['lot']);counts[pair]=counts.get(pair,0)+1
+                items=[(a,l,q) for (a,l),q in counts.items()]
+            if total is not None and total!=len(roll_rows):raise ReceivingError('Total de rolos diverge das identidades.')
+            total=len(roll_rows);pending=False
         if kind=='vazias':
             # Lot + manual warehouse number identify an empty box, even if its
             # article is unknown. This alone must not make it unavailable.
@@ -115,7 +132,7 @@ def payload(received_on,code,rows):
         cleaned.append(dict(kind=kind,physical_quantity=physical,number=number,
             local='Chão' if kind=='vazias' else (optional(row.get('local')).upper() or None),content_total=total,
             material_m2=str(m2) if m2 is not None else None, supplier=optional(row.get('supplier')),
-            guide=optional(row.get('guide')),notes=optional(row.get('notes'),2000),brand=brand,pending=pending,items=items))
+            guide=optional(row.get('guide')),notes=optional(row.get('notes'),2000),brand=brand,pending=pending,items=items,rolls=roll_rows))
     return json.dumps(dict(received_on=day.isoformat(),code=code,rows=cleaned),ensure_ascii=False,sort_keys=True)
 
 @command
@@ -164,7 +181,7 @@ def confirm_entry(db,actor,ident,version):
         raise ReceivingError('Carga histórica já existente; não anexar movimentos.')
     carga=Carga(codigo=receipt.code,entrada=receipt.received_on);db.add(carga);db.flush()
     for index,row in enumerate(data['rows']):
-        values={k:v for k,v in row.items() if k not in ('items','pending')}
+        values={k:v for k,v in row.items() if k not in ('items','pending','rolls')}
         if values['local']:
             loc=db.scalar(select(Location).where(func.lower(Location.codigo)==values['local'].lower()))
             if not loc or not loc.active:raise ReceivingError('Localização inexistente ou inativa; configurar em Definições.')
@@ -173,6 +190,9 @@ def confirm_entry(db,actor,ident,version):
         if not row['pending']:add_identification(db,actor,unit,f'{entry.request_key}:{index}',row['items'],row['content_total'],'Identificada na receção')
         else:
             for a,l,q in row['items']:db.add(ValmetItem(unit_id=unit.id,article=a,lot=l,quantity=q))
+        if row.get('rolls'):
+            from .valmet_rolls import register
+            register(db,actor,unit.id,hashlib.sha256(f'{entry.request_key}:rolls:{index}'.encode()).hexdigest()[:32],row['rolls'],'Receção individual','Rolos e classificações registados explicitamente na receção')
     receipt.carga_id=carga.id;receipt.receiver=actor.username;receipt.status='confirmed';receipt.confirmed_at=now_utc()
     entry.receipt_id=receipt.id;entry.status='confirmed'
     db.add(Audit(username=actor.username,action='VALMET_CONFIRMAR',details=f'Entrada {entry.id}; carga {receipt.code}; receção {receipt.id}.'))
@@ -215,9 +235,20 @@ def stock(db,filters=None,page=1):
             from sqlalchemy import cast
             from sqlalchemy.dialects.postgresql import JSONB
             composition_filters.append(or_(ValmetUnit.kind=='vasilhame',ValmetItem.identification_id.is_(None),cast(ValmetPosition.materials,JSONB).op('?')(ValmetItem.lot)))
-        query=query.where(select(ValmetItem.id).where(ValmetItem.unit_id==ValmetUnit.id,
+        legacy=select(ValmetItem.id).where(ValmetItem.unit_id==ValmetUnit.id,
             *composition_filters,or_(ValmetItem.identification_id.is_not(None),
-            ~select(ValmetIdentification.id).where(ValmetIdentification.unit_id==ValmetUnit.id).correlate(ValmetUnit).exists())).exists())
+            ~select(ValmetIdentification.id).where(ValmetIdentification.unit_id==ValmetUnit.id).correlate(ValmetUnit).exists())).exists()
+        from sqlalchemy import inspect
+        if inspect(db.bind).has_table('valmet_rolls'):
+            from .database import ValmetRoll,ValmetRollState
+            terms=[]
+            for field,col in [('article',ValmetRoll.article),('lot',ValmetRoll.lot)]:
+                term=filters.get(field,'').strip()
+                if term:terms.append(col.icontains(term,autoescape=True))
+            registered=select(ValmetRoll.id).where(ValmetRoll.unit_id==ValmetUnit.id).exists()
+            current=select(ValmetRoll.id).join(ValmetRollState,ValmetRollState.id==ValmetRoll.id).where(ValmetRoll.unit_id==ValmetUnit.id,ValmetRollState.present.is_(True),*terms).exists()
+            query=query.where(or_(and_(ValmetUnit.kind=='rolos',registered,current),and_(or_(ValmetUnit.kind!='rolos',~registered),legacy)))
+        else:query=query.where(legacy)
     count=db.scalar(select(func.count()).select_from(query.subquery()))
     units=db.execute(query.order_by(ValmetUnit.id,ValmetPosition.id).offset((page-1)*100).limit(100)).all()
     from .valmet_planning import reserved_physical,source

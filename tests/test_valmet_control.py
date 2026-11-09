@@ -12,7 +12,7 @@ from iberbag import valmet as v,valmet_control as c,valmet_planning as p,valmet_
 from iberbag.database import (ValmetUnit,ValmetPosition as Position,ValmetInventory as Inventory,ValmetCount as Count,
     ValmetControlDraft as Draft,ValmetControlMove as Move,ValmetInventoryDecision as Decision,ValmetIdentification,ValmetShipmentLine,ValmetOccurrence,
     ValmetControlDocument as Document,User,Stock,Receipt)
-from test_valmet import valmet,row,entry
+from test_valmet import configure,valmet,row,entry
 from test_receiving import warehouse
 from test_transfer import pg_databases,docker_client
 from test_ddn_contexts import scoped
@@ -27,7 +27,16 @@ def inventory(engine,actor,mode='partial',**kw):
     with scoped(engine,2) as db:return c.create_inventory(db,actor,secrets.token_hex(16),mode,**kw)
 
 def count(engine,actor,ident,target,qty=None,mat=None,kind='count',**kw):
-    with scoped(engine,2) as db:return c.save_count(db,actor,ident,db.get(Inventory,ident).version,secrets.token_hex(16),target,kind,qty,mat,**kw)
+    with scoped(engine,2) as db:
+        if target.startswith('P:') and qty is not None:
+            pos=db.get(Position,int(target[2:]))
+            if pos and db.get(ValmetUnit,pos.unit_id).kind=='rolos' and kind=='count':
+                from iberbag import valmet_rolls as rolls
+                ids=[];need=dict(mat or {})
+                for r in rolls.present(db,pos.unit_id):
+                    if need.get(r['lot'],0):ids.append(r['id']);need[r['lot']]-=1
+                kw['roll_ids']=ids if not any(need.values()) else None
+        return c.save_count(db,actor,ident,db.get(Inventory,ident).version,secrets.token_hex(16),target,kind,qty,mat,**kw)
 
 def submit(engine,actor,ident):
     with scoped(engine,2) as db:return c.submit(db,actor,ident,db.get(Inventory,ident).version)
@@ -37,6 +46,14 @@ def approve(engine,actor,ident,countid,action='approve',**kw):
 
 def adjust(engine,actor,pid,qty,mat,**kw):
     with scoped(engine,2) as db:
+        pos=db.get(Position,pid)
+        if db.get(ValmetUnit,pos.unit_id).kind=='rolos' and 'roll_change' not in kw:
+            from iberbag import valmet_rolls as rolls
+            keep=[];new=[];need=dict(mat)
+            for r in rolls.present(db,pos.unit_id):
+                if need.get(r['lot'],0):keep.append(r['id']);need[r['lot']]-=1
+            for lot,q in need.items():new.extend(dict(article=None,lot=lot,divisible=False) for _ in range(q))
+            kw['roll_change']=dict(keep=keep,restore=[],add=new)
         ident=c.save_adjustment(db,actor,secrets.token_hex(16),pid,kw.pop('target','A2'),qty,mat,'Motivo fictício','Contagem física fictícia comprovada',**kw)
         return c.confirm(db,actor,ident,1)
 
@@ -102,7 +119,10 @@ def test_control_category_counts_and_positive_or_content_corrections(valmet,kind
     else:data=row(kind,'UNIT',content_total=5,items=[('','A','2'),('','B','3')]);qty=1;mat={'A':3,'B':3}
     entry(engine,actor,[data]);pid=positions(engine)[0].id;ident=inventory(engine,actor)
     cid=count(engine,actor,ident,f'P:{pid}',qty,mat);submit(engine,actor,ident)
-    approve(engine,actor,ident,cid,proven=True)
+    if kind=='rolos':
+        with pytest.raises(v.ReceivingError):approve(engine,actor,ident,cid,proven=True)
+        adjust(engine,actor,pid,qty,mat,proven=True)
+    else:approve(engine,actor,ident,cid,proven=True)
     with scoped(engine,2) as db:
         z=db.get(Position,pid);assert z.physical_quantity==qty and json.loads(z.materials)==mat
         assert db.scalar(select(func.count()).select_from(ValmetUnit))==1
@@ -152,7 +172,7 @@ def test_control_transfer_never_splits_individual_identity_even_separable_rolls(
     data=row(kind,None if kind=='paletes' else 'UNIT',content_total=None if kind in ('paletes','caixas') else 5,items=[('','A','1'),('','B','1')] if kind=='paletes' else [('','A','2'),('','B','3')])
     entry(engine,actor,[data]);pid=positions(engine)[0].id
     if kind=='rolos':
-        with scoped(engine,2) as db:p.configure(db,actor,1,'yes',note='Separação autorizada para expedir, não para dividir palete')
+        with scoped(engine,2) as db:configure(db,actor,1,'yes',note='Separação autorizada para expedir, não para dividir palete')
     with scoped(engine,2) as db:
         with pytest.raises(v.ReceivingError):c.save_transfer(db,actor,secrets.token_hex(16),pid,'H2',0,'A','Motivo','Prova')
         draft=c.save_transfer(db,actor,secrets.token_hex(16),pid,'H2',1,'A','Mudança inteira','Unidade integral comprovada')
@@ -362,6 +382,8 @@ def test_control_http_runtime_csrf_roles_context_forms_and_document_isolation(re
     with scoped(owner,2) as db:add_location(db,'admin','Chão')
     entry(runtime,actor,[row(local='Chão')]);pid=positions(runtime)[0].id
     ident=inventory(runtime,actor,local='Chão')
+    from iberbag.valmet_rolls import present
+    with scoped(runtime,2) as db:roll_ids=[r['id'] for r in present(db,1)]
     with TestClient(app) as client:
         assert client.get('/valmet/inventories').status_code==403
         client.cookies.set('wms_session',tokens['operador'][0]);client.cookies.set('ddn_context','2')
@@ -371,7 +393,7 @@ def test_control_http_runtime_csrf_roles_context_forms_and_document_isolation(re
         assert client.get('/valmet/adjustments').status_code==403
         assert client.get(f'/valmet/controls/new?kind=adjustment&position={pid}').status_code==403
         path=f'/valmet/inventories/{ident}/count'
-        body=dict(form,key=secrets.token_hex(16),target=f'P:{pid}',kind='count',physical=1,lot0='LOT',q0=4,evidence='Contado pelo escritório')
+        body=dict(form,key=secrets.token_hex(16),target=f'P:{pid}',kind='count',physical=1,lot0='LOT',q0=4,evidence='Contado pelo escritório',roll_counted='yes',roll_ids=' '.join(map(str,roll_ids[:4])))
         assert client.post(path,data=dict(body,csrf='wrong')).status_code==403
         assert client.post(path,data=dict(body,context_id=1)).status_code==409
         result=client.post(path,data=body,follow_redirects=False);assert result.status_code==303
@@ -392,7 +414,7 @@ def test_control_http_runtime_csrf_roles_context_forms_and_document_isolation(re
         page=client.get(f'/valmet/inventories/{ident}');assert page.status_code==200
         import re
         assert all(re.fullmatch('[a-f0-9]{32}',key) for key in re.findall('name="key" value="([^"]+)"',page.text))
-        review=client.post('/valmet/controls/review',data=dict(form,key=secrets.token_hex(16),kind='adjustment',position=pid,target='Chão',physical=1,lot0='LOT',q0=3,reason='Conferência',evidence='Nova contagem',proven='yes'),follow_redirects=False)
+        review=client.post('/valmet/controls/review',data=dict(form,key=secrets.token_hex(16),kind='adjustment',position=pid,target='Chão',physical=1,lot0='LOT',q0=3,reason='Conferência',evidence='Nova contagem',proven='yes',roll_keep=' '.join(map(str,roll_ids[:3]))),follow_redirects=False)
         assert review.status_code==303 and client.get(review.headers['location']).status_code==200
         assert client.post(review.headers['location']+'/confirm',data=form,follow_redirects=False).status_code==303
         assert client.get(pdfpath).content==original
@@ -452,10 +474,10 @@ def test_control_migrate_ddn8_preserves_shipments_reservations_documents_and_pos
     with engine.connect() as connection:before=transfer.inventory(transfer.read_data(connection))
     folder=tmp_path/'ddn8';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
     backup.restore(target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0009'
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0010'
     with engine.connect() as connection:
         assert transfer.inventory(transfer.read_data(connection))==before
-        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalars().all()==['ddn_0009']
+        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalars().all()==['ddn_0010']
     with scoped(engine,2) as db:
         assert sum(h.physical for h in p.active(db))==2
         assert db.scalar(select(func.count()).select_from(Move))==0

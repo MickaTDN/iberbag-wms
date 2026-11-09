@@ -23,6 +23,8 @@ def rows(data):
         if not data.get(prefix+'kind'):continue
         row={key:data.get(prefix+key,'') for key in ('kind','physical_quantity','number','local','material_m2','content_total','supplier','guide','notes','brand')}
         row['pending']=data.get(prefix+'pending')=='yes'
+        from .valmet_rolls import parse_lines
+        row['rolls']=parse_lines(data.get(prefix+'rolls',''))
         row['items']=items(data,prefix)
         result.append(row)
     return result
@@ -67,7 +69,7 @@ def detail(ident:int,request:Request,db=Depends(database)):
     if not entry:raise HTTPException(404,'Entrada inexistente.')
     receipt=db.get(Receipt,entry.receipt_id) if entry.receipt_id else None
     current_rows=service.stock(db,{'entry_id':entry.id})[0] if receipt else []
-    return render(request,'valmet_entry.html',context(request,user,sess,entry=entry,receipt=receipt,current_rows=current_rows,values=json.loads(entry.payload),kinds=service.KINDS))
+    return render(request,'valmet_entry.html',context(request,user,sess,entry=entry,receipt=receipt,current_rows=current_rows,roll_units=db.scalars(select(ValmetUnit).where(ValmetUnit.entry_id==ident,ValmetUnit.kind=='rolos')).all() if receipt else [],values=json.loads(entry.payload),kinds=service.KINDS))
 
 @router.post('/valmet/entries/{ident}/confirm')
 def confirm(ident:int,request:Request,data:dict=Depends(receiving_form),db=Depends(database)):

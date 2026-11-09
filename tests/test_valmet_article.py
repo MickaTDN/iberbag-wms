@@ -18,6 +18,7 @@ def test_known_lot_without_article_available_by_category(valmet,kind):
     grouped=kind in v.GROUPED
     data=row(kind,None if grouped else 'MANUAL',physical_quantity=1,content_total=None if grouped or kind in ('caixas','vazias') else 2,
         items=[('', 'KNOWN-LOT', '1' if grouped else '2')],pending=True)
+    if kind=='rolos':data['rolls']=[dict(article=None,lot='KNOWN-LOT',divisible=False)]*2
     if kind=='vasilhame':data['brand']='Filva'
     entry(engine,accounts['operador'][0],[data])
     with scoped(engine,2) as db:
@@ -36,6 +37,9 @@ def test_incomplete_lot_stays_physical_and_completion_needs_no_fake_article(valm
         unit=db.scalar(select(ValmetUnit))
         assert v.stock(db)[0][0][3]==0 and unit.physical_quantity==1
         v.identify(db,actor,unit.id,secrets.token_hex(16),[('','PROVEN-LOT','5')],5,'Identificação comprovada por lote e N.º Armazém')
+        assert v.stock(db,{'lot':'PROVEN-LOT','number':'MANUAL-01'})[0][0][3]==0  # classification is a separate proof
+        from iberbag import valmet_rolls
+        valmet_rolls.reconcile(db,actor,unit.id,secrets.token_hex(16),[dict(article=None,lot='PROVEN-LOT',divisible=False)]*5,'Identificação individual','Cinco rolos reais conferidos, sem inventar artigo')
         assert v.stock(db,{'lot':'PROVEN-LOT','number':'MANUAL-01'})[0][0][3]==1
         assert db.scalar(select(func.count()).select_from(ValmetUnit))==1
         assert db.scalar(select(func.count()).select_from(Receipt))==1
@@ -56,7 +60,7 @@ def test_unknown_article_http_authentication_and_csrf(restricted_web):
         client.cookies.set('wms_session',tokens['operador'][0]);client.cookies.set('ddn_context','2')
         data={'csrf':tokens['operador'][1],'context_id':2,'request_key':secrets.token_hex(16),'received_on':'2027-01-01',
             'u0_kind':'rolos','u0_number':'HTTP-N','u0_physical_quantity':'1','u0_local':'A2','u0_content_total':'5',
-            'u0_lot0':'LOT-HTTP','u0_amount0':'5','u0_pending':'yes'}
+            'u0_lot0':'LOT-HTTP','u0_amount0':'5','u0_pending':'yes','u0_rolls':('| LOT-HTTP | X\n'*2)+('| LOT-HTTP | -\n'*3)}
         response=client.post('/valmet/entries/review',data=data,follow_redirects=False)
         assert response.status_code==303;path=response.headers['location']
         assert client.post(path+'/confirm',data={'csrf':'invalid','context_id':2,'version':1}).status_code==403

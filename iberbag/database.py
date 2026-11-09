@@ -821,6 +821,37 @@ class ValmetControlDocument(Scoped, Base):
     created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
     __table_args__=(UniqueConstraint('inventory_id','version','kind',name='uq_valmet_control_document'),)
 
+class ValmetRoll(Scoped, Base):
+    __tablename__='valmet_rolls'
+    __table_args__=(Index('ix_valmet_rolls_unit','context_id','unit_id','id'),)
+    id: Mapped[int]=mapped_column(primary_key=True)
+    unit_id: Mapped[int]=mapped_column(ForeignKey('valmet_units.id'),nullable=False)
+    article: Mapped[str | None]=mapped_column(String(120))
+    lot: Mapped[str]=mapped_column(String(120),nullable=False)
+    source_event: Mapped[int | None]=mapped_column(ForeignKey('valmet_roll_events.id'))
+    source_move: Mapped[int | None]=mapped_column(ForeignKey('valmet_control_moves.id'))
+
+class ValmetRollState(Scoped, Base):
+    __tablename__='valmet_roll_states'
+    __table_args__=(Index('ix_valmet_roll_states_unit','context_id','unit_id','id'),)
+    id: Mapped[int]=mapped_column(ForeignKey('valmet_rolls.id'),primary_key=True)
+    unit_id: Mapped[int]=mapped_column(ForeignKey('valmet_units.id'),nullable=False)
+    present: Mapped[bool]=mapped_column(Boolean,nullable=False)
+    divisible: Mapped[bool]=mapped_column(Boolean,nullable=False)
+
+class ValmetRollEvent(Scoped, Base):
+    __tablename__='valmet_roll_events'
+    __table_args__=(Index('ix_valmet_roll_events_unit','context_id','unit_id','id'),)
+    id: Mapped[int]=mapped_column(primary_key=True)
+    unit_id: Mapped[int]=mapped_column(ForeignKey('valmet_units.id'),nullable=False)
+    request_key: Mapped[str]=mapped_column(String(64),nullable=False,unique=True)
+    action: Mapped[str]=mapped_column(String(20),nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    evidence: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
+
 # Every business key lives inside an immutable client/warehouse context. IDs stay
 # globally unique, preserving all historical references and archived documents.
 for _table in list(Base.metadata.tables.values()):

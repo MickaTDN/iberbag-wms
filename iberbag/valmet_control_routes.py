@@ -7,7 +7,7 @@ from sqlalchemy import select
 from .app import database,render,context,redirect
 from .receiving_routes import receiving_form,integer,failure
 from .valmet_routes import access
-from . import valmet_control as c,valmet as v
+from . import valmet_control as c,valmet as v,valmet_rolls as rolls
 from .database import (ValmetInventory as Inventory,ValmetCount as Count,ValmetControlDraft as Draft,ValmetControlMove as Move,
     ValmetControlDocument as Document,ValmetPosition as Position,ValmetUnit as Unit,ValmetShipmentLine as Line,Location)
 
@@ -60,7 +60,7 @@ def save_count(ident:int,request:Request,data:dict=Depends(receiving_form),db=De
     user,sess=authorized(request,db,data)
     try:
         content={data[f'lot{i}']:c.number(data.get(f'q{i}'),unknown=True) for i in range(100) if data.get(f'lot{i}')}
-        c.save_count(db,user.id,ident,integer(data.get('version')),data.get('key'),data.get('target',''),data.get('kind'),data.get('physical'),content or None,data.get('observed',''),data.get('evidence',''),data.get('recount')=='yes')
+        c.save_count(db,user.id,ident,integer(data.get('version')),data.get('key'),data.get('target',''),data.get('kind'),data.get('physical'),content or None,data.get('observed',''),data.get('evidence',''),data.get('recount')=='yes',ids(data,'roll_ids') if data.get('roll_counted')=='yes' else None)
         return redirect(f'/valmet/inventories/{ident}')
     except v.ReceivingError as error:return failure(request,user,sess,error)
 
@@ -125,7 +125,7 @@ def review(request:Request,data:dict=Depends(receiving_form),db=Depends(database
         else:
             content={data[f'lot{i}']:c.number(data.get(f'q{i}'),unknown=True) for i in range(100) if data.get(f'lot{i}')}
             if c.number(data.get('physical'))==0:content={}
-            ident=c.save_adjustment(*args,content,data.get('reason'),data.get('evidence'),data.get('proven')=='yes',data.get('clear')=='yes',data.get('basis','count'),ids(data,'lines'),ids(data,'resolves'))
+            ident=c.save_adjustment(*args,content,data.get('reason'),data.get('evidence'),data.get('proven')=='yes',data.get('clear')=='yes',data.get('basis','count'),ids(data,'lines'),ids(data,'resolves'),roll_change=dict(keep=ids(data,'roll_keep'),restore=ids(data,'roll_restore'),add=rolls.parse_lines(data.get('roll_new','')) or []))
         return redirect(f'/valmet/controls/{ident}')
     except v.ReceivingError as error:return failure(request,user,sess,error)
 

@@ -77,7 +77,13 @@ def review(ident:int,request:Request,data:dict=Depends(receiving_form),db=Depend
             manual=[]
             for i in range(100):
                 if data.get(f'pick{i}')=='yes':manual.append((integer(data.get(f'uid{i}')),data.get(f'lot{i}'),data.get(f'q{i}')))
-        p.review(db,user.id,ident,integer(data.get('version')),manual)
+        roll_selection={} if data.get('individual')=='yes' else None
+        if roll_selection is not None:
+            for name,value in data.items():
+                if name.startswith('rollpick_') and value=='yes':
+                    _,unit,rid=name.split('_');roll_selection.setdefault(integer(unit),[]).append(integer(rid))
+            if not roll_selection:raise v.ReceivingError('Escolher pelo menos um rolo.')
+        p.review(db,user.id,ident,integer(data.get('version')),manual,roll_selection)
         return redirect(f'/valmet/preparations/{ident}')
     except v.ReceivingError as e:return failure(request,user,sess,e)
 

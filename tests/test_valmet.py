@@ -34,9 +34,14 @@ def row(kind='rolos',number='MANUAL-01',**kw):
     result=dict(kind=kind,number=number,physical_quantity=1,local='A2',content_total=5,
         supplier='FORNECEDOR FICTÍCIO',guide='GUIA FICTÍCIA',notes='VALMET 2 — nota livre',
         items=[('ART','LOT','2'),('ART','LOT','3')])
-    result.update(kw);return result
+    result.update(kw)
+    if kind=='rolos' and not result.get('pending') and 'rolls' not in result and all(l and q not in ('',None) and str(q).isdigit() for a,l,q in result['items']):
+        result['rolls']=[dict(article=a or None,lot=l,divisible=False) for a,l,q in result['items'] for _ in range(int(q))]
+    return result
 
 def entry(engine,actor,rows,scope=2,key=None,confirm=True):
+    from sqlalchemy import inspect
+    if not inspect(engine).has_table('valmet_rolls'):rows=[{k:v for k,v in r.items() if k!='rolls'} for r in rows]
     with scoped(engine,scope) as db:
         ident=v.save_entry(db,actor,key or secrets.token_hex(16),'2027-01-02','',rows)
         if confirm:v.confirm_entry(db,actor,ident,1)
@@ -262,3 +267,13 @@ def test_valmet_sqlite_upgrade_is_read_only_for_operations(tmp_path):
         with Session(engine) as db,pytest.raises(v.ReceivingError,match='PostgreSQL'):
             v.save_entry(db,1,secrets.token_hex(16),'2027-01-01','',[row()])
     finally:engine.dispose()
+
+
+def configure(db,actor,uid,separation,**kw):
+    """Synthetic test proof enumerates actual stable IDs, never totals/policy conversion in production."""
+    from iberbag import valmet_planning as planning,valmet_rolls as rolls
+    from sqlalchemy import inspect
+    unit=db.get(__import__('iberbag.database',fromlist=['ValmetUnit']).ValmetUnit,uid)
+    if unit and unit.kind=='rolos' and inspect(db.bind).has_table('valmet_rolls'):
+        return rolls.classify(db,actor,uid,secrets.token_hex(16),{r['id']:separation=='yes' for r in rolls.present(db,uid)},'Classificações individuais fictícias','Cada ID foi conferido neste cenário sintético')
+    return planning.configure(db,actor,uid,separation,**kw)

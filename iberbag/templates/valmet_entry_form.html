@@ -16,7 +16,8 @@
 <label>N.º Armazém <input maxlength="120" name="u{{ i }}_number" value="{{ row.get('number') or '' }}"></label>
 <label>Localização do catálogo (vazio: Por localizar) <input maxlength="120" name="u{{ i }}_local" value="{{ row.get('local') or '' }}"></label>
 <label>m² (opcional, só Paletes) <input name="u{{ i }}_material_m2" value="{{ row.get('material_m2') or '' }}"></label>
-<label>Total de rolos / peças / material (quando conhecido) <input type="number" min="1" name="u{{ i }}_content_total" value="{{ row.get('content_total') or '' }}"></label>
+<label>ROLOS individuais (só ROLOS): uma linha por rolo, artigo ou vazio | lote | X ou -. Deixar a composição agregada vazia ou coerente; o total é o número de linhas.<textarea name="u{{ i }}_rolls">{% for r in row.get('rolls') or [] %}{{ r.article or '' }} | {{ r.lot }} | {{ 'X' if r.divisible else '-' }}
+{% endfor %}</textarea></label><label>Total de rolos / peças / material (quando conhecido) <input type="number" min="1" name="u{{ i }}_content_total" value="{{ row.get('content_total') or '' }}"></label>
 <label>Fornecedor <input maxlength="120" name="u{{ i }}_supplier" value="{{ row.get('supplier','') }}"></label><label>Número de guia <input maxlength="120" name="u{{ i }}_guide" value="{{ row.get('guide','') }}"></label>
 <label>Vasilhame <select name="u{{ i }}_brand"><option value="">—</option>{% for brand in brands %}<option {{ 'selected' if row.get('brand')==brand else '' }}>{{ brand }}</option>{% endfor %}</select></label>
 <label>Notas livres (incluindo VALMET 2) <textarea name="u{{ i }}_notes" maxlength="2000">{{ row.get('notes','') }}</textarea></label>

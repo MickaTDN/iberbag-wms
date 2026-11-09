@@ -75,8 +75,14 @@ def ship(ident:int,request:Request,data:dict=Depends(receiving_form),db=Depends(
             lines=[(integer(data.get(f'unit{i}')),data.get(f'lot{i}'),data.get(f'q{i}')) for i in range(100)
                 if data.get(f'pick{i}')=='yes' and data.get(f'q{i}') not in ('','0',None)]
         pallets=[integer(key[4:]) for key,value in data.items() if key.startswith('lab_') and value=='yes']
+        roll_ids=None
+        if data.get('specific_rolls')=='yes':
+            roll_ids={}
+            for name,value in data.items():
+                if name.startswith('shiproll_') and value=='yes':
+                    _,unit,rid=name.split('_');roll_ids.setdefault(integer(unit),[]).append(integer(rid))
         ident=s.ship(db,user.id,ident,integer(data.get('version')),data.get('key'),data.get('day'),
-            [r.strip() for r in data.get('references','').splitlines() if r.strip()],lines,data.get('close')=='yes',data.get('extra_ack')=='yes',data.get('unknown_ack')=='yes',pallets)
+            [r.strip() for r in data.get('references','').splitlines() if r.strip()],lines,data.get('close')=='yes',data.get('extra_ack')=='yes',data.get('unknown_ack')=='yes',pallets,roll_ids)
         return redirect(f'/valmet/shipments/{ident}')
     except v.ReceivingError as error:return failure(request,user,sess,error)
 

@@ -3,7 +3,7 @@ import json
 import hashlib
 from datetime import date
 from collections import defaultdict
-from sqlalchemy import select
+from sqlalchemy import select,inspect
 from . import valmet as v
 from .database import (ValmetPreparation as Prep,ValmetPlanRevision as Rev,ValmetReservation as Hold,
     ValmetHandling as Policy,ValmetUnit,ValmetIdentification,ValmetItem,Audit,Location,ValmetPosition)
@@ -42,6 +42,11 @@ def stock_details(db,rows):
         result[unit.id]=dict(reserved=min(unit.physical_quantity,sum(h['physical'] for h in held)),
             materials=unit.materials,material_reserved=dict(reserved),
             available=candidates.get(unit.id,{}).get('available',{}),policy=policy(db,unit.origin_id))
+        if unit.kind=='rolos':
+            from . import valmet_rolls as rolls
+            result[unit.id]['rolls']=rolls.present(db,unit.origin_id) if inspect(db.bind).has_table('valmet_rolls') else []
+            free={r['id'] for r in candidates.get(unit.id,{}).get('rolls',[])}
+            for r in result[unit.id]['rolls']:r['available']=r['id'] in free
     return result
 
 @v.command
@@ -49,6 +54,7 @@ def configure(db,actor,uid,separation,reconciled=False,unlocated=False,note=''):
     if actor.role!='admin':raise ReceivingError('Só Administrador configura a separação/reconciliação.',403)
     unit=db.get(ValmetUnit,uid)
     if not unit or separation not in ('yes','no','unknown'):raise ReceivingError('Unidade ou regra inválida.')
+    if unit and unit.kind=='rolos' and inspect(db.bind).has_table('valmet_rolls'):raise ReceivingError('A política de palete é histórica; comprovar cada ID em Rolos individuais.')
     if separation!='unknown' and unit.kind!='rolos':raise ReceivingError('Separação de lotes aplica-se apenas a ROLOS.')
     if any(r.unit_id==uid for r in active(db)):raise ReceivingError('Unidade reservada; cancelar/rever antes de mudar regras.')
     if reconciled and not (unit.kind=='vazias' and unit.legacy_unnumbered):raise ReceivingError('Reconciliação apenas para grupos históricos de Caixas Vazias.')
@@ -64,6 +70,8 @@ def source(db,exclude=None,unit_ids=None):
     holds=defaultdict(list)
     for h in balances.allocation_rows(db,exclude):holds[h['unit']['position_id']].append(h)
     result=[]
+    granular=inspect(db.bind).has_table('valmet_rolls')
+    from . import valmet_rolls as rolls
     query=select(ValmetUnit,ValmetPosition).join(ValmetPosition,ValmetPosition.unit_id==ValmetUnit.id).where(ValmetPosition.physical_quantity>0).order_by(ValmetUnit.id,ValmetPosition.id).limit(10001)
     if unit_ids is not None:query=query.where(ValmetUnit.id.in_(unit_ids))
     units=db.execute(query).all()
@@ -98,6 +106,18 @@ def source(db,exclude=None,unit_ids=None):
             composition=[dict(article=' / '.join(sorted(articles[lot])) or None,lot=lot,quantity=q) for lot,q in materials.items()],
             separation=p.separation if p else 'unknown',policy=p.id if p else None,unlocated=unlocated,held=bool(holds[pos.id])))
         result[-1]['free_physical']=max(0,pos.physical_quantity-phys)
+        if u.kind=='rolos' and granular:
+            all_rows=rolls.present(db,u.id)
+            if not all_rows:
+                result.pop();continue
+            used_ids={rid for h in holds[pos.id] for rid in h.get('roll_ids',[])}
+            free=[r for r in all_rows if r['id'] not in used_ids]
+            articles=defaultdict(set)
+            for roll in all_rows:
+                if roll['article']:articles[roll['lot']].add(roll['article'])
+            result[-1]['articles']={lot:sorted(values) for lot,values in articles.items()}
+            result[-1]['composition']=[dict(article=' / '.join(sorted(articles[lot])) or None,lot=lot,quantity=q) for lot,q in materials.items()]
+            result[-1].update(all_rolls=all_rows,rolls=free,roll_version=rolls.event_version(db,u.id),available={lot:rolls.material(free).get(lot,0) for lot in materials})
     return result
 
 def payload(reference,day,destination,lines):
@@ -157,10 +177,28 @@ def boxes(candidates,lot,needed):
     total=min(over) if over else max(states)
     return states[total]
 
-def calculate(db,record,manual=None):
+def calculate(db,record,manual=None,roll_selection=None):
     data=pending_payload(db,record);units=source(db,record.id);byid={u['id']:u for u in units}
     selected={}
+    from . import valmet_rolls as rolls
+    if roll_selection is not None:
+        for key,ids in roll_selection.items():
+            u=byid.get(int(key))
+            if not u or u['kind']!='rolos' or 'rolls' not in u:raise ReceivingError('Palete/identidade de rolos indisponível.')
+            selected[u['id']]=rolls.selection(u,ids)
+        requested={(l['kind'],l['lot']) for l in data['lines'] if l['quantity']>0}
+        for s in selected.values():
+            chosen=[r for r in s['unit']['all_rolls'] if r['id'] in s['roll_ids']]
+            # Only the mandatory companions of a requested non-divisible roll
+            # on this same pallet may introduce unrequested lots. Validate each
+            # identity: a legitimate extra lot never authorizes divisible rolls.
+            requested_bundle=any(not r['divisible'] and ('rolos',r['lot']) in requested for r in chosen)
+            if any(('rolos',r['lot']) not in requested and (r['divisible'] or not requested_bundle) for r in chosen):
+                raise ReceivingError('Rolos fora do pedido.')
     def add(u,lot,q):
+        if u['kind']=='rolos' and 'rolls' in u:
+            if roll_selection is not None:return
+            selected[u['id']]=rolls.take(u,selected.get(u['id']),lot,q);return
         single=u.get('original_physical',u['physical'])==1
         whole=(u['kind'] in ('caixas','pecas') or
             (u['kind']=='rolos' and u['separation']!='yes') or
@@ -232,12 +270,12 @@ def summarize(db,record,selected):
     return result
 
 @v.command
-def review(db,actor,ident,version,manual=None):
+def review(db,actor,ident,version,manual=None,roll_selection=None):
     record=db.get(Prep,ident);access(record,actor)
     if record.version!=version:raise ReceivingError('Revisão desatualizada.')
     if record.active_revision and db.get(Rev,record.active_revision).version==version:
         raise ReceivingError('Alterar o pedido antes de recalcular as reservas confirmadas.')
-    result=calculate(db,record,manual);record.review=dump(result)
+    result=calculate(db,record,manual,roll_selection);record.review=dump(result)
     revision(db,record,actor,'review',result)
     return result
 
@@ -253,8 +291,15 @@ def confirm(db,actor,ident,version,accept_extra=False,accept_unlocated=False,acc
     previous=json.loads(record.review)
     manual=[(s['unit']['id'],lot,q) for s in previous['selections'] for lot,q in s['materials'].items()
         if (s['unit']['kind'],lot) in {(l['kind'],l['lot']) for l in previous['payload']['lines']}]
-    current=calculate(db,record,manual)
-    if dump(current)!=record.review:raise ReceivingError('Stock/regras mudaram; rever novamente, sem substituir a seleção silenciosamente.')
+    roll_selection={s['unit']['id']:s['roll_ids'] for s in previous['selections'] if 'roll_ids' in s}
+    current=calculate(db,record,manual,roll_selection or None)
+    def comparable(plan):
+        plan=json.loads(dump(plan))
+        for s in plan['selections']:
+            if 'roll_ids' in s:
+                for field in ('available','rolls','held','free_physical'):s['unit'].pop(field,None)
+        return dump(plan)
+    if comparable(current)!=comparable(previous):raise ReceivingError('Stock/regras mudaram; rever novamente, sem substituir a seleção silenciosamente.')
     if current['extras'] and not accept_extra:raise ReceivingError('Confirmar explicitamente Material enviado a mais e lotes adicionais.')
     if current['unlocated'] and not accept_unlocated:raise ReceivingError('Validar explicitamente vasilhame Por localizar.')
     if current['uncontrolled'] and not accept_uncontrolled:raise ReceivingError('Validar bobines LAB sem contagem remanescente controlada.')

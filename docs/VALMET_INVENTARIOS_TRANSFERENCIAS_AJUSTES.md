@@ -66,3 +66,5 @@ Sem importação Excel, geração/regularização automática de números histó
 Consultas/âmbito operacional são limitados explicitamente a 10 000 posições; ultrapassar esse limite recusa a operação e pede filtros/reconciliação, nunca trunca silenciosamente o âmbito. Paginação de inventários completos acima desse limite exige evolução posterior antes dessa utilização. PDFs acima de 25 000 linhas físicas/de composição são recusados explicitamente; o inventário guardado mantém-se acessível, podendo usar folhas parciais.
 
 A CI Linux reserva 30 minutos para a regressão integral: a base anterior já gastou 17 min 41 s só em PostgreSQL e os novos ensaios acrescentam cerca de dois minutos, além da preparação/SQLite. Não se reduzem testes nem verificações; Windows mantém o limite existente.
+
+**Fase 2B.4B:** a gestão operacional individual dos rolos, comprovação histórica e conjuntos não divisíveis estão descritos em [VALMET_ROLOS_INDIVIDUAIS.md](VALMET_ROLOS_INDIVIDUAIS.md). Substitui a política de divisibilidade por palete para novos fluxos, sem reescrever históricos. Head `ddn_0010`; importação definitiva continua pendente.

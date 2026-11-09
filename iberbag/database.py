@@ -823,6 +823,7 @@ class ValmetControlDocument(Scoped, Base):
 
 class ValmetRoll(Scoped, Base):
     __tablename__='valmet_rolls'
+    __table_args__=(Index('ix_valmet_rolls_unit','context_id','unit_id','id'),)
     id: Mapped[int]=mapped_column(primary_key=True)
     unit_id: Mapped[int]=mapped_column(ForeignKey('valmet_units.id'),nullable=False)
     article: Mapped[str | None]=mapped_column(String(120))
@@ -832,6 +833,7 @@ class ValmetRoll(Scoped, Base):
 
 class ValmetRollState(Scoped, Base):
     __tablename__='valmet_roll_states'
+    __table_args__=(Index('ix_valmet_roll_states_unit','context_id','unit_id','id'),)
     id: Mapped[int]=mapped_column(ForeignKey('valmet_rolls.id'),primary_key=True)
     unit_id: Mapped[int]=mapped_column(ForeignKey('valmet_units.id'),nullable=False)
     present: Mapped[bool]=mapped_column(Boolean,nullable=False)
@@ -839,6 +841,7 @@ class ValmetRollState(Scoped, Base):
 
 class ValmetRollEvent(Scoped, Base):
     __tablename__='valmet_roll_events'
+    __table_args__=(Index('ix_valmet_roll_events_unit','context_id','unit_id','id'),)
     id: Mapped[int]=mapped_column(primary_key=True)
     unit_id: Mapped[int]=mapped_column(ForeignKey('valmet_units.id'),nullable=False)
     request_key: Mapped[str]=mapped_column(String(64),nullable=False,unique=True)

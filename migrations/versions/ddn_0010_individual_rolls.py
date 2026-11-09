@@ -11,6 +11,7 @@ def create(name,cols,refs=()):
     op.create_table(name,s.Column('id',s.Integer(),primary_key=True),s.Column('context_id',s.Integer(),s.ForeignKey('storage_contexts.id'),nullable=False,server_default='1'),*cols,
         s.UniqueConstraint('context_id','id'),*(s.ForeignKeyConstraint(['context_id',col],[target+'.context_id',target+'.id']) for col,target in refs))
     op.create_index('ix_'+name+'_context_id',name,['context_id'])
+    op.create_index('ix_'+name+'_unit',name,['context_id','unit_id','id'])
 
 def upgrade():
     create('valmet_roll_events',[s.Column('unit_id',s.Integer(),nullable=False),s.Column('request_key',s.String(64),nullable=False),s.Column('action',s.String(20),nullable=False),

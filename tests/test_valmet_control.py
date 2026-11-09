@@ -530,3 +530,14 @@ def test_control_location_totals_cannot_hide_material_or_treat_blank_as_zero(val
     submit(engine,actor,ident);approve(engine,actor,ident,corrected)
     with scoped(engine,2) as db:c.close_inventory(db,actor,ident,db.get(Inventory,ident).version)
     assert physical(engine)==1
+
+    second=inventory(engine,actor,'complete')
+    recorded=count(engine,actor,second,f'P:{pid}',1,{'LOT':5})
+    marks=[count(engine,actor,second,key,1 if key=='L:A2' else 0,{}) for key in ('L:A2','L:H2','L:Chão')]
+    submit(engine,actor,second)
+    for item in [recorded]+marks:approve(engine,actor,second,item)
+    adjust(engine,actor,pid,1,{'LOT':4},proven=True)
+    with scoped(engine,2) as db,pytest.raises(v.ReceivingError):c.close_inventory(db,actor,second,db.get(Inventory,second).version)
+    fresh=count(engine,actor,second,f'P:{pid}',1,{'LOT':4},recount=True,evidence='Nova conferência após ajuste posterior à primeira aprovação')
+    submit(engine,actor,second);approve(engine,actor,second,fresh)
+    with scoped(engine,2) as db:c.close_inventory(db,actor,second,db.get(Inventory,second).version)

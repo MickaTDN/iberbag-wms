@@ -382,6 +382,10 @@ def close_inventory(db,actor,ident,version):
     for key,count in counts.items():
         data=json.loads(count.payload);target=data['target']
         if target['kind']=='location':continue
+        if final.get(count.id)=='approve' and target.get('position'):
+            before=json.loads(count.reference)['position']
+            current=reference(db,target['position'],data['after']['target'],ident)['position']
+            if before['epoch']!=current['epoch']:raise ReceivingError('Movimentos/reservas posteriores à contagem aprovada; reconferir antes de concluir o inventário.')
         loc=data.get('observed') or target.get('local')
         if final.get(count.id)=='omit':omitted.update((loc,target.get('local')))
         elif data['physical'] is not None:totals[loc]+=data['physical']

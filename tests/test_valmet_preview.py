@@ -60,3 +60,20 @@ def test_safe_xlsx_read_only_and_formula_rejection(tmp_path):
     before=sha256(path.read_bytes()).hexdigest();r=analyze(path,2,snapshot());assert r['sha256']==before and sha256(path.read_bytes()).hexdigest()==before and r['blocking']==0
     book['Rolos']['F2']='=1+2';book.save(path)
     with pytest.raises(ValueError,match='Fórmulas'):analyze(path,2,snapshot())
+
+
+def test_preview_never_uses_database_and_detects_capacity_and_missing_sheets(monkeypatch):
+    import sqlalchemy
+    from sqlalchemy.orm import Session
+    def forbidden(*args,**kwargs):raise AssertionError('No database access permitted')
+    monkeypatch.setattr(sqlalchemy,'create_engine',forbidden);monkeypatch.setattr(Session,'commit',forbidden)
+    d=data();d['Paletes Fio'] += [(2,[None,None,'A','A2',3])]
+    s=snapshot();s['locations']['A2']['capacity']=2
+    assert 'CAPACIDADE_EXCEDIDA' in codes(analyze_rows(d,2,s))
+    del d['Caixas'];assert 'FOLHA_EM_FALTA' in codes(analyze_rows(d,2,s))
+    assert identifier(' 001 ' )=='001' and identifier(12.0)=='12'
+
+
+def test_duplicate_numbers_across_categories_and_uppercase_sheet_names():
+    d=data();d['Caixas'] += [(2,['R',None,'A','Chão'])];d['ROLOS']=d.pop('Rolos');d['ROLOS'] += [(2,['R',None,'B','A2',1,3])]
+    assert 'NUMERO_ENTRE_CATEGORIAS' in codes(analyze_rows(d,2,snapshot()))

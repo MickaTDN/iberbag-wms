@@ -137,6 +137,9 @@ def analyze_rows(sheets,context_id,snapshot=None):
 def analyze(path,context_id,snapshot=None):
     path=Path(path)
     if path.stat().st_size>MAX_FILE:raise ValueError('Excel demasiado grande.')
+    with path.open('rb') as stream:before=stream.read(MAX_FILE+1)
+    if len(before)>MAX_FILE:raise ValueError('Excel demasiado grande.')
+    digest=sha256(before).hexdigest()
     # Cached formula results must never be mistaken for verified literal input.
     with ZipFile(path) as archive:
         validate_archive(archive)
@@ -144,7 +147,9 @@ def analyze(path,context_id,snapshot=None):
             if key(name) in {key(s) for s in SHEETS} and ET.fromstring(archive.read(target),forbid_dtd=True).find('.//x:f',N) is not None:raise ValueError('Fórmulas exigem revisão; pré-visualização recusada.')
         names=[name for name in _sheet_paths(archive) if key(name) in {key(s) for s in SHEETS}]
     result=analyze_rows(workbook_rows(path,tuple(names)),context_id,snapshot)
-    result['sha256']=sha256(path.read_bytes()).hexdigest()
+    with path.open('rb') as stream:after=stream.read(MAX_FILE+1)
+    if len(after)>MAX_FILE or sha256(after).hexdigest()!=digest:raise ValueError('Excel mudou durante a análise; repetir com uma cópia estável.')
+    result['sha256']=digest
     return result
 
 if __name__=='__main__':

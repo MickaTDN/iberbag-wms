@@ -204,6 +204,31 @@ REQUIRED_WINDOWS |= {
     'test_valmet_control.test_control_sqlite_rejects_all_operational_commands',
 }
 
+REQUIRED_POSTGRES |= {
+    'test_valmet_preview.test_grouping_repeated_lots_one_pallet_originals_and_divisibility',
+    'test_valmet_preview.test_unmarked_rolls_not_divisible_and_contradictory_markings',
+    'test_valmet_preview.test_numbered_multilot_units_keep_historic_numbers',
+    'test_valmet_preview.test_blank_quantities_never_zero',
+    'test_valmet_preview.test_ambiguous_invalid_quantities_block',
+    'test_valmet_preview.test_identity_catalogue_capacity_context_and_no_mutation',
+    'test_valmet_preview.test_contradictory_duplicates_and_missing_fields',
+    'test_valmet_preview.test_safe_xlsx_read_only_and_formula_rejection',
+    'test_valmet_preview.test_preview_never_uses_database_and_detects_capacity_and_missing_sheets',
+    'test_valmet_preview.test_duplicate_numbers_across_categories_and_uppercase_sheet_names',
+}
+REQUIRED_WINDOWS |= {
+    'test_valmet_preview.test_grouping_repeated_lots_one_pallet_originals_and_divisibility',
+    'test_valmet_preview.test_unmarked_rolls_not_divisible_and_contradictory_markings',
+    'test_valmet_preview.test_numbered_multilot_units_keep_historic_numbers',
+    'test_valmet_preview.test_blank_quantities_never_zero',
+    'test_valmet_preview.test_ambiguous_invalid_quantities_block',
+    'test_valmet_preview.test_identity_catalogue_capacity_context_and_no_mutation',
+    'test_valmet_preview.test_contradictory_duplicates_and_missing_fields',
+    'test_valmet_preview.test_safe_xlsx_read_only_and_formula_rejection',
+    'test_valmet_preview.test_preview_never_uses_database_and_detects_capacity_and_missing_sheets',
+    'test_valmet_preview.test_duplicate_numbers_across_categories_and_uppercase_sheet_names',
+}
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

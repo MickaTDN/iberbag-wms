@@ -77,7 +77,7 @@ def test_historical_import_all_layouts_official_stock_rolls_and_idempotency(valm
     with scoped(engine,2) as db:assert len(rolls.present(db,rolled.id))==3
     assert confirm(engine,actor,revision,digest)==record
 
-@pytest.mark.parametrize('case',['quantity','duplicate','formula','capacity','identity','unknown_location','missing_sheet'])
+@pytest.mark.parametrize('case',['quantity','duplicate','formula','capacity','identity','unknown_location','missing_sheet','material_quantity'])
 def test_historical_import_blocking_unknowns_and_catalogue(valmet,case):
     engine,a=valmet;actor=a['admin'][0]
     def change(b):
@@ -88,6 +88,7 @@ def test_historical_import_blocking_unknowns_and_catalogue(valmet,case):
         if case=='identity':b['Caixas Vazias']['C2']='BOX-1'
         if case=='unknown_location':b['Paletes Fio']['D2']='FOREIGN'
         if case=='missing_sheet':del b['Rolos']
+        if case=='material_quantity':b['Paletes Fio']['F1']='Quantidade';b['Paletes Fio']['F2']=99
     if case=='formula':
         with scoped(engine,2) as db:
             with pytest.raises(v.ReceivingError):service.preview_file(db,actor,secrets.token_hex(16),workbook(change))
@@ -158,6 +159,11 @@ def test_historical_import_permissions_runtime_isolation_csrf_and_books(restrict
     with scoped(runtime,2) as db:
         rev=service.reconcile(db,actor,ident,secrets.token_hex(16),decisions(),'Prova fictícia runtime restrito');digest=db.get(m.ValmetImportRevision,rev).digest
     confirm(runtime,actor,rev,digest)
+    with scoped(runtime,2) as db:entry_id=db.scalar(select(m.ValmetImportConfirmation.entry_id))
+    with TestClient(app) as client:
+        client.cookies.set('wms_session',tokens['operador'][0]);client.cookies.set('ddn_context','2')
+        assert 'Importação histórica confirmada' in client.get(f'/valmet/entries/{entry_id}').text
+        assert client.get(f'/valmet/imports/{ident}').status_code==403
     with scoped(runtime,2) as db:
         for table in ('valmet_import_drafts','valmet_import_revisions','valmet_import_confirmations'):
             with pytest.raises(DBAPIError):db.execute(text('DELETE FROM '+table))
@@ -256,7 +262,25 @@ def test_historical_upload_parser_bounds_and_sqlite_never_imports():
     engine=create_engine('sqlite://')
     with Session(engine) as db:
         with pytest.raises(v.ReceivingError,match='PostgreSQL'):service.confirm(db,1,1,secrets.token_hex(16),'bad',True)
-    assert not engine.dialect.get_table_names(engine.connect())
+    with engine.connect() as conn:assert not engine.dialect.get_table_names(conn)
+    engine.dispose()
+    from iberbag.http_body import BoundedPostBody
+    async def bounded(path,size,slow=False):
+        reached=[];messages=[]
+        async def app(scope,receive,send):
+            reached.append(True)
+            await send({'type':'http.response.start','status':200,'headers':[]});await send({'type':'http.response.body','body':b''})
+        async def receive():
+            if slow:await asyncio.sleep(1)
+            return {'type':'http.request','body':b'x'*size,'more_body':False}
+        async def send(message):messages.append(message)
+        scope={'type':'http','method':'POST','path':path,'http_version':'1.1','headers':[(b'content-length',str(size).encode())]}
+        await BoundedPostBody(app,timeout=.01)(scope,receive,send)
+        return next(m['status'] for m in messages if m['type']=='http.response.start'),bool(reached)
+    assert asyncio.run(bounded('/valmet/imports/upload',65537))==(200,True)
+    assert asyncio.run(bounded('/valmet/entries/review',65537))==(413,False)
+    assert asyncio.run(bounded('/valmet/imports/upload',20*1024*1024+16385))==(413,False)
+    assert asyncio.run(bounded('/valmet/imports/upload',1,True))==(408,False)
 
 @pytest.mark.parametrize('choices',[[],{'warnings':'all'},{'rows':[]},{'historical_numbers':'Paletes!2'},{'m2_totals':[]},{'rows':{'NO!2':{'fisico':1}}}])
 def test_historical_invalid_decisions_never_write_stock(valmet,choices):

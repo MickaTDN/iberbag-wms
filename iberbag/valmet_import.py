@@ -130,7 +130,9 @@ def build_plan(db,draft,decisions,reason):
             for c in u['contents']:
                 if u['kind']=='vasilhame':continue
                 q=c['quantity']
-                if u['kind'] in ('paletes','prateleiras','fio'):q=c['physical_quantity']
+                if u['kind'] in ('paletes','prateleiras','fio'):
+                    if c['quantity'] is not None and c['quantity']!=c['physical_quantity']:raise ReceivingError('Quantidade material distinta das paletes exige esclarecimento; não descartar valores.')
+                    q=c['physical_quantity']
                 if q is None and u['number'] and u['kind'] in ('prateleiras','fio') and len(u['contents'])==1:q=1
                 items.append((c['article'],c['lot'],q))
             m2=[c['m2'] for c in u['contents'] if c['m2'] is not None]

@@ -71,7 +71,9 @@ def detail(ident:int,request:Request,db=Depends(database)):
         from .database import ValmetImportConfirmation,ValmetImportRevision
         proof=db.scalar(select(ValmetImportConfirmation).where(ValmetImportConfirmation.entry_id==entry.id))
         rev=db.get(ValmetImportRevision,proof.revision_id)
-        return redirect(f'/valmet/imports/{rev.draft_id}')
+        if user.role=='admin':return redirect(f'/valmet/imports/{rev.draft_id}')
+        return render(request,'valmet_entry.html',context(request,user,sess,entry=entry,receipt=None,historical=True,
+            current_rows=service.stock(db,{'entry_id':entry.id})[0],roll_units=db.scalars(select(ValmetUnit).where(ValmetUnit.entry_id==ident,ValmetUnit.kind=='rolos')).all(),values=json.loads(entry.payload),kinds=service.KINDS))
     receipt=db.get(Receipt,entry.receipt_id) if entry.receipt_id else None
     current_rows=service.stock(db,{'entry_id':entry.id})[0] if receipt else []
     return render(request,'valmet_entry.html',context(request,user,sess,entry=entry,receipt=receipt,current_rows=current_rows,roll_units=db.scalars(select(ValmetUnit).where(ValmetUnit.entry_id==ident,ValmetUnit.kind=='rolos')).all() if receipt else [],values=json.loads(entry.payload),kinds=service.KINDS))

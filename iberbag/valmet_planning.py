@@ -186,9 +186,15 @@ def calculate(db,record,manual=None,roll_selection=None):
             u=byid.get(int(key))
             if not u or u['kind']!='rolos' or 'rolls' not in u:raise ReceivingError('Palete/identidade de rolos indisponível.')
             selected[u['id']]=rolls.selection(u,ids)
-        if any((s['unit']['kind'],lot) not in {(l['kind'],l['lot']) for l in data['lines']} for s in selected.values() for lot in s['materials']):
-            # Extra lots are allowed only as part of the selected non-divisible set.
-            if not any(not r['divisible'] and r['id'] in s['roll_ids'] for s in selected.values() for r in s['unit']['all_rolls']):raise ReceivingError('Rolos fora do pedido.')
+        requested={(l['kind'],l['lot']) for l in data['lines'] if l['quantity']>0}
+        for s in selected.values():
+            chosen=[r for r in s['unit']['all_rolls'] if r['id'] in s['roll_ids']]
+            # Only the mandatory companions of a requested non-divisible roll
+            # on this same pallet may introduce unrequested lots. Validate each
+            # identity: a legitimate extra lot never authorizes divisible rolls.
+            requested_bundle=any(not r['divisible'] and ('rolos',r['lot']) in requested for r in chosen)
+            if any(('rolos',r['lot']) not in requested and (r['divisible'] or not requested_bundle) for r in chosen):
+                raise ReceivingError('Rolos fora do pedido.')
     def add(u,lot,q):
         if u['kind']=='rolos' and 'rolls' in u:
             if roll_selection is not None:return

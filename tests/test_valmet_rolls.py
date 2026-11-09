@@ -61,6 +61,52 @@ def test_mixed_multilot_reserves_disjoint_ids_and_never_splits_nondivisible_set(
     send(engine,actor,group,extra_ack=True);assert physical(engine)==0
 
 
+@pytest.mark.parametrize('case',['same_pallet','same_lot_as_bundle','other_pallet','other_nondivisible_pallet','unrequested_bundle'])
+def test_roll_selection_rejects_unrequested_rolls_outside_mandatory_bundle(valmet,case):
+    engine,a=valmet;actor=a['admin'][0]
+    flags,lots=([True,False],['A','B']) if case=='unrequested_bundle' else ([False,False,True],['A','B','B' if case=='same_lot_as_bundle' else 'C'])
+    receive(engine,actor,flags,lots)
+    if case in ('other_pallet','other_nondivisible_pallet'):
+        receive(engine,actor,[case=='other_pallet'],['C'],number='OTHER-ROLLS')
+    with scoped(engine,2) as db:
+        ids=[x['id'] for x in r.present(db,1)]
+        selection={1:[ids[0],ids[1] if case=='unrequested_bundle' else ids[2]]}
+        if case in ('other_pallet','other_nondivisible_pallet'):selection={1:[ids[0]],2:[r.present(db,2)[0]['id']]}
+        before=[(uid,r.present(db,uid)) for uid in selection]
+    order=draft(engine,actor,[('rolos','A','1')])
+    with scoped(engine,2) as db:
+        with pytest.raises(v.ReceivingError,match='Rolos fora do pedido'):
+            p.review(db,actor,order,1,roll_selection=selection)
+        assert not p.active(db) and db.get(Prep,order).review is None
+        # A review saved by the former validation must also fail on confirmation,
+        # even when the office explicitly accepts legitimate excess quantities.
+        units={u['id']:u for u in p.source(db)};record=db.get(Prep,order)
+        record.review=p.dump(p.summarize(db,record,{uid:r.selection(units[uid],chosen) for uid,chosen in selection.items()}));db.commit()
+        with pytest.raises(v.ReceivingError,match='Rolos fora do pedido'):
+            p.confirm(db,actor,order,1,accept_extra=True)
+        assert not p.active(db) and db.get(Prep,order).active_revision is None
+        assert [(uid,r.present(db,uid)) for uid in selection]==before
+        assert db.scalar(select(func.count()).select_from(Line))==0
+
+
+@pytest.mark.parametrize('extra_lot',['A','B'])
+def test_roll_selection_keeps_explicit_acceptance_of_mandatory_excess(valmet,extra_lot):
+    engine,a=valmet;actor=a['operador'][0]
+    receive(engine,actor,[False,False,True],['A',extra_lot,'C'])
+    order=draft(engine,actor,[('rolos','A','1')])
+    with scoped(engine,2) as db:
+        ids=[x['id'] for x in r.present(db,1)]
+        plan=p.review(db,actor,order,1,roll_selection={1:[ids[0]]})
+        assert plan['selections'][0]['roll_ids']==ids[:2]
+        assert plan['extras']==[dict(kind='rolos',lot=extra_lot,quantity=1)]
+        with pytest.raises(v.ReceivingError,match='Confirmar explicitamente'):
+            p.confirm(db,actor,order,1)
+        assert not p.active(db)
+        p.confirm(db,actor,order,1,accept_extra=True)
+        p.confirm(db,actor,order,1,accept_extra=True)
+        assert len(p.active(db))==1 and len(r.present(db,1))==3
+
+
 def test_legacy_policy_never_creates_individual_identity_and_proof_is_required(valmet):
     engine,a=valmet;actor=a['admin'][0]
     entry(engine,actor,[dict(row(),rolls=None)])

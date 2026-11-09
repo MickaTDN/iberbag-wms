@@ -239,6 +239,8 @@ REQUIRED_WINDOWS.add('test_valmet_preview.test_invalid_roll_markings_still_block
 REQUIRED_POSTGRES |= {
     'test_valmet_rolls.test_individual_rolls_select_bundles_and_release_last_pallet',
     'test_valmet_rolls.test_mixed_multilot_reserves_disjoint_ids_and_never_splits_nondivisible_set',
+    'test_valmet_rolls.test_roll_selection_rejects_unrequested_rolls_outside_mandatory_bundle',
+    'test_valmet_rolls.test_roll_selection_keeps_explicit_acceptance_of_mandatory_excess',
     'test_valmet_rolls.test_legacy_policy_never_creates_individual_identity_and_proof_is_required',
     'test_valmet_rolls.test_rolls_concurrent_reservations_and_idempotent_shipments',
     'test_valmet_rolls.test_rolls_partial_loading_explicit_ids_cancellation_and_rollback',

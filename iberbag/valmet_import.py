@@ -197,12 +197,14 @@ def confirm(db,actor,ident,key,expected_digest,accepted=False):
     if fingerprint(fresh)!=rec.digest:raise ReceivingError('Plano mudou; nova reconciliação obrigatória.')
     entry=m.ValmetEntry(request_key=key,payload=dump(dict(code='Importação histórica '+draft.digest,received_on=None,rows=plan['rows'])),created_by=actor.id)
     db.add(entry);db.flush()
+    mapping=[]
     for index,row in enumerate(plan['rows']):
         values={k:v for k,v in row.items() if k not in ('items','pending','rolls')}
         unit=m.ValmetUnit(entry_id=entry.id,**values);db.add(unit);db.flush()
         v.add_identification(db,actor,unit,sha256(f'import:{rec.id}:{index}'.encode()).hexdigest()[:32],row['items'],row['content_total'],'Importação histórica comprovada; '+', '.join(plan['origins'][index]['refs']))
         if row.get('rolls'):rolls.register(db,actor,unit.id,sha256(f'import-rolls:{rec.id}:{index}'.encode()).hexdigest()[:32],row['rolls'],'Importação histórica comprovada',f'Prévia {draft.id}; revisão {rec.id}; SHA-256 {draft.digest}')
+        mapping.append(dict(unit_id=unit.id,refs=plan['origins'][index]['refs'],rolls=[dict(id=r['id'],ref=ref) for r,ref in zip(rolls.present(db,unit.id),plan['origins'][index]['refs'])] if row.get('rolls') else []))
     record=m.ValmetImportConfirmation(revision_id=rec.id,entry_id=entry.id,client_id=owner.id,digest=draft.digest,request_key=key,actor=actor.username)
     db.add(record);db.flush();entry.status='imported';db.flush()
-    db.add(m.Audit(username=actor.username,action='VALMET_IMPORT_CONFIRMAR',details=dump(dict(confirmation=record.id,entry=entry.id,revision=rec.id,sha256=draft.digest,physical=plan['physical']))))
+    db.add(m.Audit(username=actor.username,action='VALMET_IMPORT_CONFIRMAR',details=dump(dict(confirmation=record.id,entry=entry.id,revision=rec.id,sha256=draft.digest,physical=plan['physical'],mapping=mapping))))
     return record.id

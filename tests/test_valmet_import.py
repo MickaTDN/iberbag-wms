@@ -67,6 +67,9 @@ def test_historical_import_all_layouts_official_stock_rolls_and_idempotency(valm
         rolled=next(u for u in units if u.kind=='rolos');ids=rolls.present(db,rolled.id)
         assert len(ids)==4 and [r['divisible'] for r in ids]==[True,True,False,False]
         assert [r['lot'] for r in ids]==['A','A','B','C']
+        audit=json.loads(db.scalar(select(m.Audit.details).where(m.Audit.action=='VALMET_IMPORT_CONFIRMAR')))
+        mapping=next(x for x in audit['mapping'] if x['unit_id']==rolled.id)
+        assert mapping['rolls']==[dict(id=r['id'],ref=f'Rolos!{i+2}') for i,r in enumerate(ids)]
         assert next(u for u in units if u.kind=='vazias').local=='Chão'
         assert next(u for u in units if u.kind=='vasilhame').local is None
         assert str(next(u for u in units if u.kind=='paletes').material_m2)=='12.500'

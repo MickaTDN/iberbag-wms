@@ -255,7 +255,7 @@ def test_historical_upload_parser_bounds_and_sqlite_never_imports():
     from fastapi import HTTPException
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
-    from iberbag.valmet_import_routes import upload_form
+    from iberbag.valmet_import_upload import upload_form
     for body,typ in ((b'bad','multipart/form-data; boundary=no'),(b'','text/plain')):
         request=Request({'type':'http','method':'POST','path':'/valmet/imports/upload','headers':[(b'content-type',typ.encode())],'state':{'wms_body':body}})
         with pytest.raises(HTTPException):asyncio.run(upload_form(request))

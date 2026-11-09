@@ -1,7 +1,5 @@
 """Admin-only upload/reconciliation; the bounded HTTP body precedes all locks."""
 import json,secrets
-from email import policy
-from email.parser import BytesParser
 from fastapi import APIRouter,Request,Depends,HTTPException
 from sqlalchemy import select
 from .app import database,render,context,redirect
@@ -9,39 +7,13 @@ from .valmet_routes import access
 from .receiving_routes import receiving_form,failure,integer
 from .database import ValmetImportDraft as Draft,ValmetImportRevision as Revision,ValmetImportConfirmation as Confirmation
 from . import valmet_import as service
+from .valmet_import_upload import upload_form
 router=APIRouter()
 
 def allowed(request,db,data=None):
     user,sess=access(request,db,data)
     if user.role!='admin':raise HTTPException(403,'Importação histórica apenas para Administrador.')
     return user,sess
-
-async def upload_form(request:Request):
-    content_type=request.headers.get('content-type','')
-    if not content_type.startswith('multipart/form-data;') or len(content_type)>200 or '\r' in content_type or '\n' in content_type:raise HTTPException(400,'Selecionar um ficheiro Excel.')
-    body=getattr(request.state,'wms_body',b'')
-    if not body:raise HTTPException(400,'Ficheiro ausente.')
-    try:
-        envelope=BytesParser(policy=policy.default).parsebytes(b'Content-Type: '+content_type.encode('ascii')+b'\r\n\r\n')
-        boundary=envelope.get_boundary()
-        if not boundary or not 1<=len(boundary)<=120 or '\r' in boundary or '\n' in boundary:raise ValueError()
-        parts=body.split(b'--'+boundary.encode('ascii'))
-        if len(parts)!=6 or parts[0] or parts[-1] not in (b'--',b'--\r\n'):raise ValueError()
-        data={}
-        for raw in parts[1:-1]:
-            if not raw.startswith(b'\r\n') or not raw.endswith(b'\r\n'):raise ValueError()
-            header,sep,payload=raw[2:-2].partition(b'\r\n\r\n')
-            if not sep or len(header)>4096:raise ValueError()
-            part=BytesParser(policy=policy.default).parsebytes(header+b'\r\n\r\n')
-            name=part.get_param('name',header='content-disposition')
-            if part.defects or part.get_content_maintype()=='multipart' or part.get_content_disposition()!='form-data' or name not in ('excel','csrf','context_id','request_key') or name in data or part.get('Content-Transfer-Encoding'):raise ValueError()
-            if name=='excel':data[name]=payload
-            else:
-                if len(payload)>200:raise ValueError()
-                data[name]=payload.decode('utf-8','strict')
-        if set(data)!= {'excel','csrf','context_id','request_key'}:raise ValueError()
-        return data
-    except (ValueError,UnicodeError,TypeError):raise HTTPException(400,'Upload inválido; selecionar novamente o Excel.')
 
 @router.get('/valmet/imports')
 def index(request:Request,db=Depends(database)):

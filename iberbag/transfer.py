@@ -25,6 +25,7 @@ NUMBER_TABLES = {'load_numbers'}
 VALMET_TABLES = {'valmet_owners','valmet_entries','valmet_units','valmet_numbers','valmet_identifications','valmet_items'}
 PLANNING_TABLES = {'valmet_preparations','valmet_plan_revisions','valmet_reservations','valmet_handling'}
 SHIPPING_TABLES = {'valmet_positions','valmet_shipments','valmet_shipment_lines','valmet_occurrences','valmet_relocations','valmet_documents'}
+IMPORT_TABLES = {'valmet_import_drafts','valmet_import_revisions','valmet_import_confirmations'}
 ROLL_TABLES = {'valmet_rolls','valmet_roll_states','valmet_roll_events'}
 CONTROL_TABLES = {'valmet_inventories','valmet_counts','valmet_control_drafts','valmet_control_moves','valmet_inventory_decisions','valmet_control_documents'}
 LOCK = 72834002
@@ -62,7 +63,9 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
-    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES - PLANNING_TABLES - SHIPPING_TABLES - CONTROL_TABLES - ROLL_TABLES
+    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES - PLANNING_TABLES - SHIPPING_TABLES - CONTROL_TABLES - ROLL_TABLES - IMPORT_TABLES
+    if missing & IMPORT_TABLES not in (set(),IMPORT_TABLES):raise ValueError('Esquema de importação Valmet incompleto.')
+    if not missing & IMPORT_TABLES and missing & (ROLL_TABLES|CONTROL_TABLES):raise ValueError('Importação sem estrutura Valmet completa.')
     if missing & ROLL_TABLES not in (set(),ROLL_TABLES):raise ValueError('Esquema de rolos individuais incompleto.')
     if not missing & ROLL_TABLES and missing & (CONTROL_TABLES|SHIPPING_TABLES|PLANNING_TABLES|VALMET_TABLES):raise ValueError('Rolos sem estrutura Valmet completa.')
     if missing & CONTROL_TABLES not in (set(),CONTROL_TABLES):raise ValueError('Esquema de controlo Valmet incompleto.')
@@ -94,7 +97,7 @@ def read_data(connection):
             allowed = ({frozenset({'ddn_0002'}),frozenset({'ddn_0002','0007'}),frozenset({'ddn_security_0001'})}
                        if missing & NUMBER_TABLES else ({frozenset({'ddn_0003'})} if missing & VALMET_TABLES else
                        ({frozenset({'ddn_0004'}),frozenset({'ddn_0005'}),frozenset({'ddn_0006'})} if missing & PLANNING_TABLES else
-                       ({frozenset({'ddn_0007'})} if missing & SHIPPING_TABLES else ({frozenset({'ddn_0008'})} if missing & CONTROL_TABLES else ({frozenset({'ddn_0009'})} if missing & ROLL_TABLES else {frozenset({REVISION})}))))))
+                       ({frozenset({'ddn_0007'})} if missing & SHIPPING_TABLES else ({frozenset({'ddn_0008'})} if missing & CONTROL_TABLES else ({frozenset({'ddn_0009'})} if missing & ROLL_TABLES else ({frozenset({'ddn_0010'})} if missing & IMPORT_TABLES else {frozenset({REVISION})})))))))
         if versions not in allowed:
             raise ValueError('Revisão/heads incompatíveis com o esquema. Não usar stamp para contornar.')
     if connection.dialect.name == 'sqlite':
@@ -185,6 +188,9 @@ def archive_inventory(connection, expected):
     data = read_data(connection)
     wanted = set(expected.get('tables', {}))
     current = {t.name for t in TABLES}
+    if not wanted & IMPORT_TABLES:
+        if any(data[name] for name in IMPORT_TABLES):raise ValueError('Backup anterior não inclui importações históricas.')
+        current-=IMPORT_TABLES
     if not wanted & ROLL_TABLES:
         if any(data[name] for name in ROLL_TABLES):raise ValueError('Backup anterior não inclui identidades de rolos.')
         current-=ROLL_TABLES
@@ -297,7 +303,7 @@ def require_empty(connection):
 def apply(bundle, engine):
     require_test_target(engine)
     data, report = load_bundle(bundle)
-    if any(data[name] for name in (VALMET_TABLES-{'valmet_owners'})|PLANNING_TABLES|SHIPPING_TABLES|CONTROL_TABLES|ROLL_TABLES):
+    if any(data[name] for name in (VALMET_TABLES-{'valmet_owners'})|PLANNING_TABLES|SHIPPING_TABLES|CONTROL_TABLES|ROLL_TABLES|IMPORT_TABLES):
         raise ValueError('Importação operacional Valmet não implementada. Usar backup/restauro PostgreSQL verificado.')
     with engine.begin() as connection:
         connection.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK})

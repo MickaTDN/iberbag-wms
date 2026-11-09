@@ -257,6 +257,22 @@ REQUIRED_POSTGRES.add('test_valmet_rolls.test_rolls_stock_article_search_uses_re
 
 REQUIRED_POSTGRES.add('test_valmet_rolls.test_rolls_postgres_rejects_forged_partial_bundle_and_temp_writer_trigger')
 
+REQUIRED_POSTGRES |= {
+    'test_valmet_import.test_historical_import_all_layouts_official_stock_rolls_and_idempotency',
+    'test_valmet_import.test_historical_import_blocking_unknowns_and_catalogue',
+    'test_valmet_import.test_historical_import_reconciliation_provenance_unknown_not_zero',
+    'test_valmet_import.test_historical_import_stale_reservations_failure_rollback_and_concurrency',
+    'test_valmet_import.test_historical_import_permissions_runtime_isolation_csrf_and_books',
+    'test_valmet_import.test_historical_import_backup_restore_and_altered_file_no_second_baseline',
+    'test_valmet_import.test_historical_import_multilot_unknown_presence_and_existing_identity_cannot_be_renamed',
+    'test_valmet_import.test_historical_import_integrates_inventory_transfer_adjustment_and_archived_pdf',
+    'test_valmet_import.test_historical_import_ddn10_upgrade_preserves_existing_stock_reservations_and_pdf',
+    'test_valmet_import.test_historical_upload_parser_bounds_and_sqlite_never_imports',
+    'test_valmet_import.test_historical_invalid_decisions_never_write_stock',
+    'test_valmet_import.test_historical_latest_revision_digest_and_capacity_change_are_revalidated',
+}
+REQUIRED_WINDOWS.add('test_valmet_import.test_historical_upload_parser_bounds_and_sqlite_never_imports')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

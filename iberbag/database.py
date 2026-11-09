@@ -572,7 +572,7 @@ class ValmetEntry(Scoped, Base):
     created_by: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
     receipt_id: Mapped[int | None] = mapped_column(ForeignKey('receipts.id'), unique=True)
-    __table_args__ = (CheckConstraint("status IN ('draft','confirmed') AND version > 0 AND ((status='draft' AND receipt_id IS NULL) OR (status='confirmed' AND receipt_id IS NOT NULL))", name='valmet_entry_state'),)
+    __table_args__ = (CheckConstraint("status IN ('draft','confirmed','imported') AND version > 0 AND ((status IN ('draft','imported') AND receipt_id IS NULL) OR (status='confirmed' AND receipt_id IS NOT NULL))", name='valmet_entry_state'),)
 
 class ValmetUnit(Scoped, Base):
     __tablename__ = 'valmet_units'
@@ -854,6 +854,37 @@ class ValmetRollEvent(Scoped, Base):
 
 # Every business key lives inside an immutable client/warehouse context. IDs stay
 # globally unique, preserving all historical references and archived documents.
+class ValmetImportDraft(Scoped, Base):
+    __tablename__ = 'valmet_import_drafts'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    report: Mapped[str] = mapped_column(Text, nullable=False)
+    actor: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+
+class ValmetImportRevision(Scoped, Base):
+    __tablename__ = 'valmet_import_revisions'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    draft_id: Mapped[int] = mapped_column(ForeignKey('valmet_import_drafts.id'), nullable=False)
+    request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    plan: Mapped[str] = mapped_column(Text, nullable=False)
+    digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+
+class ValmetImportConfirmation(Scoped, Base):
+    __tablename__ = 'valmet_import_confirmations'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    revision_id: Mapped[int] = mapped_column(ForeignKey('valmet_import_revisions.id'), unique=True, nullable=False)
+    entry_id: Mapped[int] = mapped_column(ForeignKey('valmet_entries.id'), unique=True, nullable=False)
+    client_id: Mapped[int] = mapped_column(ForeignKey('clients.id'), nullable=False)
+    digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    actor: Mapped[str] = mapped_column(String(60), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
+    __table_args__ = (UniqueConstraint('context_id'),Index('uq_valmet_import_owner_digest','client_id','digest',unique=True))
+
 for _table in list(Base.metadata.tables.values()):
     if _table.name == 'physical_location_claims' or 'context_id' not in _table.c:
         continue

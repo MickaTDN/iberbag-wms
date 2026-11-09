@@ -4,14 +4,17 @@ from fastapi import APIRouter,Request,Depends,HTTPException
 from sqlalchemy import select
 from .app import database,render,context,redirect
 from .valmet_routes import access
-from .receiving_routes import receiving_form,failure,integer
+from .receiving_routes import receiving_form,failure,integer,form_actor
 from .database import ValmetImportDraft as Draft,ValmetImportRevision as Revision,ValmetImportConfirmation as Confirmation
 from . import valmet_import as service
 from .valmet_import_upload import upload_form
 router=APIRouter()
 
 def allowed(request,db,data=None):
-    user,sess=access(request,db,data)
+    if data is None:user,sess=access(request,db)
+    else:
+        user,sess=form_actor(request,db,data,require_admin=True,operational=False)
+        if not service.v.enabled(db):raise HTTPException(403,'Processo Valmet indisponível neste contexto.')
     if user.role!='admin':raise HTTPException(403,'Importação histórica apenas para Administrador.')
     return user,sess
 

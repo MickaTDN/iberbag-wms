@@ -75,6 +75,7 @@ def analyze_rows(sheets,context_id,snapshot=None):
                 loc=identifier(values.get('local'));loc='Chão' if key(loc) in ('chao','floor') else loc
                 phy=quantity(values.get('fisico'));amount=quantity(values.get('quantidade'));m2=quantity(values.get('m2'),True)
                 if kind=='vazias' and loc is None:loc='Chão'
+                if kind=='vasilhame':amount=phy
                 if kind=='rolos':
                     if amount not in (None,1):issue('QUANTIDADE_ROLOS_CONTRADIZ_LINHA_INDIVIDUAL',[ref])
                     amount=1
@@ -122,7 +123,7 @@ def analyze_rows(sheets,context_id,snapshot=None):
     for unit in report['units']:
         amounts={}
         for content in unit['contents']:
-            lot=content['lot'];total=amounts.setdefault(lot or '(não identificado)',dict(known=0,unknown_rows=0))
+            lot=unit['brand'] if unit['kind']=='vasilhame' else content['lot'];total=amounts.setdefault(lot or '(não identificado)',dict(known=0,unknown_rows=0))
             if content['quantity'] is None:total['unknown_rows']+=1
             else:total['known']+=content['quantity']
         unit['content_totals']=amounts

@@ -117,6 +117,7 @@ def test_current_eight_layouts_mixed_rolls_and_legitimate_identical_rows(nondivi
     assert units['vazias']['local']=='Chão' and units['vazias']['contents'][0]['local_source']=='rule'
     assert all(c['quantity_state']=='presence' for c in units['vazias']['contents'])
     assert units['vasilhame']['physical']==4 and units['vasilhame']['local'] is None
+    assert units['vasilhame']['content_totals']=={'Filva':dict(known=4,unknown_rows=0)}
     assert units['fio']['number'] is None and units['fio']['physical']==3
     assert units['paletes']['contents'][0]['m2']=='12.345' and units['paletes']['contents'][1]['m2'] is None
     assert units['caixas']['contents'][1]['physical_quantity'] is None and units['caixas']['physical']==1

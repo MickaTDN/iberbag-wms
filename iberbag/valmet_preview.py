@@ -10,7 +10,7 @@ from .workbook import workbook_rows, validate_archive, MAX_FILE, N, _sheet_paths
 from .valmet import BRANDS
 
 SHEETS={'Caixas com Peças':'pecas','Caixas Vazias':'vazias','Caixas':'caixas','Prateleiras':'prateleiras','Paletes':'paletes','Vasilhame':'vasilhame','Paletes Fio':'fio','Rolos':'rolos'}
-ALIASES={'numero':('N.º Armazém','Nº Armazém','N. Armazém','TDN'),'artigo':('Artigo',),'lote':('Lote',),'local':('Localização','Localizacao'),'fisico':('Paletes','Quantidade de paletes'),'quantidade':('Quantidade','Qtd','Rolos','Peças'),'m2':('m²','m2'),'nota':('Notas','Observações'),'referencia':('Referência','Vasilhame'),'divisivel':('Divisível','Divisivel')}
+ALIASES={'numero':('N.º Armazém','Nº Armazém','N. Armazém','TDN'),'artigo':('Artigo',),'lote':('Lote',),'local':('Localização','Localizacao'),'fisico':('Paletes','Quantidade de paletes','Quantidade (Paletes)','Quantidade (Caixas)'),'quantidade':('Quantidade','Qtd','Rolos','Peças','Quantidade (peças)'),'m2':('m²','m2','Quantidade (m²)'),'nota':('Notas','Nota','Observações'),'referencia':('Referência','Vasilhame'),'divisivel':('Divisível','Divisivel')}
 
 def text(value):
     if value is None:return None
@@ -39,7 +39,7 @@ def analyze_rows(sheets,context_id,snapshot=None):
     scoped, disposable read data; never discover production configuration.
     Header must be the first supplied row. Unknown layouts block, not guessed.
     """
-    report=dict(context_id=context_id,preview_only=True,units=[],issues=[],totals={},rows=0)
+    report=dict(schema_version=2,context_id=context_id,preview_only=True,units=[],issues=[],totals={},rows=0)
     def issue(code,refs,severity='error'):report['issues'].append(dict(code=code,severity=severity,refs=refs))
     if snapshot is None:issue('CATALOGO_NAO_VERIFICADO',[])
     elif snapshot.get('context_id')!=context_id or snapshot.get('is_valmet') is not True:raise ValueError('Snapshot/contexto Valmet incompatível.')
@@ -63,7 +63,7 @@ def analyze_rows(sheets,context_id,snapshot=None):
         for rownum,raw in data[1:]:
             if not any(v is not None and v!='' for v in raw):continue
             signature=repr(raw)
-            if (sheet,signature) in signatures:issue('LINHA_REPETIDA_AMBIGUA',[signatures[(sheet,signature)],f'{sheet}!{rownum}'])
+            if kind!='rolos' and (sheet,signature) in signatures:issue('LINHA_REPETIDA_AMBIGUA',[signatures[(sheet,signature)],f'{sheet}!{rownum}'])
             signatures[(sheet,signature)]=f'{sheet}!{rownum}'
             report['rows']+=1
             if report['rows']>100000:raise ValueError('Demasiadas linhas Valmet.')
@@ -74,6 +74,10 @@ def analyze_rows(sheets,context_id,snapshot=None):
                 number=identifier(values.get('numero'));lot=identifier(values.get('lote'));article=identifier(values.get('artigo'))
                 loc=identifier(values.get('local'));loc='Chão' if key(loc) in ('chao','floor') else loc
                 phy=quantity(values.get('fisico'));amount=quantity(values.get('quantidade'));m2=quantity(values.get('m2'),True)
+                if kind=='vazias' and loc is None:loc='Chão'
+                if kind=='rolos':
+                    if amount not in (None,1):issue('QUANTIDADE_ROLOS_CONTRADIZ_LINHA_INDIVIDUAL',[ref])
+                    amount=1
                 mark=identifier(values.get('divisivel'))
                 if mark not in (None,'X'):issue('DIVISIBILIDADE_INVALIDA',[ref])
             except (ValueError,InvalidOperation) as error:
@@ -86,7 +90,7 @@ def analyze_rows(sheets,context_id,snapshot=None):
             else:
                 if not lot:issue('LOTE_EM_FALTA',[ref])
                 if not loc:issue('LOCALIZACAO_EM_FALTA',[ref])
-            if not article:issue('ARTIGO_DESCONHECIDO',[ref],'warning')
+            if not article and kind not in ('vasilhame','rolos'):issue('ARTIGO_DESCONHECIDO',[ref],'warning')
             if kind in ('rolos','caixas','pecas','vazias') and not number:issue('NUMERO_EM_FALTA',[ref])
             if kind=='vazias' and loc!='Chão':issue('CAIXAS_VAZIAS_FORA_CHAO',[ref])
             if number and kind in ('paletes','prateleiras','fio'):issue('IDENTIDADE_HISTORICA_EXIGE_ADAPTACAO_MODELO',[ref])
@@ -97,17 +101,17 @@ def analyze_rows(sheets,context_id,snapshot=None):
             if isinstance(values.get('numero'),(int,float)):issue('IDENTIFICADOR_NUMERICO_REVER_FORMATO',[ref],'warning')
             if number and number in numbers and numbers[number]!=kind:issue('NUMERO_ENTRE_CATEGORIAS',[ref]+groups[(numbers[number],number)]['refs'])
             if number:numbers[number]=kind
-            unit=groups.setdefault(groupkey,dict(kind=kind,number=number,local=loc,physical=1 if number else phy,contents=[],refs=[],originals=[],separation=None,brand=brand))
+            unit=groups.setdefault(groupkey,dict(kind=kind,number=number,local=loc,physical=1 if number else phy,contents=[],refs=[],originals=[],separation=None,brand=brand,loading_groups=dict(individual=[],indivisible=[])))
             if loc!=unit['local'] or brand!=unit['brand']:issue('UNIDADE_CONTRADITORIA',unit['refs']+[ref])
             if number and phy not in (None,1):issue('FISICO_NUMERADO_AMBIGUO',[ref])
             if kind=='rolos':
                 allowed=mark=='X'
-                if unit['separation'] is not None and unit['separation']!=allowed:issue('DIVISIBILIDADE_CONTRADITORIA',unit['refs']+[ref])
-                unit['separation']=allowed if unit['separation'] is None else unit['separation']
-            content=dict(article=article,lot=lot,quantity=amount,m2=m2,notes=normalized.get('nota'),ref=ref)
-            # Repeated lot rows may be distinct rolls; never deduplicate or sum
-            # indistinguishable rows silently. Keep every source row for review.
-            if any({k:v for k,v in c.items() if k!='ref'}=={k:v for k,v in content.items() if k!='ref'} for c in unit['contents']):issue('LINHAS_INDISTINGUIVEIS',unit['refs']+[ref])
+                unit['loading_groups']['individual' if allowed else 'indivisible'].append(ref)
+                marks=unit['loading_groups']
+                unit['separation']='mixed' if marks['individual'] and marks['indivisible'] else bool(marks['individual'])
+            content=dict(article=article,lot=lot,quantity=amount,m2=m2,notes=normalized.get('nota'),ref=ref,divisible=mark=='X' if kind=='rolos' else None,physical_quantity=phy,physical_state='known' if phy is not None else 'presence' if number else 'unknown',quantity_state='known' if amount is not None else 'presence' if kind in ('caixas','vazias') and number else 'unknown',local_source='rule' if kind=='vazias' and not normalized.get('local') else 'excel')
+            # Every roll row is a physical roll, even when all cells repeat.
+            if kind!='rolos' and any({k:v for k,v in c.items() if k!='ref'}=={k:v for k,v in content.items() if k!='ref'} for c in unit['contents']):issue('LINHAS_INDISTINGUIVEIS',unit['refs']+[ref])
             unit['contents'].append(content);unit['refs'].append(ref);unit['originals'].append(original)
             if snapshot is not None:
                 if number in snapshot.get('issued_numbers',[]):issue('NUMERO_JA_EMITIDO',[ref])

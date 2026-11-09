@@ -229,6 +229,13 @@ REQUIRED_WINDOWS |= {
     'test_valmet_preview.test_duplicate_numbers_across_categories_and_uppercase_sheet_names',
 }
 
+REQUIRED_POSTGRES.add('test_valmet_preview.test_current_eight_layouts_mixed_rolls_and_legitimate_identical_rows')
+REQUIRED_WINDOWS.add('test_valmet_preview.test_current_eight_layouts_mixed_rolls_and_legitimate_identical_rows')
+REQUIRED_POSTGRES.add('test_valmet_preview.test_current_layout_xlsx_original_bytes_and_no_write')
+REQUIRED_WINDOWS.add('test_valmet_preview.test_current_layout_xlsx_original_bytes_and_no_write')
+REQUIRED_POSTGRES.add('test_valmet_preview.test_invalid_roll_markings_still_block')
+REQUIRED_WINDOWS.add('test_valmet_preview.test_invalid_roll_markings_still_block')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

@@ -313,6 +313,8 @@ def main():
     args.output.write_text(json.dumps(result,indent=2,ensure_ascii=False),encoding='utf-8')
     print(json.dumps({k:result[k] for k in ('backend','counts','missing_required','valid')}))
     if os.getenv('GITHUB_ACTIONS')=='true':
+        for name in result['missing_required']:
+            print(f'::error title=DDN required test not proved::{name}')
         print(f"::notice title=DDN {args.backend} evidence::passed={result['counts'].get('passed',0)}; skipped={result['counts'].get('skipped',0)}; required={len(result['required_passed'])}; original={len(result['original_critical_passed'])}; valid={result['valid']}")
     if not result['valid']:raise SystemExit('Testes obrigatórios não comprovados; revisão recusada.')
 

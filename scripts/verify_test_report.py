@@ -253,6 +253,8 @@ REQUIRED_WINDOWS.add('test_valmet_rolls.test_rolls_parsers_and_sqlite_never_oper
 
 REQUIRED_POSTGRES.add('test_valmet_rolls.test_rolls_stock_article_search_uses_remaining_identities_not_original_totals')
 
+REQUIRED_POSTGRES.add('test_valmet_rolls.test_rolls_postgres_rejects_forged_partial_bundle_and_temp_writer_trigger')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

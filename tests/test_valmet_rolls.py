@@ -267,3 +267,29 @@ def test_rolls_stock_article_search_uses_remaining_identities_not_original_total
         assert v.stock(db,{'article':'ART-A','lot':'L'})[1]==0
         assert v.stock(db,{'article':'ART-B','lot':'L'})[1]==1
         assert p.source(db)[0]['articles']=={'L':['ART-B']}
+
+
+def test_rolls_postgres_rejects_forged_partial_bundle_and_temp_writer_trigger(valmet):
+    from datetime import datetime
+    from iberbag.database import ValmetShipment
+    engine,a=valmet;actor=a['admin'][0];receive(engine,actor,[True,False,False],['A','B','C'])
+    with scoped(engine,2) as db:ids=[x['id'] for x in r.present(db,1)]
+    order=reserve(engine,actor,[('rolos','B','1')],ids=[ids[1]],extra=True)
+    with scoped(engine,2) as db:
+        s.ready(db,actor,order,1);prep=db.get(Prep,order)
+        from iberbag.database import ValmetReservation
+        hold=db.scalar(select(ValmetReservation).where(ValmetReservation.revision_id==prep.active_revision))
+        unit=p.source(db,order)[0]
+        output=dict(unit=unit,physical=1,materials={'B':1},exclusive=False,roll_ids=[ids[1]],out_physical=0)
+        with pytest.raises(DBAPIError,match='Invalid individual roll shipment'):
+            header=ValmetShipment(preparation_id=order,revision_id=prep.active_revision,request_key=secrets.token_hex(16),payload='{}',loaded_on=datetime(2027,1,3),references='["GT FICT"]',snapshot=p.dump(dict(selections=[output],actual={})),actor='admin')
+            db.add(header);db.flush()
+            db.add(Line(shipment_id=header.id,reservation_id=hold.id,position_id=unit['position_id'],physical_quantity=0,materials='{"B":1}',unknown_ack=False));db.flush()
+        db.rollback();assert len(r.present(db,1))==3 and db.scalar(select(func.count()).select_from(Line))==0
+    with engine.connect() as conn:
+        schema=conn.scalar(text('SELECT current_schema()'));quoted=conn.dialect.identifier_preparer.quote(schema)
+        conn.exec_driver_sql(f'CREATE TEMP TABLE spoof_roll_event (LIKE {quoted}.valmet_roll_events INCLUDING DEFAULTS)')
+        conn.exec_driver_sql('CREATE TRIGGER forged AFTER INSERT ON spoof_roll_event FOR EACH ROW EXECUTE FUNCTION valmet_roll_event_apply()')
+        with pytest.raises(DBAPIError,match='Invalid roll event trigger'):conn.exec_driver_sql(f'INSERT INTO spoof_roll_event SELECT * FROM {quoted}.valmet_roll_events LIMIT 1')
+        conn.rollback()
+    assert physical(engine)==1

@@ -70,7 +70,9 @@ def test_control_complete_includes_floor_and_uncounted_locations_cannot_close(va
         targets=c.inventory_targets(db,db.get(Inventory,ident));assert {'L:A2','L:H2','L:Chão',f'P:{pid}'}<=set(targets)
         with pytest.raises(v.ReceivingError):c.close_inventory(db,actor,ident,db.get(Inventory,ident).version)
     values=count(engine,actor,ident,f'P:{pid}',1,{'LOT':5})
-    marks=[count(engine,actor,ident,key,0,{}) for key in ('L:A2','L:H2','L:Chão')]
+    blank=count(engine,actor,ident,'L:H2',None,None);submit(engine,actor,ident)
+    with pytest.raises(v.ReceivingError):approve(engine,actor,ident,blank)
+    marks=[count(engine,actor,ident,key,1 if key=='L:A2' else 0,{}) for key in ('L:A2','L:H2','L:Chão')]
     submit(engine,actor,ident)
     for cid in [values]+marks:approve(engine,actor,ident,cid)
     with scoped(engine,2) as db:
@@ -515,3 +517,16 @@ def test_control_multiple_shipment_compensations_bounded_and_reserved_returns_bl
     adjust(engine,actor,pid,2,{'A':2},proven=True,basis='return',lineids=lines)
     assert physical(engine)==2
     with pytest.raises(v.ReceivingError):adjust(engine,actor,pid,3,{'A':3},proven=True,basis='return',lineids=lines)
+
+
+def test_control_location_totals_cannot_hide_material_or_treat_blank_as_zero(valmet):
+    engine,a=valmet;actor=a['admin'][0];entry(engine,actor,[row()]);pid=positions(engine)[0].id
+    ident=inventory(engine,actor,'complete');cid=count(engine,actor,ident,f'P:{pid}',1,{'LOT':5})
+    marks=[count(engine,actor,ident,key,0,{}) for key in ('L:A2','L:H2','L:Chão')]
+    submit(engine,actor,ident)
+    for target in [cid]+marks:approve(engine,actor,ident,target)
+    with scoped(engine,2) as db,pytest.raises(v.ReceivingError):c.close_inventory(db,actor,ident,db.get(Inventory,ident).version)
+    corrected=count(engine,actor,ident,'L:A2',1,{})
+    submit(engine,actor,ident);approve(engine,actor,ident,corrected)
+    with scoped(engine,2) as db:c.close_inventory(db,actor,ident,db.get(Inventory,ident).version)
+    assert physical(engine)==1

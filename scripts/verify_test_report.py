@@ -184,6 +184,7 @@ REQUIRED_POSTGRES |= {
     'test_valmet_control.test_control_legacy_empty_box_identity_not_invented',
     'test_valmet_control.test_control_multiple_shipment_compensations_bounded_and_reserved_returns_blocked',
 }
+REQUIRED_POSTGRES.add('test_valmet_control.test_control_location_totals_cannot_hide_material_or_treat_blank_as_zero')
 REQUIRED_WINDOWS = {
     'test_private_file_security.test_windows_refuses_permissive_backup_file',
     'test_private_file_security.test_windows_refuses_moved_permissive_file',

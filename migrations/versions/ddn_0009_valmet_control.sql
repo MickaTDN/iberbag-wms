@@ -184,7 +184,7 @@ BEGIN
    THEN RAISE EXCEPTION 'Invalid inventory decision'; END IF;
  IF NEW.kind='approve' THEN
    data=c.payload::jsonb;
-   IF c.kind<>'count' OR NOT (data->>'complete')::boolean THEN RAISE EXCEPTION 'Incomplete inventory count'; END IF;
+   IF c.kind<>'count' OR NOT COALESCE((data->>'complete')::boolean,false) OR (data->'target'->>'kind'='location' AND data->>'physical' IS NULL) THEN RAISE EXCEPTION 'Incomplete inventory count'; END IF;
    IF NEW.move_id IS NOT NULL THEN
      IF NOT EXISTS(SELECT 1 FROM valmet_control_moves m JOIN valmet_control_drafts draft ON draft.id=m.draft_id AND draft.context_id=m.context_id
        WHERE m.id=NEW.move_id AND m.context_id=NEW.context_id AND draft.count_id=c.id AND draft.inventory_id=NEW.inventory_id) THEN RAISE EXCEPTION 'Unrelated reconciliation movement'; END IF;

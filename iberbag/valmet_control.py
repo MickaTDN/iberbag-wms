@@ -209,7 +209,7 @@ def save_count(db,actor,ident,version,key,target_key,kind,physical=None,content=
         if target['kind']=='vasilhame' and physical is not None:
             brand=db.get(Unit,target['unit']).brand;content={brand:physical}
         after=project_count(target,ref,physical,content,loc)
-    complete=kind=='omit' or (kind=='count' and (target['kind']=='location' or (after is not None and all(q is not None for q in content.values()) and (physical==0 or target['identified'] and not target['legacy']))))
+    complete=kind=='omit' or (kind=='count' and ((target['kind']=='location' and physical is not None) or (after is not None and all(q is not None for q in content.values()) and (physical==0 or target['identified'] and not target['legacy']))))
     payload=dict(physical=physical,materials=content,observed=loc,evidence=v.optional(evidence,2000),complete=complete,after=after,target=target,recount=bool(recount),request=intent)
     record.version+=1;record.status='draft'
     count=Count(inventory_id=ident,target=target_key,request_key=key,version=record.version,kind=kind,payload=p.dump(payload),reference=p.dump(ref),actor=actor.username)
@@ -370,10 +370,26 @@ def close_inventory(db,actor,ident,version):
     if record.status!='submitted' or record.version!=version:raise ReceivingError('Submeter a versão atual antes de concluir.')
     counts=latest_counts(db,ident);decisions=db.scalars(select(Decision).where(Decision.inventory_id==ident,Decision.kind.in_(('approve','omit')))).all()
     approved={d.count_id for d in decisions}
-    for key in inventory_targets(db,record):
+    selected=inventory_targets(db,record)
+    for key in selected:
         c=counts.get(key)
         if not c or c.id not in approved:raise ReceivingError('Âmbito ainda não contado/reconciliado; zero não é ausência de contagem.')
     if any(c.id not in approved for key,c in counts.items() if key.startswith('U:')):raise ReceivingError('Ocorrências desconhecidas ainda sem decisão explícita.')
+    # A location total is an explicit count, never a blank-as-zero shortcut.
+    # Cross-check the selected physical scope, except omissions explicitly resolved
+    # by an administrator (whose quantities must not be guessed).
+    final={d.count_id:d.kind for d in decisions};totals=defaultdict(int);omitted=set()
+    for key,count in counts.items():
+        data=json.loads(count.payload);target=data['target']
+        if target['kind']=='location':continue
+        loc=data.get('observed') or target.get('local')
+        if final.get(count.id)=='omit':omitted.update((loc,target.get('local')))
+        elif data['physical'] is not None:totals[loc]+=data['physical']
+    for key,target in selected.items():
+        if target['kind']!='location':continue
+        count=counts[key];data=json.loads(count.payload);loc=target.get('local')
+        if final[count.id]=='approve' and loc not in omitted and data['physical']!=totals[loc]:
+            raise ReceivingError('Total físico da localização diverge das unidades contadas no âmbito; rever a contagem, sem presumir zero.')
     record.version+=1;record.status='closed';journal(db,actor,'CONCLUIR',dict(inventory=ident,version=record.version));return ident
 
 def inventory_summary(db,record):

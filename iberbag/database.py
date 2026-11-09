@@ -744,6 +744,83 @@ class ValmetDocument(Scoped, Base):
     created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
     __table_args__=(UniqueConstraint('revision_id',name='uq_valmet_document_revision'),)
 
+class ValmetInventory(Scoped, Base):
+    __tablename__='valmet_inventories'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    scope: Mapped[str]=mapped_column(Text,nullable=False)
+    reference: Mapped[str]=mapped_column(Text,nullable=False)
+    status: Mapped[str]=mapped_column(String(20),nullable=False,default='draft')
+    version: Mapped[int]=mapped_column(Integer,nullable=False,default=1)
+    created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
+    __table_args__=(CheckConstraint("status IN ('draft','submitted','closed') AND version>0",name='valmet_inventory_state'),)
+
+class ValmetCount(Scoped, Base):
+    __tablename__='valmet_counts'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    inventory_id: Mapped[int]=mapped_column(ForeignKey('valmet_inventories.id'),nullable=False)
+    target: Mapped[str]=mapped_column(String(160),nullable=False)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    version: Mapped[int]=mapped_column(Integer,nullable=False)
+    kind: Mapped[str]=mapped_column(String(20),nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    reference: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
+    __table_args__=(Index('ix_valmet_counts_target','context_id','inventory_id','target','id'),)
+
+class ValmetControlDraft(Scoped, Base):
+    __tablename__='valmet_control_drafts'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    kind: Mapped[str]=mapped_column(String(20),nullable=False)
+    position_id: Mapped[int]=mapped_column(ForeignKey('valmet_positions.id'),nullable=False)
+    inventory_id: Mapped[int | None]=mapped_column(ForeignKey('valmet_inventories.id'))
+    count_id: Mapped[int | None]=mapped_column(ForeignKey('valmet_counts.id'))
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    reference: Mapped[str]=mapped_column(Text,nullable=False)
+    version: Mapped[int]=mapped_column(Integer,nullable=False,default=1)
+    status: Mapped[str]=mapped_column(String(20),nullable=False,default='draft')
+    created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
+    __table_args__=(CheckConstraint("kind IN ('transfer','adjustment') AND status IN ('draft','confirmed') AND version>0",name='valmet_control_draft_state'),)
+
+class ValmetControlMove(Scoped, Base):
+    __tablename__='valmet_control_moves'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    draft_id: Mapped[int]=mapped_column(ForeignKey('valmet_control_drafts.id'),unique=True,nullable=False)
+    unit_id: Mapped[int]=mapped_column(ForeignKey('valmet_units.id'),nullable=False)
+    snapshot: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
+
+class ValmetInventoryDecision(Scoped, Base):
+    __tablename__='valmet_inventory_decisions'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    inventory_id: Mapped[int]=mapped_column(ForeignKey('valmet_inventories.id'),nullable=False)
+    count_id: Mapped[int]=mapped_column(ForeignKey('valmet_counts.id'),nullable=False)
+    move_id: Mapped[int | None]=mapped_column(ForeignKey('valmet_control_moves.id'))
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    kind: Mapped[str]=mapped_column(String(20),nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
+    __table_args__=(Index('uq_valmet_decision_final','context_id','count_id',unique=True,postgresql_where=text("kind IN ('approve','omit')"),sqlite_where=text("kind IN ('approve','omit')")),)
+
+class ValmetControlDocument(Scoped, Base):
+    __tablename__='valmet_control_documents'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    inventory_id: Mapped[int]=mapped_column(ForeignKey('valmet_inventories.id'),nullable=False)
+    version: Mapped[int]=mapped_column(Integer,nullable=False)
+    kind: Mapped[str]=mapped_column(String(20),nullable=False)
+    snapshot: Mapped[str]=mapped_column(Text,nullable=False)
+    pdf: Mapped[bytes]=mapped_column(LargeBinary,nullable=False)
+    digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
+    __table_args__=(UniqueConstraint('inventory_id','version','kind',name='uq_valmet_control_document'),)
+
 # Every business key lives inside an immutable client/warehouse context. IDs stay
 # globally unique, preserving all historical references and archived documents.
 for _table in list(Base.metadata.tables.values()):

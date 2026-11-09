@@ -25,6 +25,7 @@ NUMBER_TABLES = {'load_numbers'}
 VALMET_TABLES = {'valmet_owners','valmet_entries','valmet_units','valmet_numbers','valmet_identifications','valmet_items'}
 PLANNING_TABLES = {'valmet_preparations','valmet_plan_revisions','valmet_reservations','valmet_handling'}
 SHIPPING_TABLES = {'valmet_positions','valmet_shipments','valmet_shipment_lines','valmet_occurrences','valmet_relocations','valmet_documents'}
+CONTROL_TABLES = {'valmet_inventories','valmet_counts','valmet_control_drafts','valmet_control_moves','valmet_inventory_decisions','valmet_control_documents'}
 LOCK = 72834002
 RECEIVING_TABLES = {'receipts', 'receipt_lines', 'putaways'}
 DISPATCH_TABLES = {'dispatch_orders', 'dispatch_lines', 'dispatch_picks'}
@@ -60,7 +61,9 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
-    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES - PLANNING_TABLES - SHIPPING_TABLES
+    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES - PLANNING_TABLES - SHIPPING_TABLES - CONTROL_TABLES
+    if missing & CONTROL_TABLES not in (set(),CONTROL_TABLES):raise ValueError('Esquema de controlo Valmet incompleto.')
+    if not missing & CONTROL_TABLES and missing & (SHIPPING_TABLES|PLANNING_TABLES|VALMET_TABLES|NUMBER_TABLES|PHYSICAL_TABLES|CONTEXT_TABLES):raise ValueError('Controlo sem estrutura Valmet completa.')
     if missing & SHIPPING_TABLES not in (set(),SHIPPING_TABLES):raise ValueError('Esquema de expedições incompleto.')
     if not missing & SHIPPING_TABLES and missing & (PLANNING_TABLES|VALMET_TABLES|NUMBER_TABLES|PHYSICAL_TABLES|CONTEXT_TABLES):raise ValueError('Expedições sem estrutura Valmet completa.')
     if missing & PLANNING_TABLES not in (set(),PLANNING_TABLES):raise ValueError('Esquema de reservas incompleto.')
@@ -88,7 +91,7 @@ def read_data(connection):
             allowed = ({frozenset({'ddn_0002'}),frozenset({'ddn_0002','0007'}),frozenset({'ddn_security_0001'})}
                        if missing & NUMBER_TABLES else ({frozenset({'ddn_0003'})} if missing & VALMET_TABLES else
                        ({frozenset({'ddn_0004'}),frozenset({'ddn_0005'}),frozenset({'ddn_0006'})} if missing & PLANNING_TABLES else
-                       ({frozenset({'ddn_0007'})} if missing & SHIPPING_TABLES else {frozenset({REVISION})}))))
+                       ({frozenset({'ddn_0007'})} if missing & SHIPPING_TABLES else ({frozenset({'ddn_0008'})} if missing & CONTROL_TABLES else {frozenset({REVISION})})))))
         if versions not in allowed:
             raise ValueError('Revisão/heads incompatíveis com o esquema. Não usar stamp para contornar.')
     if connection.dialect.name == 'sqlite':
@@ -179,6 +182,9 @@ def archive_inventory(connection, expected):
     data = read_data(connection)
     wanted = set(expected.get('tables', {}))
     current = {t.name for t in TABLES}
+    if not wanted & CONTROL_TABLES:
+        if any(data[name] for name in CONTROL_TABLES):raise ValueError('Backup anterior não abrange inventários/controlo Valmet novos.')
+        current-=CONTROL_TABLES
     if not wanted & SHIPPING_TABLES:
         if any(data[name] for name in SHIPPING_TABLES-{'valmet_positions'}) or data['valmet_positions']!=initial_valmet_positions(data):
             raise ValueError('Backup anterior não abrange expedições, localizações ou documentos novos.')
@@ -285,7 +291,7 @@ def require_empty(connection):
 def apply(bundle, engine):
     require_test_target(engine)
     data, report = load_bundle(bundle)
-    if any(data[name] for name in (VALMET_TABLES-{'valmet_owners'})|PLANNING_TABLES|SHIPPING_TABLES):
+    if any(data[name] for name in (VALMET_TABLES-{'valmet_owners'})|PLANNING_TABLES|SHIPPING_TABLES|CONTROL_TABLES):
         raise ValueError('Importação operacional Valmet não implementada. Usar backup/restauro PostgreSQL verificado.')
     with engine.begin() as connection:
         connection.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK})

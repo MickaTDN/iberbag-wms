@@ -280,8 +280,11 @@ def cancel(db,actor,ident,version,note):
     if record.status=='cancelled':return ident
     if record.status=='shipped':raise ReceivingError('Expedição confirmada não é cancelável.')
     if record.version!=version:raise ReceivingError('Revisão desatualizada.')
-    record.version+=1;revision(db,record,actor,'cancel',dict(reason=required(note,'Motivo'),previous_revision=record.active_revision))
-    record.active_revision=None;record.status='cancelled';return ident
+    reason=required(note,'Motivo');previous=record.active_revision
+    # Flush the coherent cancelled state before appending the revision: ready
+    # records may not briefly retain an old reservation at the next version.
+    record.active_revision=None;record.status='cancelled';record.version+=1
+    revision(db,record,actor,'cancel',dict(reason=reason,previous_revision=previous));return ident
 
 def reserved_physical(db,unit):
     rows=[h for h in balances.allocation_rows(db) if h['unit']['id']==unit.id]

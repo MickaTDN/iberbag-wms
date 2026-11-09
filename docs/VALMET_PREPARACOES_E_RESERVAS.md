@@ -121,3 +121,5 @@ aceitação no armazém são separadas. Não usar dados/Excel reais para estes e
 **Fase 2B.2B pendente:** PDFs de recolha, recolha/falhas físicas, alterações depois
 da recolha, pronta para carregamento, GT/CMR, expedições parciais, saída/desconto
 definitivo e documentos finais. Não existem botões que anunciem essas operações.
+
+**Atualização Fase 2B.3:** inventários, transferências gerais e ajustes/compensações controladas estão descritos em [VALMET_INVENTARIOS_TRANSFERENCIAS_AJUSTES.md](VALMET_INVENTARIOS_TRANSFERENCIAS_AJUSTES.md). As limitações históricas acima referem-se à fase original; head atual `ddn_0009`, sem reescrever revisões anteriores.

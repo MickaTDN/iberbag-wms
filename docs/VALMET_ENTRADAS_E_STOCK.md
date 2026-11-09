@@ -142,3 +142,5 @@ TESTE-1 é recusado mesmo noutro armazém. Testar perfis, CSRF, concorrência,
 capacidades e backup/restauro com `python scripts/test_postgres.py` e CI Windows/
 Security. Só dados fictícios; homologação física Windows 11/PostgreSQL nativo
 continua necessária antes de produção. Não fazer merge ou deploy automaticamente.
+
+**Atualização Fase 2B.3:** inventários, transferências gerais e ajustes/compensações controladas estão descritos em [VALMET_INVENTARIOS_TRANSFERENCIAS_AJUSTES.md](VALMET_INVENTARIOS_TRANSFERENCIAS_AJUSTES.md). As limitações históricas acima referem-se à fase original; head atual `ddn_0009`, sem reescrever revisões anteriores.

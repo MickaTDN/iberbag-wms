@@ -53,6 +53,8 @@ def test_historical_import_all_layouts_official_stock_rolls_and_idempotency(valm
     ident,revision,digest,plan=stage(engine,actor,content)
     assert plan['blocking']==0,plan['issues']
     assert plan['physical']==dict(pecas=1,vazias=1,caixas=1,prateleiras=1,paletes=1,vasilhame=2,fio=2,rolos=1)
+    assert dict(kind='rolos',local='A2',quantity=1) in plan['physical_by_location']
+    assert dict(kind='rolos',lot='A',local='A2',presences=1) in plan['physical_by_lot']
     with scoped(engine,2) as db:assert db.scalar(select(func.count()).select_from(m.ValmetUnit))==0
     key=secrets.token_hex(16);record=confirm(engine,actor,revision,digest,key)
     assert confirm(engine,actor,revision,digest,key)==record

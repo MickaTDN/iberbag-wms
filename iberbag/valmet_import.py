@@ -118,7 +118,7 @@ def build_plan(db,draft,decisions,reason):
     if db.scalar(select(m.ValmetPosition.id).where(m.ValmetPosition.physical_quantity>0).limit(1)):
         issues.append(dict(code='STOCK_EXISTENTE_EXIGE_PROVA_DE_NAO_DUPLICACAO',severity='warning',refs=[]))
     original_cells={f'{sheet}!{line}':dict(sheet=sheet,row=line,cells=cells) for sheet,lines in original['source_sheets'].items() for line,cells in lines[1:]}
-    rows=[];origins=[];totals=defaultdict(int);materials=defaultdict(int)
+    rows=[];origins=[];totals=defaultdict(int);materials=defaultdict(int);physical_locations=defaultdict(int);physical_lots=defaultdict(int)
     for u in report['units']:
         anchor=u['refs'][0]
         try:
@@ -147,16 +147,20 @@ def build_plan(db,draft,decisions,reason):
                 if len(matches)!=1:raise ReceivingError('Localização sem correspondência única no catálogo.')
                 clean['local']=matches[0]
             rows.append(clean);origins.append(dict(refs=u['refs'],originals=[original_cells[ref] for ref in u['refs']],corrected_cells=u['originals'],inferred=dict(physical='Presença única por N.º Armazém' if u['number'] else 'Quantidade literal de paletes',location=[c['local_source'] for c in u['contents']])))
-            totals[u['kind']]+=clean['physical_quantity']
+            totals[u['kind']]+=clean['physical_quantity'];physical_locations[(clean['kind'],clean['local'])]+=clean['physical_quantity']
             from .valmet_planning import materials_for
-            for lot,q in materials_for(SimpleNamespace(**clean),[SimpleNamespace(article=a,lot=l,quantity=q) for a,l,q in clean['items']]).items():materials[(clean['kind'],lot,clean['local'])]+=q or 0
+            for lot,q in materials_for(SimpleNamespace(**clean),[SimpleNamespace(article=a,lot=l,quantity=q) for a,l,q in clean['items']]).items():
+                materials[(clean['kind'],lot,clean['local'])]+=q or 0
+                physical_lots[(clean['kind'],lot,clean['local'])]+=clean['physical_quantity'] if clean['kind'] not in v.GROUPED or (clean['kind']=='paletes' and clean['physical_quantity']==1) else q or 0
         except (ReceivingError,TypeError,ValueError) as error:issues.append(dict(code='MODELO_INCOMPATIVEL: '+str(error),severity='error',refs=u['refs']))
     if not rows or len(report['units'])>MAX_UNITS:issues.append(dict(code='AMBITO_VAZIO_OU_EXCESSIVO',severity='error',refs=[]))
     warnings={i['code'] for i in issues if i['severity']=='warning'}
     if not warnings<=set(decisions.get('warnings',[])):issues.append(dict(code='AVISOS_EXIGEM_ACEITACAO_EXPLICITA',severity='error',refs=[]))
     return dict(source_digest=draft.digest,reference=reference,decisions=decisions,reason=reason,report=report,issues=issues,
         blocking=sum(i['severity']=='error' for i in issues),acknowledged=warnings<=set(decisions.get('warnings',[])),
-        rows=rows,origins=origins,existing_positions=[list(row) for row in db.execute(select(m.ValmetPosition.id,m.ValmetPosition.unit_id,m.ValmetPosition.local,m.ValmetPosition.physical_quantity,m.ValmetPosition.materials).where(m.ValmetPosition.physical_quantity>0).order_by(m.ValmetPosition.id))],physical=dict(totals),materials=[dict(kind=k,lot=l,local=loc,quantity=q) for (k,l,loc),q in materials.items()])
+        rows=rows,origins=origins,existing_positions=[list(row) for row in db.execute(select(m.ValmetPosition.id,m.ValmetPosition.unit_id,m.ValmetPosition.local,m.ValmetPosition.physical_quantity,m.ValmetPosition.materials).where(m.ValmetPosition.physical_quantity>0).order_by(m.ValmetPosition.id))],physical=dict(totals),materials=[dict(kind=k,lot=l,local=loc,quantity=q) for (k,l,loc),q in materials.items()],
+        physical_by_location=[dict(kind=k,local=loc,quantity=q) for (k,loc),q in physical_locations.items()],
+        physical_by_lot=[dict(kind=k,lot=l,local=loc,presences=q) for (k,l,loc),q in physical_lots.items()])
 
 @v.command
 def reconcile(db,actor,ident,key,decisions,reason):

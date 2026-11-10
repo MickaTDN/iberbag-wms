@@ -273,6 +273,9 @@ REQUIRED_POSTGRES |= {
 }
 REQUIRED_WINDOWS.add('test_valmet_import.test_historical_upload_parser_bounds_and_sqlite_never_imports')
 
+REQUIRED_POSTGRES |= {'test_valmet_integrated.test_integrated_valmet_office_lifecycle_and_reconciled_recovery',
+    'test_valmet_integrated.test_integrated_valmet_failed_shipment_does_not_change_restorable_books'}
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

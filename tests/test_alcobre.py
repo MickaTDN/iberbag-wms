@@ -355,3 +355,18 @@ def test_alcobre_admin_completes_inactive_authors_draft_without_reassigning_hist
         entry=db.get(m.AlcobreEntry,ident)
         assert entry.created_by==original and entry.confirmed_by=='admin'
         assert db.get(m.AlcobreReview,rev[0]).actor=='admin' and s.stock(db,state='unlocated')[1]==1
+
+def test_alcobre_original_pdf_survives_importers_role_change(restricted_web):
+    from iberbag.security import set_password
+    from sqlalchemy.orm import Session
+    app,owner,engine,role,a,t=restricted_web;original=a['admin'][0];source=pdf()
+    ident=draft(engine,original,source=source)
+    with Session(owner) as db:
+        other=m.User(username='fict-admin-2',display_name='Administrador fictício',role='admin',active=True)
+        set_password(other,secrets.token_urlsafe(24));db.add(other);db.flush();actor=other.id
+        db.execute(m.User.__table__.update().where(m.User.id==original).values(role='operador'));db.commit()
+    with scoped(engine,5) as db,pytest.raises(s.ReceivingError):s.preview_file(db,original,secrets.token_hex(16),source,'new.pdf')
+    confirm(engine,actor,review(engine,actor,ident,[row(),row('000102')]))
+    with scoped(engine,5) as db:
+        entry=db.get(m.AlcobreEntry,ident)
+        assert entry.source_pdf==source and entry.created_by==original and entry.confirmed_by=='fict-admin-2'

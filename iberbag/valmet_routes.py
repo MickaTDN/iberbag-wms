@@ -67,6 +67,13 @@ def review(request:Request,data:dict=Depends(receiving_form),db=Depends(database
 def detail(ident:int,request:Request,db=Depends(database)):
     user,sess=access(request,db);entry=db.get(ValmetEntry,ident)
     if not entry:raise HTTPException(404,'Entrada inexistente.')
+    if entry.status=='imported':
+        from .database import ValmetImportConfirmation,ValmetImportRevision
+        proof=db.scalar(select(ValmetImportConfirmation).where(ValmetImportConfirmation.entry_id==entry.id))
+        rev=db.get(ValmetImportRevision,proof.revision_id)
+        if user.role=='admin':return redirect(f'/valmet/imports/{rev.draft_id}')
+        return render(request,'valmet_entry.html',context(request,user,sess,entry=entry,receipt=None,historical=True,
+            current_rows=service.stock(db,{'entry_id':entry.id})[0],roll_units=db.scalars(select(ValmetUnit).where(ValmetUnit.entry_id==ident,ValmetUnit.kind=='rolos')).all(),values=json.loads(entry.payload),kinds=service.KINDS))
     receipt=db.get(Receipt,entry.receipt_id) if entry.receipt_id else None
     current_rows=service.stock(db,{'entry_id':entry.id})[0] if receipt else []
     return render(request,'valmet_entry.html',context(request,user,sess,entry=entry,receipt=receipt,current_rows=current_rows,roll_units=db.scalars(select(ValmetUnit).where(ValmetUnit.entry_id==ident,ValmetUnit.kind=='rolos')).all() if receipt else [],values=json.loads(entry.payload),kinds=service.KINDS))

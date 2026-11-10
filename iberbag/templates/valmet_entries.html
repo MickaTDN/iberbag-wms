@@ -1,5 +1,5 @@
 {% extends 'base.html' %}{% block content %}
 <h1>Valmet — Entradas</h1><a class="btn" href="/valmet/entries/new">Nova entrada</a>
 <p>Últimas 100 entradas. A confirmação regista imediatamente o stock físico, incluindo material que aguarda identificação.</p>
-<table><tr><th>Entrada</th><th>Estado</th><th>Data de registo</th></tr>{% for entry in entries %}<tr><td><a href="/valmet/entries/{{ entry.id }}">{{ entry.id }}</a></td><td>{{ 'Confirmada' if entry.status=='confirmed' else 'Rascunho' }}</td><td>{{ entry.created_at }}</td></tr>{% endfor %}</table>
+<table><tr><th>Entrada</th><th>Estado</th><th>Data de registo</th></tr>{% for entry in entries %}<tr><td><a href="/valmet/entries/{{ entry.id }}">{{ entry.id }}</a></td><td>{{ 'Importação histórica confirmada' if entry.status=='imported' else 'Confirmada' if entry.status=='confirmed' else 'Rascunho' }}</td><td>{{ entry.created_at }}</td></tr>{% endfor %}</table>
 {% endblock %}

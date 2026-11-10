@@ -72,6 +72,9 @@ def payload(received_on,code,rows):
     try: day=date.fromisoformat(received_on)
     except (ValueError,TypeError):raise ReceivingError('Data efetiva de entrada inválida.',400)
     code=required(code,'Referência histórica') if day.year<2027 else 'Automática na confirmação'
+    return json.dumps(dict(received_on=day.isoformat(),code=code,rows=clean_rows(rows)),ensure_ascii=False,sort_keys=True)
+
+def clean_rows(rows, *, historical_numbers=False):
     if not 1<=len(rows)<=60:raise ReceivingError('Indicar 1–60 grupos/unidades.',400)
     cleaned=[]
     for row in rows:
@@ -81,7 +84,7 @@ def payload(received_on,code,rows):
         number=optional(row.get('number')).upper() or None
         if kind not in GROUPED and (physical!=1 or not number):
             raise ReceivingError('Cada unidade indivisível exige uma palete/caixa e N.º Armazém manual.',400)
-        if kind in GROUPED and number:raise ReceivingError('N.º Armazém destina-se às unidades individualizadas.',400)
+        if kind in GROUPED and number and not historical_numbers:raise ReceivingError('N.º Armazém destina-se às unidades individualizadas.',400)
         total=quantity(row['content_total']) if row.get('content_total') not in (None,'') else None
         m2=None
         if row.get('material_m2') not in (None,''):
@@ -133,7 +136,7 @@ def payload(received_on,code,rows):
             local='Chão' if kind=='vazias' else (optional(row.get('local')).upper() or None),content_total=total,
             material_m2=str(m2) if m2 is not None else None, supplier=optional(row.get('supplier')),
             guide=optional(row.get('guide')),notes=optional(row.get('notes'),2000),brand=brand,pending=pending,items=items,rolls=roll_rows))
-    return json.dumps(dict(received_on=day.isoformat(),code=code,rows=cleaned),ensure_ascii=False,sort_keys=True)
+    return cleaned
 
 @command
 def save_entry(db,actor,key,received_on,code,rows,entry_id=None,version=None):

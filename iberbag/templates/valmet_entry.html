@@ -1,13 +1,13 @@
 {% extends 'base.html' %}{% block content %}
 <h1>Valmet — Entrada {{ entry.id }}</h1>
-<p>{{ 'Confirmada' if receipt else 'Rascunho — rever antes de confirmar' }} · Carga {{ receipt.code if receipt else values.code }} · {{ values.received_on }}</p>
+{% if historical %}<p>Importação histórica confirmada · {{ values.code }} · Data original de receção desconhecida.</p>{% else %}<p>{{ 'Confirmada' if receipt else 'Rascunho — rever antes de confirmar' }} · Carga {{ receipt.code if receipt else values.code }} · {{ values.received_on }}</p>{% endif %}
 {% if receipt %}<p>Receção: {{ receipt.receiver }} · {{ receipt.confirmed_at }}. <a href="/valmet/stock">Consultar stock físico</a></p>{% endif %}
-{% if receipt %}<h2>Estado atual da entrada original</h2>
+{% if receipt or historical %}<h2>Estado atual da entrada original</h2>
 <table><tr><th>N.º Armazém / tipo</th><th>Físico / localização</th><th>Identificação atual</th></tr>
 {% for unit,identification,items,available in current_rows %}<tr><td>{{ unit.number or '—' }} · {{ kinds[unit.kind] }}</td><td>{{ unit.physical_quantity }} · {{ unit.local or 'Por localizar' }}</td><td>
 {% if identification %}{{ identification.actor }} · {{ identification.created_at }} · {{ identification.notes }}{% else %}Aguarda identificação Valmet · <a href="/valmet/units/{{ unit.id }}/identify">Completar</a>{% endif %}
 {% for item in items %}<br>{{ item.article or 'Artigo desconhecido' }} · {{ item.lot or 'Lote desconhecido' }} · {{ item.quantity if item.quantity is not none else '—' }}{% endfor %}</td></tr>{% endfor %}</table>
-{% for unit in roll_units %}<p><a href="/valmet/units/{{ unit.id }}/rolls">N.º Armazém {{ unit.number }} · IDs/classificações e histórico dos rolos (incluindo expedidos/ausentes)</a></p>{% endfor %}<h2>Receção original (histórico preservado)</h2>{% endif %}
+{% for unit in roll_units %}<p><a href="/valmet/units/{{ unit.id }}/rolls">N.º Armazém {{ unit.number }} · IDs/classificações e histórico dos rolos (incluindo expedidos/ausentes)</a></p>{% endfor %}<h2>Registo original (histórico preservado)</h2>{% endif %}
 <table><tr><th>Tipo</th><th>N.º Armazém</th><th>Físico</th><th>Localização</th><th>Fornecedor / guia</th><th>Composição / notas</th></tr>
 {% for row in values.rows %}<tr><td>{{ kinds[row.kind] }}</td><td>{{ row.number or '—' }}</td><td>{{ row.physical_quantity }}</td><td>{{ row.local or 'Por localizar' }}</td><td>{{ row.supplier }} / {{ row.guide }}</td><td>
 {% if row.pending %}<strong>Aguarda identificação Valmet</strong><br>{% endif %}

@@ -13,6 +13,7 @@ class BoundedPostBody:
     async def __call__(self, scope, receive, send):
         if scope['type'] != 'http' or scope['method'] != 'POST':
             return await self.app(scope, receive, send)
+        limit = 20*1024*1024+16384 if scope.get('path') == '/valmet/imports/upload' and self.limit == MAX_POST_BYTES else self.limit
         lengths = [v for k, v in scope['headers'] if k.lower() == b'content-length']
         async def refuse(status, detail):
             # Do not reuse an HTTP/1 connection with an unread/incomplete body.
@@ -21,7 +22,7 @@ class BoundedPostBody:
         try:
             if len(lengths) > 1 or (lengths and (len(lengths[0]) > 12 or not lengths[0].isdigit())):
                 return await refuse(400,'Comprimento do formulário inválido.')
-            if lengths and int(lengths[0]) > self.limit:
+            if lengths and int(lengths[0]) > limit:
                 return await refuse(413,'Formulário demasiado grande.')
             body = bytearray()
             async with asyncio.timeout(self.timeout):
@@ -30,7 +31,7 @@ class BoundedPostBody:
                     if message['type'] == 'http.disconnect':
                         return  # No downstream session/lock has been created.
                     chunk = message.get('body', b'')
-                    if len(body) + len(chunk) > self.limit:
+                    if len(body) + len(chunk) > limit:
                         return await refuse(413,'Formulário demasiado grande.')
                     body.extend(chunk)
                     if not message.get('more_body', False):

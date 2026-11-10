@@ -36,3 +36,5 @@ Preserva artigo desconhecido, lotes, notas incluindo VALMET 2, peças, m² e ref
 Reutiliza os limites ZIP/XML do leitor existente; não executa VBA nem ligações externas e recusa fórmulas (mesmo com cache). Nenhum Excel real foi utilizado para criar testes ou publicado. A importação definitiva fica expressamente pendente: confirmação humana, autorização, revalidação transacional PostgreSQL, reconciliação, digest estável e idempotência serão obrigatórios. Nenhuma conclusão desta análise dispensa essas garantias.
 
 **Fase 2B.4B:** a gestão operacional individual dos rolos, comprovação histórica e conjuntos não divisíveis estão descritos em [VALMET_ROLOS_INDIVIDUAIS.md](VALMET_ROLOS_INDIVIDUAIS.md). Substitui a política de divisibilidade por palete para novos fluxos, sem reescrever históricos. Head `ddn_0010`; importação definitiva continua pendente.
+
+**Fase 2B.4C:** o fluxo administrativo de importação histórica, posterior às PRs #21/#22, está em [VALMET_IMPORTACAO_HISTORICA.md](VALMET_IMPORTACAO_HISTORICA.md). A API de análise/CLI acima continua exclusivamente de leitura; só a confirmação separada e revalidada desse novo fluxo pode gravar stock.

@@ -1,0 +1,59 @@
+# NKT — Fase 2C.4: inventários por carga de entrada/contentor
+
+Base: main após PR #27, merge `e866e26`, head anterior ddn_0014. Complementa [entradas](NKT_EXCEL_E_CONTENTORES.md) e [preparações/carregamentos](NKT_PREPARACOES_E_CARREGAMENTOS.md). Apenas NKT/Escapães. O escritório introduz a informação comunicada pelo colaborador; não há utilização obrigatória da aplicação no armazém.
+
+## Processo confirmado e âmbito
+
+O inventário é de **cargas de entrada/contentores**, fisicamente agrupadas, e não uma contagem individual de todas as paletes. Um PEG físico inequívoco localiza a sua carga inteira. A quantidade apresentada corresponde às paletes dessa carga ainda registadas fisicamente, preservando as saídas e ajustes anteriores. Cargas de entrada não são preparações/GT de saída.
+
+1. NKT → Inventários NKT → abrir rascunho completo ou parcial, com identificação. O completo abrange todas as cargas/entradas com stock físico no contexto, incluindo as exclusões; o parcial contém só as cargas expressamente selecionadas. Guardar não altera stock. A referência inicial arquiva PEG, estados, eventos, materiais/contentores/datas e reservas desse momento.
+2. Para uma carga localizada, introduzir o PEG comunicado: completo ou últimos quatro caracteres, preservando zeros/grafia. A pesquisa é literal e sem conversão numérica, sem eliminar zeros. Um identificador ambíguo gera ocorrência e exige o PEG completo; nunca se escolhe uma palete/carga automaticamente, mesmo se vários candidatos pertencerem à mesma carga.
+3. Se um PEG **completo tiver apenas quatro caracteres**, assinalar explicitamente «Indiquei o PEG completo». Sem essa opção, quatro caracteres são tratados como sufixo e a ambiguidade bloqueia. Resolver uma ocorrência com PEG completo não marca a carga automaticamente: registar depois a conferência.
+4. Marcar cada carga elegível como **Localizada** ou **Não localizada**. Por conferir é desconhecido, nunca zero nem ausência. Corrigir uma conferência cria outro registo e outra versão/PDF, sem apagar o anterior. Regista texto comunicado, modo de identificação, PEG resolvido, utilizador, instante, observação e referência de stock vigente nessa conferência.
+5. Rever listas de localizadas, não localizadas, excluídas e por conferir, quantidades/PEG afetados e ocorrências. Só Administrador pode gerar a revisão de aprovação e confirmar expressamente todos os efeitos. Um inventário incompleto ou desatualizado não pode confirmar ausência.
+
+No parcial, cargas fora do âmbito nunca são comparadas com zero nem consideradas ausentes. No completo, novas cargas chegadas durante a conferência bloqueiam a conclusão: abrir novo inventário completo que as inclua. Não se amplia silenciosamente o âmbito original. A listagem apresenta os últimos 200 inventários; históricos individuais e todas as revisões ficam preservados.
+
+## Reservas e alterações durante a conferência
+
+Qualquer carga com PEG reservados fica **inteiramente excluída**, com motivo e lista separados, mesmo quando só parte das paletes está reservada. Apresenta físico/reservado/livre para esclarecer a exclusão; o remanescente não é descontado por inferência. Não cancela nem altera reservas, preparações ou GT. As exclusões iniciais são arquivadas na abertura.
+
+Antes de aprovação/confirmação revalida todos os PEG/eventos e reservas das cargas no âmbito. Reserva seguida de cancelamento também invalida a referência antiga, apesar de o saldo final parecer igual. Após uma mudança é necessário repetir a conferência ou registar **Rever exclusão atual**; se a reserva terminou, a carga volta a exigir conferência explícita. Uma carga entretanto totalmente expedida só pode ser encerrada como exclusão explícita por movimentos conhecidos, nunca como nova ausência física. Não há locks entre pedidos durante a introdução prolongada: o lock transacional protege apenas cada operação crítica.
+
+Inventários concorrentes da mesma carga não sobrepõem diferenças antigas a stock recente. Depois de uma confirmação, outro inventário com referência anterior é recusado até reconferência/revisão. Nenhum evento pode descontar PEG reservado, expedido, já em falta ou fora do âmbito.
+
+## Faltas confirmadas e recuperação
+
+A aprovação do Administrador desconta **apenas os PEG ainda disponíveis** das cargas elegíveis expressamente não localizadas. Confirma todas as diferenças numa transação PostgreSQL atómica e idempotente. Regista operação `inventory_missing` e estado **Em falta (inventário)**; não é expedição, não há data de carregamento nem GT fictícia e não se consome numeração de cargas.
+
+Os PEG, origem, material, contentor, carga/data de entrada e histórico permanecem. Stock físico inclui disponíveis/reservados e exclui expedidos/em falta; o filtro Em falta mostra os ajustes históricos. Uma segunda confirmação não desconta novamente. Se todas as cargas estiverem localizadas/excluídas, confirmar arquiva resultado sem eventos de desconto. O resultado confirmado mostra a referência histórica da conferência, não recalcula silenciosamente o inventário depois do ajuste.
+
+Quando uma carga em falta for encontrada: Administrador seleciona o ajuste original, comunica um PEG inequívoco e escolhe explicitamente **carga inteira comprovada** ou lista os PEG efetivamente encontrados (incluindo o comunicado). A revisão mostra lista completa, estado anterior, localização/capacidade/ocupação. A confirmação cria `inventory_restore`, ligada ao ajuste original, e devolve as mesmas identidades a disponíveis, sem nova entrada, carga, PEG ou reserva automática.
+
+A recuperação é bloqueada se algum PEG escolhido já tiver sido reposto/movimentado, não pertencer à carga/ajuste, se a carga tiver reservas ativas ou se a localização original estiver ausente, inativa, ocupada sem capacidade ou em conflito físico. Após recuperação parcial, a opção carga inteira não ignora identidades já movimentadas: exigir seleção parcial comprovada das restantes. Mudanças desde a revisão exigem nova conferência administrativa. Nunca trocar de localização, libertar reservas ou gerar identidades automaticamente para contornar um bloqueio. Repetir a aplicação da mesma revisão não duplica stock.
+
+## Ocorrências e dados históricos incompletos
+
+PEG desconhecido/ambíguo, carga fora do âmbito ou excluída, PEG já sem físico e material desconhecido ficam registados como ocorrências pendentes, sem stock fictício. Existe registo manual de material/etiqueta desconhecidos mesmo sem PEG. Só Administrador resolve, com decisão/prova e PEG completo comprovado quando aplicável; a resolução é outro registo imutável, não altera stock nem marca cargas. Ocorrências pendentes bloqueiam a aprovação do rascunho.
+
+**Entradas antigas sem ligação comprovada a carga/contentor:** continuam visíveis, com stock e identidade intactos, mas bloqueadas para ajustes automáticos. Não se presume que um ID técnico de entrada da Fase 2C.1 prove uma carga física nem se inventam material/data/contentor. O completo inclui esses registos como investigação pendente e não pode ser concluído como se estivessem ausentes. Exigem reconciliação administrativa da identidade da carga numa fase própria; não foi criado nesta fase um mecanismo para alterar metadados de entradas confirmadas. Inventários parciais de cargas conhecidas podem avançar sem considerar esses registos fora do âmbito como vazios.
+
+## Dados, segurança, migração e recuperação
+
+Head **ddn_0015**, filha de ddn_0014. Novas tabelas: `nkt_inventories`, `nkt_inventory_checks`, `nkt_inventory_reviews`, `nkt_inventory_incidents`. Âmbito e referência de abertura são permanentes; cabeçalhos confirmados, conferências, revisões, decisões e PDFs são imutáveis. O runtime não pode atualizar/apagar/truncar livros históricos.
+
+Reutiliza `nkt_operations`, `nkt_stock_events` e `nkt_documents`: arestas de inventário nullable e tipos novos são aditivos; operações antigas conservam preparação/revisão, GT, campos e bytes dos PDFs. Uma restrição distingue operações de preparação de operações de inventário, impedindo misturá-las. Eventos de falta/recuperação têm encadeamento e aprovação próprios; a projeção continua derivada do livro, sem escrita direta de saldos pelo runtime. Guardas de ocupação deixam de contar tanto expedidos como em falta e revalidam capacidade na recuperação.
+
+PostgreSQL 17 READ COMMITTED, lock existente e rollback integral; autenticação, sessão, CSRF, contexto e permissões revalidados no servidor antes/depois do lock. Operador pode abrir/registar conferências próprias, sem aplicar ajustes; Administrador revê/confirma/compensa e resolve ocorrências. SQL valida âmbito completo, conferência mais recente, identificações, inexistência de reservas, eventos ainda atuais, completude de descontos, revisão/digest, permissões e documentos. Confirmar não aceita grupos ausentes/nulos, duplicados ou arbitrariamente excluídos. Não existe disponibilidade operacional SQLite.
+
+Backups cifrados/autenticados abrangem inventários, ocorrências, decisões, reservas, eventos e PDFs. Reconciliação de arquivos anteriores à 2C.4 reconhece apenas as novas colunas **nulas**, sem ocultar dados de inventário reais; foi ensaiado também o formato nativo 0014 com reservas/GT/PDF não vazios. A migração não reescreve revisões publicadas, renumera ou altera valores históricos; somente adiciona estruturas/arestas e estende guardas/tipos de evento. Atualização real: aplicação parada, backup, ensaio de restauro separado, prévia e aplicação explícita, grants mínimos atualizados. Não há atualização automática no arranque. Recuperar backup verificado numa base separada com a versão correspondente, sem apagar históricos ou fazer downgrade destrutivo.
+
+## Documentos, ensaios e limites
+
+PDFs A4 de conferência, revisão, resultado e recuperação são arquivados por versão/operação, com SHA-256, autor/data e lista de efeitos. Podem ter várias páginas com cabeçalhos repetidos; reimpressão verifica e devolve os bytes originais sem movimentos. Por conferir não é apresentado como zero contado; zero de desconto significa apenas nenhum ajuste autorizado. A lista detalhada de PEG serve rastreabilidade, sem exigir contagem individual de todos os PEG no armazém.
+
+Limites técnicos: 500 cargas físicas no âmbito, 60 PEG por recuperação parcial/carga (limite de entrada já existente), formulários de 64 KiB/10 s e PDFs até 4 MiB. Não trunca dados, amplia âmbitos, infere intervalos nem reinterpreta texto/números. Caracteres sem representação segura na fonte PDF exigem resolução explícita. Não há importação de Excel/dados reais ou transferências NKT.
+
+`tests/test_nkt_inventory.py` usa apenas dados fictícios: várias cargas/materiais, PEG completo/sufixo, ambiguidade incluindo PEG completo com quatro caracteres, uma identificação para a carga inteira, parcial/completo, desconhecido versus ausência, revisões, reservas parciais/totais, novas chegadas, expedições e reserva/cancelamento após conferência, concorrência, rollback/idempotência, recuperação parcial/completa e capacidade, SQL runtime negativo, permissões/CSRF/contextos, PDFs/reimpressão e migração/backup/restauro com históricos nativos 0014. Foi corrigido um defeito reproduzido no formulário vazio de preparação NKT (lista `items`), sem alterar regras de preparações. As suites existentes verificam regressões de todos os clientes. Resultados e omissões SQLite são registados na PR.
+
+Homologação física Windows 11/PostgreSQL 17 nativo pendente: dois PCs de escritório, confirmação das cargas realmente agrupadas, comunicado de PEG/últimos quatro com zeros, ambiguidade, parcial sem tocar fora do âmbito, carga com reserva parcial, chegada/saída durante conferência, impossibilidade de concluir por conferir, resultado e PDF A4, recuperação comprovada versus localização entretanto ocupada e restauro separado com PDFs idênticos. CI Windows/SQLite não homologa produção. Sem deploy, migração de produção ou alteração de instalações/dados reais.

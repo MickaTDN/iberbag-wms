@@ -330,6 +330,27 @@ REQUIRED_WINDOWS.add('test_nkt_loading.test_nkt_loading_sqlite_never_writes_and_
 REQUIRED_POSTGRES |= {'test_nkt_loading.test_nkt_a4_one_load_per_page_and_no_silent_text_truncation','test_nkt_loading.test_nkt_cancel_pending_revision_then_compensate_without_reviving_reservations'}
 REQUIRED_WINDOWS.add('test_nkt_loading.test_nkt_a4_one_load_per_page_and_no_silent_text_truncation')
 
+REQUIRED_POSTGRES |= {
+    'test_nkt_inventory.test_nkt_inventory_load_conference_and_atomic_missing',
+    'test_nkt_inventory.test_nkt_inventory_full_suffix_resolves_one_peg_entire_load_and_ambiguity',
+    'test_nkt_inventory.test_nkt_inventory_partial_unverified_is_not_missing_and_outside_scope_untouched',
+    'test_nkt_inventory.test_nkt_inventory_reserved_loads_excluded_wholly_even_when_partially_reserved',
+    'test_nkt_inventory.test_nkt_inventory_rejects_reserve_cancel_net_zero_movement_after_conference',
+    'test_nkt_inventory.test_nkt_inventory_complete_refuses_new_arrivals_and_shipments_need_reconference',
+    'test_nkt_inventory.test_nkt_inventory_revisions_unknown_material_and_legacy_loads_remain_blocked',
+    'test_nkt_inventory.test_nkt_inventory_found_load_restored_without_new_identity_and_double_restore',
+    'test_nkt_inventory.test_nkt_inventory_partial_recovery_and_reserved_load_or_later_movements_block',
+    'test_nkt_inventory.test_nkt_inventory_concurrent_confirmations_rollback_and_stale_other_inventory',
+    'test_nkt_inventory.test_nkt_inventory_runtime_immutable_permission_csrf_isolation_and_pdfs',
+    'test_nkt_inventory.test_nkt_inventory_runtime_direct_cannot_discount_reserved_or_forge_restore',
+    'test_nkt_inventory.test_nkt_inventory_ddn14_upgrade_native_archive_and_encrypted_recovery',
+    'test_nkt_inventory.test_nkt_inventory_a4_pdf_unknown_and_zero_vs_unverified_and_sqlite_refusal',
+    'test_nkt_inventory.test_nkt_inventory_recovery_revalidates_capacity_and_unknown_peg_is_pending',
+    'test_nkt_inventory.test_nkt_inventory_nkt_new_preparation_form_remains_usable',
+    'test_nkt_inventory.test_nkt_inventory_four_character_full_peg_requires_explicit_disambiguation',
+}
+REQUIRED_WINDOWS.add('test_nkt_inventory.test_nkt_inventory_a4_pdf_unknown_and_zero_vs_unverified_and_sqlite_refusal')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

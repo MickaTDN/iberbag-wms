@@ -926,6 +926,48 @@ class NktPallet(Scoped,Base):
 Index('uq_nkt_owner_peg',NktPallet.client_id,func.lower(NktPallet.peg),unique=True)
 Index('ix_nkt_context_local',NktPallet.context_id,NktPallet.local)
 
+class NktReceiving(Scoped,Base):
+    __tablename__='nkt_receivings'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    client_id: Mapped[int]=mapped_column(ForeignKey('clients.id'),nullable=False)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    source_name: Mapped[str]=mapped_column(String(240),nullable=False)
+    source_digest: Mapped[str|None]=mapped_column(String(64))
+    report: Mapped[str]=mapped_column(Text,nullable=False)
+    created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    version: Mapped[int]=mapped_column(Integer,default=0,nullable=False)
+    status: Mapped[str]=mapped_column(String(20),default='draft',nullable=False)
+    __table_args__=(Index('uq_nkt_source_owner','client_id','source_digest',unique=True),CheckConstraint("version>=0 AND status IN ('draft','confirmed')",name='nkt_receiving_state'))
+
+class NktReceivingReview(Scoped,Base):
+    __tablename__='nkt_receiving_reviews'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    receiving_id: Mapped[int]=mapped_column(ForeignKey('nkt_receivings.id'),nullable=False)
+    version: Mapped[int]=mapped_column(Integer,nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(UniqueConstraint('receiving_id','version'),)
+
+class NktContainer(Scoped,Base):
+    __tablename__='nkt_containers'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    receiving_id: Mapped[int]=mapped_column(ForeignKey('nkt_receivings.id'),nullable=False)
+    review_id: Mapped[int]=mapped_column(ForeignKey('nkt_receiving_reviews.id'),nullable=False)
+    entry_id: Mapped[int]=mapped_column(ForeignKey('nkt_entries.id'),unique=True,nullable=False)
+    carga_id: Mapped[int]=mapped_column(ForeignKey('cargas.id'),unique=True,nullable=False)
+    client_id: Mapped[int]=mapped_column(ForeignKey('clients.id'),nullable=False)
+    name: Mapped[str]=mapped_column(String(120),nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    year: Mapped[int|None]=mapped_column(Integer)
+    number: Mapped[int|None]=mapped_column(Integer)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(UniqueConstraint('receiving_id','name'),Index('uq_nkt_container_number','client_id','year','number',unique=True),CheckConstraint('(year IS NULL AND number IS NULL) OR (year>=2027 AND number>0)',name='nkt_container_number'))
+
 for _table in list(Base.metadata.tables.values()):
     if _table.name == 'physical_location_claims' or 'context_id' not in _table.c:
         continue

@@ -587,3 +587,6 @@ app.include_router(valmet_import_router)
 
 from .nkt_routes import router as nkt_router
 app.include_router(nkt_router)
+
+from .nkt_receiving_routes import router as nkt_receiving_router
+app.include_router(nkt_receiving_router)

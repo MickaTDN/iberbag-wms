@@ -25,6 +25,7 @@ NUMBER_TABLES = {'load_numbers'}
 VALMET_TABLES = {'valmet_owners','valmet_entries','valmet_units','valmet_numbers','valmet_identifications','valmet_items'}
 PLANNING_TABLES = {'valmet_preparations','valmet_plan_revisions','valmet_reservations','valmet_handling'}
 SHIPPING_TABLES = {'valmet_positions','valmet_shipments','valmet_shipment_lines','valmet_occurrences','valmet_relocations','valmet_documents'}
+NKT_RECEIVING_TABLES = {'nkt_receivings','nkt_receiving_reviews','nkt_containers'}
 NKT_TABLES = {'nkt_owners','nkt_entries','nkt_reviews','nkt_pallets'}
 IMPORT_TABLES = {'valmet_import_drafts','valmet_import_revisions','valmet_import_confirmations'}
 ROLL_TABLES = {'valmet_rolls','valmet_roll_states','valmet_roll_events'}
@@ -64,7 +65,9 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
-    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES - PLANNING_TABLES - SHIPPING_TABLES - CONTROL_TABLES - ROLL_TABLES - IMPORT_TABLES - NKT_TABLES
+    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES - PLANNING_TABLES - SHIPPING_TABLES - CONTROL_TABLES - ROLL_TABLES - IMPORT_TABLES - NKT_TABLES - NKT_RECEIVING_TABLES
+    if missing & NKT_RECEIVING_TABLES not in (set(),NKT_RECEIVING_TABLES):raise ValueError('Estrutura de receções NKT incompleta.')
+    if not missing & NKT_RECEIVING_TABLES and missing & NKT_TABLES:raise ValueError('Receções sem livro NKT.')
     if missing & NKT_TABLES not in (set(),NKT_TABLES):raise ValueError('Estrutura NKT incompleta.')
     if missing & IMPORT_TABLES not in (set(),IMPORT_TABLES):raise ValueError('Esquema de importação Valmet incompleto.')
     if not missing & IMPORT_TABLES and missing & (ROLL_TABLES|CONTROL_TABLES):raise ValueError('Importação sem estrutura Valmet completa.')
@@ -99,7 +102,7 @@ def read_data(connection):
             allowed = ({frozenset({'ddn_0002'}),frozenset({'ddn_0002','0007'}),frozenset({'ddn_security_0001'})}
                        if missing & NUMBER_TABLES else ({frozenset({'ddn_0003'})} if missing & VALMET_TABLES else
                        ({frozenset({'ddn_0004'}),frozenset({'ddn_0005'}),frozenset({'ddn_0006'})} if missing & PLANNING_TABLES else
-                       ({frozenset({'ddn_0007'})} if missing & SHIPPING_TABLES else ({frozenset({'ddn_0008'})} if missing & CONTROL_TABLES else ({frozenset({'ddn_0009'})} if missing & ROLL_TABLES else ({frozenset({'ddn_0010'})} if missing & IMPORT_TABLES else ({frozenset({'ddn_0011'})} if missing & NKT_TABLES else {frozenset({REVISION})}))))))))
+                       ({frozenset({'ddn_0007'})} if missing & SHIPPING_TABLES else ({frozenset({'ddn_0008'})} if missing & CONTROL_TABLES else ({frozenset({'ddn_0009'})} if missing & ROLL_TABLES else ({frozenset({'ddn_0010'})} if missing & IMPORT_TABLES else ({frozenset({'ddn_0011'})} if missing & NKT_TABLES else ({frozenset({'ddn_0012'})} if missing & NKT_RECEIVING_TABLES else {frozenset({REVISION})})))))))))
         if versions not in allowed:
             raise ValueError('Revisão/heads incompatíveis com o esquema. Não usar stamp para contornar.')
     if connection.dialect.name == 'sqlite':
@@ -192,6 +195,9 @@ def archive_inventory(connection, expected):
     data = read_data(connection)
     wanted = set(expected.get('tables', {}))
     current = {t.name for t in TABLES}
+    if not wanted & NKT_RECEIVING_TABLES:
+        if any(data[name] for name in NKT_RECEIVING_TABLES):raise ValueError('Backup anterior não inclui receções NKT por contentor.')
+        current-=NKT_RECEIVING_TABLES
     if not wanted & NKT_TABLES:
         if any(data[name] for name in NKT_TABLES-{'nkt_owners'}):raise ValueError('Backup anterior não inclui entradas NKT.')
         current-=NKT_TABLES
@@ -310,7 +316,7 @@ def require_empty(connection):
 def apply(bundle, engine):
     require_test_target(engine)
     data, report = load_bundle(bundle)
-    if any(data[name] for name in (VALMET_TABLES-{'valmet_owners'})|PLANNING_TABLES|SHIPPING_TABLES|CONTROL_TABLES|ROLL_TABLES|IMPORT_TABLES|(NKT_TABLES-{'nkt_owners'})):
+    if any(data[name] for name in (VALMET_TABLES-{'valmet_owners'})|PLANNING_TABLES|SHIPPING_TABLES|CONTROL_TABLES|ROLL_TABLES|IMPORT_TABLES|(NKT_TABLES-{'nkt_owners'})|NKT_RECEIVING_TABLES):
         raise ValueError('Importação operacional Valmet não implementada. Usar backup/restauro PostgreSQL verificado.')
     with engine.begin() as connection:
         connection.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK})

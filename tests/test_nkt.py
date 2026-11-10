@@ -97,13 +97,15 @@ def test_nkt_server_permissions_csrf_context_and_revision(restricted_web):
         assert client.get('/nkt/stock').status_code==403
         client.cookies.set('wms_session',tokens['operador'][0]);client.cookies.set('ddn_context','4')
         assert client.get('/').status_code==200 and client.get('/nkt/entries/new').status_code==200
-        body=dict(csrf=tokens['operador'][1],context_id=4,key=secrets.token_hex(16),peg0='000Web',local0='ESC-01')
+        legacy=save(engine,actor,['000Web'])  # existing pre-container draft editing remains compatible
+        with scoped(engine,4) as db:legacy_key=db.get(m.NktEntry,legacy).request_key
+        body=dict(csrf=tokens['operador'][1],context_id=4,key=legacy_key,id=legacy,version=1,peg0='000Web',local0='ESC-01')
         assert client.post('/nkt/entries/review',data=dict(body,csrf='invalid')).status_code==403
         assert client.post('/nkt/entries/review',data=dict(body,context_id=1)).status_code==409
         response=client.post('/nkt/entries/review',data=body,follow_redirects=False);assert response.status_code==303,response.text
         ident=int(response.headers['location'].split('/')[-1]);assert client.get(response.headers['location']).status_code==200
         with scoped(engine,4) as db:digest=n.digest(db.get(m.NktEntry,ident).payload)
-        data=dict(csrf=tokens['operador'][1],context_id=4,version=1,digest=digest,accepted='yes')
+        data=dict(csrf=tokens['operador'][1],context_id=4,version=2,digest=digest,accepted='yes')
         assert client.post(f'/nkt/entries/{ident}/confirm',data=dict(data,digest='bad')).status_code==409
         assert client.post(f'/nkt/entries/{ident}/confirm',data=data).status_code==200
         assert '000Web' in client.get('/nkt/stock?peg=web').text
@@ -124,7 +126,7 @@ def test_nkt_backup_restore_and_prior_head_upgrade(pg_databases,warehouse,tmp_pa
         seed_legacy_catalogue(db);u=m.User(username='admin',display_name='Fictício',role='admin',active=True);set_password(u,secrets.token_urlsafe(24));db.add(u);db.commit();actor=u.id
     with engine.connect() as conn:before=transfer.inventory(transfer.read_data(conn))
     folder=tmp_path/'before';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD);backup.restore(target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0012'
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0013'
     with engine.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==before
     setup(engine);ident=save(engine,actor,['000Restore']);confirm(engine,actor,ident)
     with engine.connect() as conn:before=transfer.inventory(transfer.read_data(conn))

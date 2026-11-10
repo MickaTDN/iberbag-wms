@@ -19,7 +19,7 @@ def entries(request:Request,db=Depends(database)):
 @router.get('/nkt/entries/new')
 def new(request:Request,db=Depends(database)):
     user,sess=access(request,db)
-    return render(request,'nkt_form.html',context(request,user,sess,key=secrets.token_hex(16),entry=None,values={},places=db.scalars(select(Location).where(Location.active.is_(True))).all()))
+    return redirect('/nkt/receivings')
 @router.get('/nkt/entries/{ident}/edit')
 def edit(ident:int,request:Request,db=Depends(database)):
     user,sess=access(request,db);entry=db.get(NktEntry,ident)
@@ -29,6 +29,7 @@ def edit(ident:int,request:Request,db=Depends(database)):
 def review(request:Request,data:dict=Depends(receiving_form),db=Depends(database)):
     user,sess=access(request,db,data)
     try:
+        if not data.get('id'):raise service.ReceivingError('Novas entradas usam receção por contentor com chegada/material e Chão automático.',409)
         rows=[dict(peg=data.get(f'peg{i}',''),local=data.get(f'local{i}','')) for i in range(20) if data.get(f'peg{i}') or data.get(f'local{i}')]
         ident=service.save(db,user.id,data.get('key'),data.get('received_on'),data.get('notes',''),rows,integer(data['id']) if data.get('id') else None,integer(data['version']) if data.get('version') else None)
         return redirect(f'/nkt/entries/{ident}')
@@ -38,7 +39,9 @@ def detail(ident:int,request:Request,db=Depends(database)):
     user,sess=access(request,db);entry=db.get(NktEntry,ident)
     if not entry:raise HTTPException(404,'Entrada NKT inexistente neste contexto.')
     reviews=db.scalars(select(NktReview).where(NktReview.entry_id==ident).order_by(NktReview.version)).all()
-    return render(request,'nkt_entry.html',context(request,user,sess,entry=entry,values=json.loads(entry.payload),digest=service.digest(entry.payload),reviews=reviews))
+    from .nkt_receiving import metadata
+    info=metadata(db,[ident]).get(ident)
+    return render(request,'nkt_entry.html',context(request,user,sess,entry=entry,values=json.loads(entry.payload),digest=service.digest(entry.payload),reviews=reviews,info=info))
 @router.post('/nkt/entries/{ident}/confirm')
 def confirm(ident:int,request:Request,data:dict=Depends(receiving_form),db=Depends(database)):
     user,sess=access(request,db,data)
@@ -51,4 +54,6 @@ def confirm(ident:int,request:Request,data:dict=Depends(receiving_form),db=Depen
 def stock(request:Request,peg:str='',local:str='',page:int=1,db=Depends(database)):
     user,sess=access(request,db);page=max(1,min(page,10000));peg=peg[:120];local=local[:120]
     rows,total=service.stock(db,peg,local,page)
-    return render(request,'nkt_stock.html',context(request,user,sess,rows=rows,total=total,peg=peg,local=local,page=page))
+    from .nkt_receiving import metadata
+    info=metadata(db,[r.entry_id for r in rows])
+    return render(request,'nkt_stock.html',context(request,user,sess,rows=rows,total=total,peg=peg,local=local,page=page,info=info))

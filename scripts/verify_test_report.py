@@ -287,6 +287,29 @@ REQUIRED_POSTGRES |= {
 }
 REQUIRED_WINDOWS.add('test_nkt.test_nkt_sqlite_writes_disabled_and_original_text_preserved')
 
+REQUIRED_POSTGRES |= {
+    'test_nkt_receiving.test_nkt_excel_explicit_containers_preserve_all_pegs_and_cq',
+    'test_nkt_receiving.test_nkt_invalid_ranges_never_invent_identifiers',
+    'test_nkt_receiving.test_nkt_excel_ambiguous_missing_material_numeric_peg_and_formulas',
+    'test_nkt_receiving.test_nkt_excel_split_requires_explicit_full_distribution_and_cq_exclusion',
+    'test_nkt_receiving.test_nkt_containers_atomic_entries_material_dates_and_numbering',
+    'test_nkt_receiving.test_nkt_receiving_review_changes_missing_date_and_duplicate_cases',
+    'test_nkt_receiving.test_nkt_receiving_concurrent_batches_and_midway_rollback',
+    'test_nkt_receiving.test_nkt_receiving_runtime_permissions_http_csrf_and_wrong_context',
+    'test_nkt_receiving.test_nkt_receiving_encrypted_restore_and_prior_head_upgrade',
+    'test_nkt_receiving.test_nkt_excel_zip_xml_layout_limits_and_sqlite_never_receive',
+    'test_nkt_receiving.test_nkt_repeated_concurrent_files_altered_listing_and_source_immutability',
+    'test_nkt_receiving.test_nkt_upload_parsing_never_holds_writer_lock',
+    'test_nkt_receiving.test_nkt_manual_mixed_materials_pre2027_and_floor_catalogue',
+}
+REQUIRED_WINDOWS |= {
+    'test_nkt_receiving.test_nkt_excel_explicit_containers_preserve_all_pegs_and_cq',
+    'test_nkt_receiving.test_nkt_invalid_ranges_never_invent_identifiers',
+    'test_nkt_receiving.test_nkt_excel_ambiguous_missing_material_numeric_peg_and_formulas',
+    'test_nkt_receiving.test_nkt_excel_split_requires_explicit_full_distribution_and_cq_exclusion',
+    'test_nkt_receiving.test_nkt_excel_zip_xml_layout_limits_and_sqlite_never_receive',
+}
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

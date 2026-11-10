@@ -3,7 +3,7 @@ import argparse
 import re
 from sqlalchemy import text
 
-IMMUTABLE = {'nkt_owners','nkt_reviews','nkt_pallets','valmet_import_drafts','valmet_import_revisions','valmet_import_confirmations','audit', 'dispatch_documents', 'receipt_documents', 'stock_adjustments',
+IMMUTABLE = {'nkt_receiving_reviews','nkt_containers','nkt_owners','nkt_reviews','nkt_pallets','valmet_import_drafts','valmet_import_revisions','valmet_import_confirmations','audit', 'dispatch_documents', 'receipt_documents', 'stock_adjustments',
              'lot_resolutions', 'preparation_completions', 'preparation_compensations',
              'customer_pending', 'pending_allocations', 'allocation_collections',
              'physical_location_claims', 'load_numbers', 'valmet_owners', 'valmet_units',

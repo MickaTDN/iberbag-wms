@@ -198,7 +198,7 @@ def test_every_post_rejects_bad_csrf_without_waiting_for_lock(restricted_web):
         with TestClient(app) as client:
             client.cookies.set('wms_session', tokens['admin'][0])
             data={'csrf':secrets.token_hex(16),'context_id':1}
-            if path=='/valmet/imports/upload':
+            if path in ('/valmet/imports/upload','/nkt/receivings/upload'):
                 return client.post(path,data=dict(data,request_key=secrets.token_hex(16)),files={'excel':('fiction.xlsx',b'FICTITIOUS; must not reach Excel parser')},follow_redirects=False)
             return client.post(path,data=data,follow_redirects=False)
     with ThreadPoolExecutor(max_workers=1) as pool:
@@ -274,12 +274,12 @@ def test_admin_posts_refuse_operator_before_lock(restricted_web):
              '/users','/users/1/toggle','/users/1/reset-password','/inventory/incidents/1/resolve',
              '/inventory/lots/resolve','/inventory/preparations/1/complete','/inventory/1/approve',
              '/pending/allocations/1/collect','/dispatches/1/cancel',
-             '/valmet/imports/1/reconcile','/valmet/imports/1/confirm','/valmet/imports/upload']
+             '/valmet/imports/1/reconcile','/valmet/imports/1/confirm','/valmet/imports/upload','/nkt/receivings/upload']
     def post(path):
         with TestClient(app) as client:
             client.cookies.set('wms_session',tokens['operador'][0])
             data={'csrf':tokens['operador'][1],'context_id':1}
-            if path=='/valmet/imports/upload':
+            if path in ('/valmet/imports/upload','/nkt/receivings/upload'):
                 return client.post(path,data=dict(data,request_key=secrets.token_hex(16)),files={'excel':('fiction.xlsx',b'FICTITIOUS; must not reach Excel parser')},follow_redirects=False)
             return client.post(path,data=data,follow_redirects=False)
     with ThreadPoolExecutor(max_workers=1) as pool:

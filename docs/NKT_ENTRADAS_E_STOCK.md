@@ -8,6 +8,8 @@ Cada PEG identifica uma única palete física. É sempre novo e **nunca reutiliz
 
 O limite técnico de entrada é 120 caracteres por PEG; espaços exteriores e caracteres de controlo são recusados, não removidos silenciosamente. Não é uma especificação do formato comercial do PEG. Não há regex de prefixos nem comprimentos comerciais inventados.
 
+> Evolução: [Fase 2C.2](NKT_EXCEL_E_CONTENTORES.md) acrescenta entradas novas por contentor/material/data, Chão automático e Excel administrativo. As secções seguintes descrevem a Fase 2C.1 e os registos legados; não sobrepõem as regras atuais de novas receções.
+
 ## Fluxo disponível
 
 No contexto NKT, abrir Entradas NKT → Nova entrada. Introduzir uma linha por PEG/localização real, rever e só depois confirmar. A interface aceita até 20 linhas por formulário; o serviço limita a 60 paletes por transação, sem truncar dados. A data de entrada é opcional e só é guardada quando informada; data de registo/confirmação e utilizador são auditados separadamente. Observações livres não são interpretadas como artigos, lotes ou composição.

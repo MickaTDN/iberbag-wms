@@ -350,6 +350,11 @@ REQUIRED_POSTGRES |= {
     'test_nkt_inventory.test_nkt_inventory_four_character_full_peg_requires_explicit_disambiguation',
 }
 REQUIRED_WINDOWS.add('test_nkt_inventory.test_nkt_inventory_a4_pdf_unknown_and_zero_vs_unverified_and_sqlite_refusal')
+REQUIRED_POSTGRES |= {
+    'test_nkt_integrated.test_integrated_nkt_receipt_loading_inventory_compensation_and_encrypted_recovery',
+    'test_nkt_integrated.test_integrated_nkt_inventory_failure_preserves_shipments_reservations_and_documents',
+    'test_nkt_integrated.test_integrated_nkt_inventory_and_reservation_race_never_adjusts_reserved_load',
+}
 
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()

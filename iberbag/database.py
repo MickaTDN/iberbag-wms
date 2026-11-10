@@ -968,6 +968,77 @@ class NktContainer(Scoped,Base):
     created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
     __table_args__=(UniqueConstraint('receiving_id','name'),Index('uq_nkt_container_number','client_id','year','number',unique=True),CheckConstraint('(year IS NULL AND number IS NULL) OR (year>=2027 AND number>0)',name='nkt_container_number'))
 
+class NktPreparation(Scoped,Base):
+    __tablename__='nkt_preparations'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    version: Mapped[int]=mapped_column(Integer,default=1,nullable=False)
+    active_revision: Mapped[int|None]=mapped_column(Integer)
+    status: Mapped[str]=mapped_column(String(30),default='draft',nullable=False)
+    __table_args__=(CheckConstraint("version>0 AND status IN ('draft','reserved','partial','loaded','cancelled','reconciliation')",name='nkt_preparation_state'),)
+
+class NktPlanRevision(Scoped,Base):
+    __tablename__='nkt_plan_revisions'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    preparation_id: Mapped[int]=mapped_column(ForeignKey('nkt_preparations.id'),nullable=False)
+    version: Mapped[int]=mapped_column(Integer,nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(UniqueConstraint('preparation_id','version'),)
+
+class NktCorrection(Scoped,Base):
+    __tablename__='nkt_corrections'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    preparation_id: Mapped[int]=mapped_column(ForeignKey('nkt_preparations.id'),nullable=False)
+    operation_id: Mapped[int]=mapped_column(ForeignKey('nkt_operations.id'),nullable=False)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    snapshot: Mapped[str]=mapped_column(Text,nullable=False)
+    digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+
+class NktOperation(Scoped,Base):
+    __tablename__='nkt_operations'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    preparation_id: Mapped[int]=mapped_column(ForeignKey('nkt_preparations.id'),nullable=False)
+    revision_id: Mapped[int]=mapped_column(ForeignKey('nkt_plan_revisions.id'),nullable=False)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    kind: Mapped[str]=mapped_column(String(20),nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    snapshot: Mapped[str]=mapped_column(Text,nullable=False)
+    correction_id: Mapped[int|None]=mapped_column(Integer,unique=True)
+    corrects_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_operations.id'))
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint("kind IN ('reserve','cancel','ship','restore','metadata')",name='nkt_operation_kind'),)
+
+class NktStockEvent(Scoped,Base):
+    __tablename__='nkt_stock_events'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    operation_id: Mapped[int]=mapped_column(ForeignKey('nkt_operations.id'),nullable=False)
+    pallet_id: Mapped[int]=mapped_column(ForeignKey('nkt_pallets.id'),nullable=False)
+    previous_event_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_stock_events.id'))
+    state: Mapped[str]=mapped_column(String(20),nullable=False)
+    __table_args__=(UniqueConstraint('operation_id','pallet_id'),CheckConstraint("state IN ('available','reserved','shipped')",name='nkt_event_state'),Index('ix_nkt_event_latest','context_id','pallet_id','id'))
+
+class NktDocument(Scoped,Base):
+    __tablename__='nkt_documents'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    revision_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_plan_revisions.id'),unique=True)
+    operation_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_operations.id'),unique=True)
+    correction_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_corrections.id'),unique=True)
+    pdf: Mapped[bytes]=mapped_column(LargeBinary,nullable=False)
+    digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint('(CASE WHEN revision_id IS NULL THEN 0 ELSE 1 END)+(CASE WHEN operation_id IS NULL THEN 0 ELSE 1 END)+(CASE WHEN correction_id IS NULL THEN 0 ELSE 1 END)=1',name='nkt_document_origin'),)
+
 for _table in list(Base.metadata.tables.values()):
     if _table.name == 'physical_location_claims' or 'context_id' not in _table.c:
         continue

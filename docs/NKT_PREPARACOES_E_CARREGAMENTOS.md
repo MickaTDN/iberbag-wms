@@ -1,0 +1,51 @@
+# NKT — Fase 2C.3: preparações, reservas e carregamentos por PEG
+
+Base: main após PR #26, merge `48d29f7`. Complementa [as entradas por Excel/contentor](NKT_EXCEL_E_CONTENTORES.md). Apenas NKT/Escapães; não reutiliza FIFO, quantidades agrupadas Iberbag ou unidades Valmet. O escritório utiliza a aplicação e entrega documentos impressos ao colaborador; não existe confirmação obrigatória numa aplicação no armazém.
+
+## Fluxo de escritório
+
+1. NKT → Preparações e carregamentos → Nova preparação. Introduzir identificação da **carga de saída**, data prevista, ordem e PEG pedidos pela NKT, um por linha (incluindo uma lista copiada de e-mail). Não seleciona PEG por FIFO nem substitui identidades. Até 60 PEG por preparação; listas maiores exigem divisão **explícita** em cargas/preparações.
+2. Guardar e rever: a aplicação identifica os materiais, contentores e entradas originais, sem inventar informação antiga. Cada PEG corresponde sempre a uma palete física. O PDF de rascunho é identificado como tal e não autoriza saída. Não são criadas reservas neste passo.
+3. Aceitar expressamente a revisão e confirmar: cria reservas exclusivas. O stock físico continua presente; apenas deixa de estar disponível para outra preparação.
+4. Imprimir o PDF confirmado. Uma carga de saída por folha A4, identificação, data prevista, PEG e legenda integral dos materiais, total de paletes e referência à revisão. É um documento interno de carregamento, **não uma GT inventada**. A legenda M1/M2 apenas evita repetir descrições longas na mesma página, sem criar artigos ou identidades comerciais.
+5. Após receber a guia devolvida, introduzir **apenas os PEG efetivamente carregados**, data real e número da GT fornecida. Só a confirmação deste passo desconta stock. Pode confirmar parte da lista, conservando os restantes PEG reservados para confirmação posterior com a respetiva data/GT. Nunca se regista recolha ou impressão como saída.
+6. Consultar histórico, PDFs e stock. O filtro físico inclui disponíveis e reservados; o filtro disponível exclui reservas e expedições. Expedido e Todos mostram o histórico permanente, sem voltar a contar paletes já expedidas como stock físico. O último movimento fica ligado à preparação correspondente.
+
+Estados visíveis: Preparado/rascunho, Reservado, Parcialmente carregado, Carregado, Cancelado e Correção — revisão necessária. Datas de registo/confirmação são separadas das datas previstas e reais informadas. As cargas de entrada e a sua numeração anual não são reutilizadas para identificar preparações ou GT de saída. Identificações de saída e GT são fornecidas pelo utilizador, sem formato comercial ou unicidade global inventados.
+
+## Alterações, cancelamentos e documentos
+
+Data prevista e ordem são alteradas numa nova revisão, mantendo explicitamente a mesma lista de PEG. Confirmar essa revisão não liberta/recria reservas inalteradas. Trocar PEG exige alterar a lista, rever e reconfirmar; só nessa confirmação são libertadas as reservas retiradas e adquiridas as novas, atomicamente. Não permite retirar da seleção PEG já expedidos sem compensação administrativa. A listagem ordena por ordem indicada, data e ID interno, sem redistribuir paletes; apresenta as últimas 200 preparações.
+
+Durante uma revisão pendente, mantém as reservas anteriores e bloqueia novos carregamentos até confirmar a nova versão. PDFs anteriores continuam arquivados; recolher/substituir no armazém as cópias antigas quando emitir uma revisão. O novo PDF operacional mostra **apenas PEG ainda por carregar**, distinguindo os já expedidos. Reimprimir devolve os mesmos bytes e verifica SHA-256; não calcula uma nova seleção nem cria movimentos. PDFs de rascunho, operações, revisões e correções ficam imutáveis.
+
+Cancelar exige motivo e liberta apenas reservas ainda não expedidas. Cancelar um rascunho não altera stock. Cancelar o remanescente de uma carga parcial preserva os carregamentos e GT anteriores; o PDF de cancelamento identifica só as reservas efetivamente libertadas. Uma preparação totalmente carregada não pode ser tratada como rascunho/cancelamento. Não reabre silenciosamente preparações canceladas: uma nova instrução NKT pode originar nova preparação dos PEG realmente disponíveis.
+
+## Correções administrativas comprovadas
+
+Só Administrador. Selecionar um carregamento original, indicar motivo e evidência e escolher:
+
+- **Restituição física comprovada:** indicar PEG desse carregamento efetivamente verificados de volta à localização original. Rever identidade, material/contentor, estado anterior, ocupação e capacidade; aprovar explicitamente. Cria um evento compensatório, sem nova entrada/carga, novo PEG ou alteração do movimento original. Os PEG voltam a disponíveis, sem reserva automática. A preparação exige revisão antes de novo carregamento; se estava cancelada, continua cancelada.
+- **Correção apenas de GT/data:** indicar os valores corretos, rever e aprovar. Não movimenta stock nem reservas; conserva os dados/PDF originais e emite documento de correção ligado ao carregamento afetado, apenas com os PEG desse carregamento.
+
+Não há restituição se o PEG já foi compensado, reservado ou expedido novamente, se a localização original deixou de existir/estar ativa, se já não tem capacidade ou se existe conflito físico entre contextos. Mudanças desde a conferência (versão, operações, eventos, ocupação/capacidade) exigem nova revisão. Não cria localizações nem troca automaticamente o destino da restituição. As correções têm digest, referência ao original e identificador idempotente; a confirmação repetida não repõe stock duas vezes. O procedimento também preserva uma carga parcial cancelada durante uma revisão ainda não confirmada.
+
+Para corrigir um PEG errado numa saída: avaliar a existência física e, se comprovada, compensar o movimento desse PEG; preparar explicitamente o PEG correto conforme instrução NKT. Não há substituição automática. Compensar uma saída não elimina GT, documentos ou movimentos posteriores. Se não houver prova suficiente, bloquear e exigir reconciliação humana; não criar stock contabilístico fictício.
+
+## Dados, concorrência e atualização
+
+Head aditiva **ddn_0014**, filha de ddn_0013; nenhuma revisão publicada é reescrita, nem são inventados metadados ou movimentos para registos antigos. Novas tabelas: `nkt_preparations`, `nkt_plan_revisions`, `nkt_operations`, `nkt_stock_events`, `nkt_corrections` e `nkt_documents`. Apenas o cabeçalho de trabalho é mutável, com guardas de identidade/estado. Revisões, operações, eventos e PDFs são livros imutáveis; runtime apenas insere/consulta esses livros, sem UPDATE/DELETE/TRUNCATE. Não existe projeção mutável de stock NKT: estado físico/reservado/expedido deriva do último evento de cada PEG, ou disponível quando ainda não existem movimentos. Entradas, material, contentor, carga original, PEG e numeração permanente continuam imutáveis.
+
+As guardas SQL de capacidade NKT passam a contar somente PEG não expedidos, conservando as restantes regras publicadas. Ao sair o último PEG de uma posição legada, a ocupação é libertada; uma restituição revalida capacidade e exclusividade. O PEG expedido continua emitido para sempre e não pode voltar a entrar com identidade nova/reutilizada. Não há stock negativo ou dupla contagem.
+
+PostgreSQL 17 READ COMMITTED, transação única e lock de escrita existente; preflight de autenticação, sessão, CSRF, permissões e contexto antes do lock, com revalidação posterior. SQL verifica encadeamento do último evento, reserva exclusiva, PEG explicitamente selecionado, proprietário/contexto, GT/data, permissões administrativas e completude de cada operação/PDF ao commit. Não confirma reservas omitindo os eventos correspondentes. Dois pedidos concorrentes não reservam/expedem o mesmo PEG; erro ou desconexão reverte a transação integralmente. Formulários mantêm limites de 64 KiB/10 s. SQLite continua sem escritas operacionais NKT.
+
+Backups cifrados/autenticados e restauro reconciliado incluem todos os livros novos, estados derivados, revisões, GT/datas e bytes/digests dos PDFs. Compatibilidade de leitura/reconciliação dos backups antigos preservada; tabelas novas não são ignoradas quando contêm dados. Atualização real exige aplicação parada, backup, ensaio de restauro separado, prévia e aplicação explícita, com grants mínimos atualizados; nunca há migração automática no arranque. Recuperar um backup verificado numa base separada e com a versão correspondente; não apagar movimentos nem usar downgrade destrutivo.
+
+## Testes e limites conhecidos
+
+`tests/test_nkt_loading.py` usa apenas PEG, materiais, contentores, GT e datas fictícios: seleção exata, materiais diferentes, reservas concorrentes/case, alterações data/ordem/PEG, versões/PDF, parciais e finais, datas/GT distintas, repetição, cancelamentos, compensações, prova desatualizada, ocupação/posição legada, runtime restrito com tentativas SQL diretas, rollback, CSRF/contextos, migração ddn_0013 e backup/restauro. A4 com 60 PEG e falta de representação/truncagem são testados também no Windows/SQLite. CI exige execução efetiva dos cenários PostgreSQL e distingue omissões operacionais SQLite. Resultados completos são registados na PR.
+
+O documento deve caber numa A4 sem truncagem. Tenta tamanhos legíveis de 8–6 pontos com fonte Unicode existente; se os textos não couberem ou algum carácter do PEG/material não tiver representação segura, bloqueia a emissão/confirmacão, em vez de cortar dados ou criar páginas/cargas automaticamente. Dividir a preparação exige ação explícita; descrições originais não são alteradas para caber. Não há GT, transportadora, CMR ou assinaturas comerciais automáticas. Não há inventários/transferências NKT nesta fase.
+
+Homologação física **Windows 11/PostgreSQL 17 nativo** continua pendente: dois PCs em simultâneo, PEG com zeros e grafia real autorizada, impressão A4 legível, devolução de guia com faltas, revisão/substituição de cópias antigas, parciais com GT distintas, cancelamento do restante, restituição comprovada versus posição entretanto ocupada e restauro separado com reimpressão idêntica. CI Windows/SQLite não homologa a instalação operacional. Nenhum Excel/dado real, instalação existente, deploy ou migração de produção é utilizado nesta entrega.

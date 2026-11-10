@@ -7,7 +7,7 @@ from sqlalchemy import text
 from .migrations import config, REVISION
 from .transfer import inventory, read_data, archive_inventory, digest_file, LOCK
 
-SUPPORTED_HEADS = {frozenset({v}) for v in ('0001','0002','0003','0004','0005','0006','0007','ddn_0001','ddn_0002','ddn_security_0001','ddn_0003','ddn_0004','ddn_0005','ddn_0006','ddn_0007','ddn_0008','ddn_0009','ddn_0010','ddn_0011','ddn_0012',REVISION)} | {
+SUPPORTED_HEADS = {frozenset({v}) for v in ('0001','0002','0003','0004','0005','0006','0007','ddn_0001','ddn_0002','ddn_security_0001','ddn_0003','ddn_0004','ddn_0005','ddn_0006','ddn_0007','ddn_0008','ddn_0009','ddn_0010','ddn_0011','ddn_0012','ddn_0013',REVISION)} | {
     frozenset({'0007','ddn_0001'}),frozenset({'0007','ddn_0002'})}
 
 
@@ -28,7 +28,7 @@ def preview(engine):
     configure_process(engine.url)
     with engine.connect().execution_options(isolation_level='REPEATABLE READ') as connection:
         old=revision(connection)
-        changes=[] if old==REVISION else ['migrações aditivas; receções NKT por contentor/Excel, PEG individual e histórico imutável, inventários e movimentos auditados; referências, stock e documentos históricos preservados']
+        changes=[] if old==REVISION else ['migrações aditivas; reservas, carregamentos e compensações NKT por PEG, PDFs imutáveis, inventários e movimentos auditados; referências, stock e documentos históricos preservados']
         return {'from':old,'to':REVISION,'schema_changes':changes,
                 'data':inventory(read_data(connection)),'existing_data_changes':'none'}
 

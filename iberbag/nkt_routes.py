@@ -51,9 +51,12 @@ def confirm(ident:int,request:Request,data:dict=Depends(receiving_form),db=Depen
         return redirect(f'/nkt/entries/{ident}')
     except service.ReceivingError as error:return failure(request,user,sess,error)
 @router.get('/nkt/stock')
-def stock(request:Request,peg:str='',local:str='',page:int=1,db=Depends(database)):
+def stock(request:Request,peg:str='',local:str='',page:int=1,status:str='on_hand',db=Depends(database)):
     user,sess=access(request,db);page=max(1,min(page,10000));peg=peg[:120];local=local[:120]
-    rows,total=service.stock(db,peg,local,page)
+    if status not in ('on_hand','available','reserved','shipped','all'):raise HTTPException(400,'Estado de stock inválido.')
+    rows,total=service.stock(db,peg,local,page,status)
+    from .nkt_loading import states
+    current=states(db,[r.id for r in rows])
     from .nkt_receiving import metadata
     info=metadata(db,[r.entry_id for r in rows])
-    return render(request,'nkt_stock.html',context(request,user,sess,rows=rows,total=total,peg=peg,local=local,page=page,info=info))
+    return render(request,'nkt_stock.html',context(request,user,sess,rows=rows,total=total,peg=peg,local=local,page=page,info=info,states=current,status=status))

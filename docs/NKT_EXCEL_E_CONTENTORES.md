@@ -1,5 +1,7 @@
 # NKT — Fase 2C.2: receções por contentor, listagens Excel e e-mail
 
+> Evolução: [Fase 2C.3 — preparações e carregamentos](NKT_PREPARACOES_E_CARREGAMENTOS.md) acrescenta saídas exclusivamente por PEG pedidos, preservando estas regras de entrada. As exclusões de saídas desta especificação referem-se à Fase 2C.2.
+
 Base: main após PR #25 (`16ceba3`). Apenas NKT/Escapães; não modifica operações Iberbag/Valmet nem implementa saídas, preparações ou inventários NKT. [Regras PEG e histórico anterior](NKT_ENTRADAS_E_STOCK.md) continuam válidos: uma palete por PEG textual, zeros/grafia preservados, unicidade permanente por proprietário em todos os seus armazéns, sem reutilização nem variantes apenas de maiúsculas/minúsculas.
 
 ## Utilização no escritório

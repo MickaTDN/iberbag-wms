@@ -310,6 +310,26 @@ REQUIRED_WINDOWS |= {
     'test_nkt_receiving.test_nkt_excel_zip_xml_layout_limits_and_sqlite_never_receive',
 }
 
+REQUIRED_POSTGRES |= {
+    'test_nkt_loading.test_nkt_explicit_selection_reservations_and_no_stock_deduction',
+    'test_nkt_loading.test_nkt_reservations_concurrent_case_duplicates',
+    'test_nkt_loading.test_nkt_schedule_revision_preserves_pegs_holds_and_immutable_pdf',
+    'test_nkt_loading.test_nkt_partial_shipments_distinct_dates_gt_and_idempotence',
+    'test_nkt_loading.test_nkt_partial_cancellation_releases_only_unshipped_and_reprint',
+    'test_nkt_loading.test_nkt_administrative_compensation_and_gt_correction_preserve_original',
+    'test_nkt_loading.test_nkt_correction_revalidates_capacity_and_later_operations',
+    'test_nkt_loading.test_nkt_loading_atomic_failure_stale_versions_and_concurrent_confirmation',
+    'test_nkt_loading.test_nkt_loading_http_permissions_csrf_context_and_pdf_reprints',
+    'test_nkt_loading.test_nkt_loading_prior_head_upgrade_encrypted_restore_and_original_metadata',
+    'test_nkt_loading.test_nkt_loading_sqlite_never_writes_and_pdf_keeps_unknown_material',
+    'test_nkt_loading.test_nkt_loading_direct_runtime_cannot_forge_reservations_or_capacity',
+    'test_nkt_loading.test_nkt_loading_validation_and_draft_cancel_keep_identity',
+}
+REQUIRED_WINDOWS.add('test_nkt_loading.test_nkt_loading_sqlite_never_writes_and_pdf_keeps_unknown_material')
+
+REQUIRED_POSTGRES |= {'test_nkt_loading.test_nkt_a4_one_load_per_page_and_no_silent_text_truncation','test_nkt_loading.test_nkt_cancel_pending_revision_then_compensate_without_reviving_reservations'}
+REQUIRED_WINDOWS.add('test_nkt_loading.test_nkt_a4_one_load_per_page_and_no_silent_text_truncation')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

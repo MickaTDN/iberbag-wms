@@ -55,7 +55,7 @@ def snapshot_legacy(engine):
         return {t.name: [{k: v for k, v in row.items() if k != 'context_id'}
                 for row in conn.execute(select(t)).mappings()]
             for t in Base.metadata.sorted_tables
-            if t.name not in transfer.CONTEXT_TABLES | transfer.PHYSICAL_TABLES | transfer.VALMET_TABLES}
+            if t.name not in transfer.CONTEXT_TABLES | transfer.PHYSICAL_TABLES | transfer.VALMET_TABLES | transfer.NKT_TABLES}
 
 
 def clone_history(source, target, origins):

@@ -357,6 +357,7 @@ REQUIRED_POSTGRES |= {
 }
 
 REQUIRED_POSTGRES |= {
+    'test_alcobre.test_alcobre_upgrade_refuses_legacy_grouped_stock_without_hiding_or_converting_it',
     'test_alcobre.test_alcobre_pdf_never_reads_right_aligned_neighbor_as_bobine',
     'test_alcobre.test_alcobre_pdf_admission_limit_blocks_without_starting_another_parser',
     'test_alcobre.test_alcobre_pdf_column_only_original_numbers_and_sqlite_refusal',

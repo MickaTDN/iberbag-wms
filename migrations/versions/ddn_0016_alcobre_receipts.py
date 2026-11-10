@@ -10,6 +10,15 @@ depends_on=None
 
 def upgrade():
     h=import_module('migrations.versions.ddn_0008_valmet_shipping');table=h.table;audit=h.audit_columns
+    # Never activate an individual ledger over existing quantities in another
+    # representation: their identities cannot be reconstructed from totals.
+    if op.get_bind().scalar(s.text("""SELECT count(*) FROM clients c
+        WHERE c.name='Alcobre' AND (EXISTS(SELECT 1 FROM stock st
+          JOIN storage_contexts ctx ON ctx.id=st.context_id
+          WHERE ctx.client_id=c.id AND st.quantidade>0)
+        OR EXISTS(SELECT 1 FROM valmet_owners WHERE client_id=c.id)
+        OR EXISTS(SELECT 1 FROM nkt_owners WHERE client_id=c.id))""")):
+        raise RuntimeError('Stock Alcobre legado ou processo incompatível: reconciliar numa cópia antes de ativar bobines individuais; migração recusada sem converter quantidades.')
     op.create_table('alcobre_owners',s.Column('client_id',s.Integer(),s.ForeignKey('clients.id',deferrable=True,initially='DEFERRED'),primary_key=True),s.Column('warehouse_id',s.Integer(),s.ForeignKey('warehouses.id',deferrable=True,initially='DEFERRED'),nullable=False))
     op.execute("INSERT INTO alcobre_owners SELECT c.id,w.id FROM clients c CROSS JOIN warehouses w WHERE c.name='Alcobre' AND w.name='Ovar'")
     op.create_table('alcobre_zones',s.Column('id',s.Integer(),primary_key=True),s.Column('context_id',s.Integer(),s.ForeignKey('storage_contexts.id',deferrable=True,initially='DEFERRED'),nullable=False,server_default='1'),s.Column('code',s.String(20),nullable=False),s.Column('positions',s.Integer(),nullable=False),s.Column('active',s.Boolean(),nullable=False),s.UniqueConstraint('context_id','id',name='uq_ctx_alcobre_zones'),s.UniqueConstraint('context_id','code'),s.CheckConstraint('positions BETWEEN 1 AND 500',name='alcobre_zone_positions'))

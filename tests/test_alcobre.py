@@ -323,3 +323,24 @@ def test_alcobre_runtime_refuses_null_or_excess_identification_review(restricted
                 db.add(m.AlcobreReview(entry_id=ident,request_key=secrets.token_hex(16),kind='identify',version=1,payload=raw,digest=s.digest(raw),reason='Prova fictícia inválida',actor='admin'));db.commit()
             db.rollback()
         assert s.stock(db)[1]==0 and s.stock(db,state='pending')[2][0][1]==1
+
+def test_alcobre_upgrade_refuses_legacy_grouped_stock_without_hiding_or_converting_it(pg_databases):
+    from alembic import command
+    from iberbag.migrations import config
+    from sqlalchemy import inspect
+    from legacy_catalogue import seed_legacy_catalogue
+    engine=pg_databases(restricted=True)
+    with engine.begin() as conn:
+        cfg=config();cfg.attributes['connection']=conn;command.upgrade(cfg,'ddn_0015')
+    with scoped(engine) as db:seed_legacy_catalogue(db)
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO stock(context_id,artigo,lote,carga,local,quantidade) VALUES (5,'FICT-LEGACY','FICT-LOT','FICT-ORIGIN','Chão',2)"))
+    before=inventory(engine)
+    with pytest.raises(RuntimeError,match='Stock Alcobre legado'):
+        with engine.begin() as conn:
+            cfg=config();cfg.attributes['connection']=conn;command.upgrade(cfg,'head')
+    assert inventory(engine)==before
+    with engine.connect() as conn:
+        assert conn.scalar(text('SELECT version_num FROM alembic_version'))=='ddn_0015'
+        assert 'alcobre_bobines' not in inspect(conn).get_table_names()
+        assert conn.scalar(text('SELECT quantidade FROM stock WHERE context_id=5'))==2

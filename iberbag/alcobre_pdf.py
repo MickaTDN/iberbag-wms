@@ -73,6 +73,11 @@ def _extract(content):
             issues.append(f'Página {number}: faltam limites explícitos da tabela; transcrição manual.');continue
         for xx,yy,val in fragments:
             if ends[0]<yy<y-2 and x-2<=xx<min(right)-2:
+                # A neighboring right-aligned value may begin left of its own
+                # header. Header distance alone does not prove column identity.
+                if abs(xx-x)>2:
+                    issues.append(f'Página {number}, y={yy:.1f}: alinhamento da coluna ambíguo; transcrição manual.')
+                    continue
                 if not re.fullmatch(r'[0-9]{1,120}',val):
                     issues.append(f'Página {number}, y={yy:.1f}: célula BOBINA ambígua.');continue
                 if any(r['page']==number and abs(r['y']-yy)<2 for r in candidates):

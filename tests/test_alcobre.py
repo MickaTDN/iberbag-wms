@@ -84,6 +84,16 @@ def test_alcobre_pdf_admission_limit_blocks_without_starting_another_parser(monk
     finally:
         alcobre_pdf._PARSERS.release();alcobre_pdf._PARSERS.release()
 
+def test_alcobre_pdf_never_reads_right_aligned_neighbor_as_bobine():
+    from reportlab.pdfgen.canvas import Canvas
+    out=BytesIO();c=Canvas(out)
+    c.drawString(50,720,'BOBINA');c.drawString(250,720,'METROS')
+    # Empty BOBINA cell, neighbor number begins left of its own header anchor.
+    c.drawRightString(250,690,'999999');c.drawString(250,600,'TOTAL')
+    c.showPage();c.save()
+    report=alcobre_pdf.analyze(out.getvalue())
+    assert not report['reliable'] and not report['candidates']
+
 def test_alcobre_pdf_direct_putaway_preserves_one_identity_and_source(restricted_web):
     app,owner,engine,role,a,t=restricted_web;actor=a['admin'][0];positions(engine,actor,2)
     with engine.connect() as conn:validate_runtime(conn)

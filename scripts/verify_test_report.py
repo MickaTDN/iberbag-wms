@@ -357,6 +357,7 @@ REQUIRED_POSTGRES |= {
 }
 
 REQUIRED_POSTGRES |= {
+    'test_alcobre.test_alcobre_pdf_never_reads_right_aligned_neighbor_as_bobine',
     'test_alcobre.test_alcobre_pdf_admission_limit_blocks_without_starting_another_parser',
     'test_alcobre.test_alcobre_pdf_column_only_original_numbers_and_sqlite_refusal',
     'test_alcobre.test_alcobre_pdf_ambiguous_layouts_duplicates_and_malformed_never_automatic',
@@ -374,6 +375,7 @@ REQUIRED_POSTGRES |= {
     'test_alcobre.test_alcobre_runtime_refuses_null_or_excess_identification_review',
 }
 REQUIRED_WINDOWS |= {
+    'test_alcobre.test_alcobre_pdf_never_reads_right_aligned_neighbor_as_bobine',
     'test_alcobre.test_alcobre_pdf_admission_limit_blocks_without_starting_another_parser',
     'test_alcobre.test_alcobre_pdf_column_only_original_numbers_and_sqlite_refusal',
     'test_alcobre.test_alcobre_pdf_ambiguous_layouts_duplicates_and_malformed_never_automatic',

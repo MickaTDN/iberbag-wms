@@ -158,10 +158,14 @@ def analyze(path,context_id,snapshot=None,*,include_source=False):
                         if depth>64:raise ValueError('Excel: XML demasiado profundo.')
                         if node.tag=='{'+N['x']+'}f':raise ValueError('Fórmulas exigem revisão; pré-visualização recusada.')
                     else:depth-=1;node.clear()
-        names=[name for name in _sheet_paths(archive) if key(name) in {key(s) for s in SHEETS}]
+        paths=_sheet_paths(archive)
+        names=[name for name in paths if key(name) in {key(s) for s in SHEETS}]
+        extra=[name for name in paths if name not in names]
     source=workbook_rows(path,tuple(names))
     result=analyze_rows(source,context_id,snapshot)
-    if include_source:result['source_sheets']=source
+    if include_source:
+        result['source_sheets']=source
+        result['extra_sheets']=extra
     with path.open('rb') as stream:after=stream.read(MAX_FILE+1)
     if len(after)>MAX_FILE or sha256(after).hexdigest()!=digest:raise ValueError('Excel mudou durante a análise; repetir com uma cópia estável.')
     result['sha256']=digest

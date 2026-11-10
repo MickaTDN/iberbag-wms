@@ -82,7 +82,7 @@ def test_historical_import_all_layouts_official_stock_rolls_and_idempotency(valm
     with scoped(engine,2) as db:assert len(rolls.present(db,rolled.id))==3
     assert confirm(engine,actor,revision,digest)==record
 
-@pytest.mark.parametrize('case',['quantity','duplicate','formula','capacity','identity','unknown_location','missing_sheet','material_quantity'])
+@pytest.mark.parametrize('case',['quantity','duplicate','formula','capacity','identity','unknown_location','missing_sheet','material_quantity','extra_sheet'])
 def test_historical_import_blocking_unknowns_and_catalogue(valmet,case):
     engine,a=valmet;actor=a['admin'][0]
     def change(b):
@@ -93,6 +93,7 @@ def test_historical_import_blocking_unknowns_and_catalogue(valmet,case):
         if case=='identity':b['Caixas Vazias']['C2']='BOX-1'
         if case=='unknown_location':b['Paletes Fio']['D2']='FOREIGN'
         if case=='missing_sheet':del b['Rolos']
+        if case=='extra_sheet':b.create_sheet('Mercadoria desconhecida').append(['Não ignorar silenciosamente'])
         if case=='material_quantity':b['Paletes Fio']['F1']='Quantidade';b['Paletes Fio']['F2']=99
     if case=='formula':
         with scoped(engine,2) as db:

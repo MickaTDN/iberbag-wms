@@ -61,6 +61,9 @@ def preview_file(db,actor_id,key,content,*,reauthorize=None):
             path=Path(folder)/'source.xlsx';path.write_bytes(content)
             report=preview.analyze(path,scope,cat,include_source=True)
     except (ValueError,KeyError,TypeError,BadZipFile,ParseError,DefusedXmlException) as error:raise ReceivingError('Excel recusado: '+str(error),400) from error
+    if report.get('extra_sheets'):
+        report['issues'].append(dict(code='FOLHAS_NAO_SUPORTADAS',severity='error',refs=report['extra_sheets']))
+        report['blocking']+=1
     if reauthorize:reauthorize()
     report['reference']=token
     return save_preview(db,actor_id,key,digest,dump(report))
@@ -110,7 +113,9 @@ def build_plan(db,draft,decisions,reason):
     # Issued identities cannot be laundered by renaming conflicting Excel rows.
     raw=preview.analyze_rows(original['source_sheets'],m.context_id(db),cat)
     report=preview.analyze_rows(corrected(original['source_sheets'],decisions),m.context_id(db),cat)
-    issues=list(report['issues']);historical=set(decisions.get('historical_numbers',[]));anchors={u['refs'][0] for u in report['units']}
+    issues=list(report['issues'])
+    if original.get('extra_sheets'):issues.append(dict(code='FOLHAS_NAO_SUPORTADAS: rever cópia de origem; não excluir stock silenciosamente',severity='error',refs=original['extra_sheets']))
+    historical=set(decisions.get('historical_numbers',[]));anchors={u['refs'][0] for u in report['units']}
     if not (historical|set(decisions.get('m2_totals',{})))<=anchors:raise ReceivingError('Confirmação de identidade sem unidade correspondente.',400)
     for issue in raw['issues']:
         if issue['code']=='NUMERO_JA_EMITIDO' and issue not in issues:issues.append(issue)

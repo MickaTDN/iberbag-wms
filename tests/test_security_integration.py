@@ -55,7 +55,7 @@ def snapshot_legacy(engine):
         return {t.name: [{k: v for k, v in row.items() if k != 'context_id'}
                 for row in conn.execute(select(t)).mappings()]
             for t in Base.metadata.sorted_tables
-            if t.name not in transfer.CONTEXT_TABLES | transfer.PHYSICAL_TABLES | transfer.VALMET_TABLES}
+            if t.name not in transfer.CONTEXT_TABLES | transfer.PHYSICAL_TABLES | transfer.VALMET_TABLES | transfer.NKT_TABLES}
 
 
 def clone_history(source, target, origins):
@@ -189,7 +189,7 @@ def test_existing_pr9_encrypted_archive_uses_original_authenticated_inventory(pg
         conn.execute(text("INSERT INTO stock(artigo,lote,carga,local,quantidade) VALUES ('ART','LOT','SYNTHETIC-LEGACY','A101',3)"))
     native = {}
     with source.connect() as conn:
-        for name in sorted(set(Base.metadata.tables)-transfer.CONTEXT_TABLES-transfer.PHYSICAL_TABLES-transfer.NUMBER_TABLES-transfer.VALMET_TABLES-transfer.PLANNING_TABLES-transfer.SHIPPING_TABLES-(transfer.CONTROL_TABLES|transfer.ROLL_TABLES|transfer.IMPORT_TABLES)):
+        for name in sorted(set(Base.metadata.tables)-transfer.CONTEXT_TABLES-transfer.PHYSICAL_TABLES-transfer.NUMBER_TABLES-transfer.VALMET_TABLES-transfer.PLANNING_TABLES-transfer.SHIPPING_TABLES-(transfer.CONTROL_TABLES|transfer.ROLL_TABLES|transfer.IMPORT_TABLES|transfer.NKT_TABLES)):
             table = Table(name, MetaData(), autoload_with=conn)
             native[name] = [dict(row) for row in conn.execute(select(table).order_by(*table.primary_key.columns)).mappings()]
     original_inventory = transfer.inventory(native)

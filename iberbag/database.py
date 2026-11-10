@@ -2,7 +2,7 @@
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from sqlalchemy import select, text, create_engine, String, Integer, DateTime, Boolean, BigInteger, LargeBinary, ForeignKey, CheckConstraint, UniqueConstraint, Index, Text, ForeignKeyConstraint, event, inspect as sa_inspect, PrimaryKeyConstraint, Numeric
+from sqlalchemy import func, select, text, create_engine, String, Integer, DateTime, Boolean, BigInteger, LargeBinary, ForeignKey, CheckConstraint, UniqueConstraint, Index, Text, ForeignKeyConstraint, event, inspect as sa_inspect, PrimaryKeyConstraint, Numeric
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, relationship, Session, with_loader_criteria
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -884,6 +884,47 @@ class ValmetImportConfirmation(Scoped, Base):
     actor: Mapped[str] = mapped_column(String(60), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
     __table_args__ = (UniqueConstraint('context_id'),Index('uq_valmet_import_owner_digest','client_id','digest',unique=True))
+
+class NktOwner(Base):
+    __tablename__='nkt_owners'
+    client_id: Mapped[int]=mapped_column(ForeignKey('clients.id',deferrable=True,initially='DEFERRED'),primary_key=True)
+
+class NktEntry(Scoped,Base):
+    __tablename__='nkt_entries'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    version: Mapped[int]=mapped_column(Integer,nullable=False,default=1)
+    status: Mapped[str]=mapped_column(String(20),nullable=False,default='draft')
+    created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
+    confirmed_by: Mapped[str|None]=mapped_column(String(60))
+    confirmed_at: Mapped[datetime|None]=mapped_column(DateTime)
+    __table_args__=(CheckConstraint("version>0 AND ((status='draft' AND confirmed_by IS NULL AND confirmed_at IS NULL) OR (status='confirmed' AND confirmed_by IS NOT NULL AND confirmed_at IS NOT NULL))",name='nkt_entry_state'),)
+
+class NktReview(Scoped,Base):
+    __tablename__='nkt_reviews'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    entry_id: Mapped[int]=mapped_column(ForeignKey('nkt_entries.id'),nullable=False)
+    version: Mapped[int]=mapped_column(Integer,nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
+    __table_args__=(UniqueConstraint('entry_id','version'),)
+
+class NktPallet(Scoped,Base):
+    __tablename__='nkt_pallets'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    entry_id: Mapped[int]=mapped_column(ForeignKey('nkt_entries.id'),nullable=False)
+    client_id: Mapped[int]=mapped_column(ForeignKey('clients.id'),nullable=False)
+    peg: Mapped[str]=mapped_column(String(120),nullable=False)
+    local: Mapped[str]=mapped_column(String(120),nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,nullable=False,default=now_utc)
+
+Index('uq_nkt_owner_peg',NktPallet.client_id,func.lower(NktPallet.peg),unique=True)
+Index('ix_nkt_context_local',NktPallet.context_id,NktPallet.local)
 
 for _table in list(Base.metadata.tables.values()):
     if _table.name == 'physical_location_claims' or 'context_id' not in _table.c:

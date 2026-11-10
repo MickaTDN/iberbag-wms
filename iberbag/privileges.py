@@ -3,7 +3,7 @@ import argparse
 import re
 from sqlalchemy import text
 
-IMMUTABLE = {'valmet_import_drafts','valmet_import_revisions','valmet_import_confirmations','audit', 'dispatch_documents', 'receipt_documents', 'stock_adjustments',
+IMMUTABLE = {'nkt_owners','nkt_reviews','nkt_pallets','valmet_import_drafts','valmet_import_revisions','valmet_import_confirmations','audit', 'dispatch_documents', 'receipt_documents', 'stock_adjustments',
              'lot_resolutions', 'preparation_completions', 'preparation_compensations',
              'customer_pending', 'pending_allocations', 'allocation_collections',
              'physical_location_claims', 'load_numbers', 'valmet_owners', 'valmet_units',
@@ -11,7 +11,7 @@ IMMUTABLE = {'valmet_import_drafts','valmet_import_revisions','valmet_import_con
              'valmet_plan_revisions','valmet_reservations','valmet_handling',
              'valmet_shipments','valmet_shipment_lines','valmet_occurrences','valmet_relocations','valmet_documents',
              'valmet_rolls','valmet_roll_events','valmet_counts','valmet_control_moves','valmet_inventory_decisions','valmet_control_documents'}
-READ_ONLY = {'valmet_owners','valmet_positions','valmet_rolls','valmet_roll_states'}
+READ_ONLY = {'nkt_owners','valmet_owners','valmet_positions','valmet_rolls','valmet_roll_states'}
 
 
 def role_flags(connection, role):

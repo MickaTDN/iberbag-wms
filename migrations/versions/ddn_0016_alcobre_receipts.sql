@@ -14,7 +14,7 @@ BEGIN
   IF zone_record.id IS NULL OR NEW.position NOT BETWEEN 1 AND zone_record.positions OR NOT EXISTS(SELECT 1 FROM locations l JOIN physical_location_claims p ON p.context_id=l.context_id AND p.code=lower(btrim(l.codigo)) WHERE l.context_id=NEW.context_id AND l.codigo=NEW.local AND l.active AND l.capacidade=1) OR lower(NEW.local) IN ('chão','chao','por localizar') THEN RAISE EXCEPTION 'Explicit active physical position required'; END IF;
   RETURN NEW;
  ELSIF TG_TABLE_NAME='alcobre_entries' THEN
-  IF NOT EXISTS(SELECT 1 FROM users WHERE id=NEW.created_by AND active AND role IN ('admin','operador')) THEN RAISE EXCEPTION 'Active actor required'; END IF;
+  IF TG_OP='INSERT' AND NOT EXISTS(SELECT 1 FROM users WHERE id=NEW.created_by AND active AND role IN ('admin','operador')) THEN RAISE EXCEPTION 'Active actor required'; END IF;
   IF NEW.source_pdf IS NOT NULL AND (octet_length(NEW.source_pdf)>5242880 OR NEW.source_digest IS DISTINCT FROM encode(sha256(NEW.source_pdf),'hex') OR NEW.source_name IS NULL OR NEW.mode<>'direct' OR NOT EXISTS(SELECT 1 FROM users WHERE id=NEW.created_by AND role='admin')) THEN RAISE EXCEPTION 'Invalid PDF source'; END IF;
   IF TG_OP='INSERT' AND (NEW.status<>'draft' OR NEW.version<>0 OR NEW.quantity IS NOT NULL OR NEW.confirmed_at IS NOT NULL OR NEW.confirmed_by IS NOT NULL) THEN RAISE EXCEPTION 'Draft receipt required'; END IF;
   IF TG_OP='UPDATE' THEN

@@ -344,3 +344,14 @@ def test_alcobre_upgrade_refuses_legacy_grouped_stock_without_hiding_or_converti
         assert conn.scalar(text('SELECT version_num FROM alembic_version'))=='ddn_0015'
         assert 'alcobre_bobines' not in inspect(conn).get_table_names()
         assert conn.scalar(text('SELECT quantidade FROM stock WHERE context_id=5'))==2
+
+def test_alcobre_admin_completes_inactive_authors_draft_without_reassigning_history(restricted_web):
+    app,owner,engine,role,a,t=restricted_web;actor=a['admin'][0];original=a['operador'][0]
+    ident=draft(engine,original)
+    with owner.begin() as conn:conn.execute(m.User.__table__.update().where(m.User.id==original).values(active=False))
+    with pytest.raises(s.ReceivingError):review(engine,original,ident,[row()])
+    rev=review(engine,actor,ident,[row()]);confirm(engine,actor,rev)
+    with scoped(engine,5) as db:
+        entry=db.get(m.AlcobreEntry,ident)
+        assert entry.created_by==original and entry.confirmed_by=='admin'
+        assert db.get(m.AlcobreReview,rev[0]).actor=='admin' and s.stock(db,state='unlocated')[1]==1

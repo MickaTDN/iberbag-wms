@@ -63,7 +63,8 @@ def validate(db,data):
     from .physical_locations import ensure_exclusive
     ensure_exclusive(db,wanted)
     for code,qty in wanted.items():
-        used=db.scalar(select(func.count()).select_from(NktPallet).where(NktPallet.local==code))
+        from .nkt_loading import on_hand_query
+        used=db.scalar(select(func.count()).select_from(on_hand_query(db).where(NktPallet.local==code).subquery()))
         used+=db.scalar(select(func.coalesce(func.sum(Stock.quantidade),0)).where(Stock.local==code))
         used+=db.scalar(select(func.coalesce(func.sum(ValmetPosition.physical_quantity),0)).where(ValmetPosition.local==code))
         if locations[code].capacidade is not None and used+qty>locations[code].capacidade:raise ReceivingError('Capacidade insuficiente na localização '+code+'.')
@@ -100,9 +101,15 @@ def confirm(db,actor,ident,version,expected_digest):
     db.flush();entry.status='confirmed';entry.confirmed_by=actor.username;entry.confirmed_at=now_utc();db.flush()
     db.add(Audit(username=actor.username,action='NKT_CONFIRMAR',details=dump(dict(entry=ident,version=version,digest=expected_digest,pallets=data['rows']))));return ident
 
-def stock(db,peg='',local='',page=1):
+def stock(db,peg='',local='',page=1,status='on_hand'):
     if not enabled(db):raise ReceivingError('Consulta NKT não autorizada neste contexto.',403)
-    query=select(NktPallet)
+    from .nkt_loading import on_hand_query,state_expression
+    from sqlalchemy import inspect
+    if status not in ('on_hand','available','reserved','shipped','all'):raise ReceivingError('Estado de stock inválido.',400)
+    query=on_hand_query(db) if status=='on_hand' else select(NktPallet)
+    if status in ('available','reserved','shipped'):
+        if inspect(db.connection()).has_table('nkt_stock_events'):query=query.where(state_expression()==status)
+        elif status!='available':query=query.where(NktPallet.id<0)
     if peg:query=query.where(NktPallet.peg.icontains(peg,autoescape=True))
     if local:query=query.where(NktPallet.local.icontains(local,autoescape=True))
     total=db.scalar(select(func.count()).select_from(query.subquery()))

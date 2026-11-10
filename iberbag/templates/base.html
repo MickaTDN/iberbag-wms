@@ -15,7 +15,7 @@
     <div class="side-label">{% if office_context %}{{ office_context[1].name }} · {{ office_context[2].name }}{% else %}MENU PRINCIPAL{% endif %}</div>
     <nav aria-label="Principal">
       <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">◫ &nbsp; Visão geral</a>
-      {% if office_nkt %}<a href="/nkt/receivings">Entradas NKT</a><a href="/nkt/stock">Stock NKT por PEG</a>{% endif %}
+      {% if office_nkt %}<a href="/nkt/receivings">Entradas NKT</a><a href="/nkt/stock">Stock NKT por PEG</a><a href="/nkt/preparations">Preparações e carregamentos NKT</a>{% endif %}
       {% if office_valmet %}<a href="/valmet/entries">Entradas Valmet</a><a href="/valmet/stock">Stock Valmet</a><a href="/valmet/preparations">Preparações e reservas</a><a href="/valmet/shipments">Saídas Valmet</a><a href="/valmet/inventories">Inventários</a><a href="/valmet/transfers">Transferências</a>{% if user.role=='admin' %}<a href="/valmet/adjustments">Ajustes</a><a href="/valmet/imports">Importação histórica</a>{% endif %}{% endif %}
       {% if office_operations %}
       <a href="/receipts" class="{% if request.url.path.startswith('/receipts') %}active{% endif %}">Entradas</a>
@@ -30,7 +30,7 @@
       <a href="/map" class="{% if request.url.path == '/map' %}active{% endif %}">▦ &nbsp; Mapa do armazém</a>
       {% endif %}
     </nav>
-    {% if office_valmet %}<p class="side-label">Valmet · Escritório · Entradas, reservas, expedições e controlo físico.</p>{% elif office_nkt %}<p class="side-label">NKT · Escritório · Entradas e stock por PEG. Restantes processos não implementados.</p>{% elif office_context and not office_operations %}<p class="side-label">Estrutura configurada. Processo específico ainda não implementado.</p>{% endif %}
+    {% if office_valmet %}<p class="side-label">Valmet · Escritório · Entradas, reservas, expedições e controlo físico.</p>{% elif office_nkt %}<p class="side-label">NKT · Escritório · Entradas, reservas e carregamentos por PEG. Inventários não implementados.</p>{% elif office_context and not office_operations %}<p class="side-label">Estrutura configurada. Processo específico ainda não implementado.</p>{% endif %}
     {% if user.role == 'admin' %}
     <div class="side-label">ADMINISTRAÇÃO</div>
     <nav aria-label="Administração">

@@ -590,3 +590,6 @@ app.include_router(nkt_router)
 
 from .nkt_receiving_routes import router as nkt_receiving_router
 app.include_router(nkt_receiving_router)
+
+from .nkt_loading_routes import router as nkt_loading_router
+app.include_router(nkt_loading_router)

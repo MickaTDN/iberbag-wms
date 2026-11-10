@@ -61,7 +61,9 @@ def occupied(db, codes):
     model=ValmetPosition if inspect(db.connection()).has_table('valmet_positions') else ValmetUnit
     if inspect(db.connection()).has_table('nkt_pallets'):
         from .database import NktPallet
-        rows+=db.execute(select(NktPallet.local,func.count()).where(NktPallet.local.in_(sorted(codes))).group_by(NktPallet.local)).all()
+        from .nkt_loading import on_hand_query
+        selected=on_hand_query(db).where(NktPallet.local.in_(sorted(codes))).subquery()
+        rows+=db.execute(select(selected.c.local,func.count()).group_by(selected.c.local)).all()
     return rows+db.execute(select(model.local,func.sum(model.physical_quantity)).where(
         model.local.in_(sorted(codes)),model.physical_quantity>0).group_by(model.local)).all()
 

@@ -105,9 +105,9 @@ def stock(db,peg='',local='',page=1,status='on_hand'):
     if not enabled(db):raise ReceivingError('Consulta NKT não autorizada neste contexto.',403)
     from .nkt_loading import on_hand_query,state_expression
     from sqlalchemy import inspect
-    if status not in ('on_hand','available','reserved','shipped','all'):raise ReceivingError('Estado de stock inválido.',400)
+    if status not in ('on_hand','available','reserved','shipped','missing','all'):raise ReceivingError('Estado de stock inválido.',400)
     query=on_hand_query(db) if status=='on_hand' else select(NktPallet)
-    if status in ('available','reserved','shipped'):
+    if status in ('available','reserved','shipped','missing'):
         if inspect(db.connection()).has_table('nkt_stock_events'):query=query.where(state_expression()==status)
         elif status!='available':query=query.where(NktPallet.id<0)
     if peg:query=query.where(NktPallet.peg.icontains(peg,autoescape=True))

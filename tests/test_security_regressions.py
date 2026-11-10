@@ -274,7 +274,7 @@ def test_admin_posts_refuse_operator_before_lock(restricted_web):
              '/users','/users/1/toggle','/users/1/reset-password','/inventory/incidents/1/resolve',
              '/inventory/lots/resolve','/inventory/preparations/1/complete','/inventory/1/approve',
              '/pending/allocations/1/collect','/dispatches/1/cancel',
-             '/valmet/imports/1/reconcile','/valmet/imports/1/confirm','/valmet/imports/upload','/nkt/receivings/upload','/nkt/preparations/1/corrections/review','/nkt/corrections/1/apply']
+             '/valmet/imports/1/reconcile','/valmet/imports/1/confirm','/valmet/imports/upload','/nkt/receivings/upload','/nkt/preparations/1/corrections/review','/nkt/corrections/1/apply','/nkt/inventories/1/review','/nkt/inventories/1/confirm','/nkt/inventories/1/restore/review','/nkt/inventory-reviews/1/restore','/nkt/inventory-incidents/1/resolve']
     def post(path):
         with TestClient(app) as client:
             client.cookies.set('wms_session',tokens['operador'][0])

@@ -1006,8 +1006,10 @@ class NktCorrection(Scoped,Base):
 class NktOperation(Scoped,Base):
     __tablename__='nkt_operations'
     id: Mapped[int]=mapped_column(primary_key=True)
-    preparation_id: Mapped[int]=mapped_column(ForeignKey('nkt_preparations.id'),nullable=False)
-    revision_id: Mapped[int]=mapped_column(ForeignKey('nkt_plan_revisions.id'),nullable=False)
+    preparation_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_preparations.id'))
+    revision_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_plan_revisions.id'))
+    inventory_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_inventories.id'))
+    inventory_review_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_inventory_reviews.id'),unique=True)
     request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
     kind: Mapped[str]=mapped_column(String(20),nullable=False)
     payload: Mapped[str]=mapped_column(Text,nullable=False)
@@ -1016,7 +1018,7 @@ class NktOperation(Scoped,Base):
     corrects_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_operations.id'))
     actor: Mapped[str]=mapped_column(String(60),nullable=False)
     created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
-    __table_args__=(CheckConstraint("kind IN ('reserve','cancel','ship','restore','metadata')",name='nkt_operation_kind'),)
+    __table_args__=(CheckConstraint("kind IN ('reserve','cancel','ship','restore','metadata','inventory_missing','inventory_restore')",name='nkt_operation_kind'),CheckConstraint("(kind IN ('inventory_missing','inventory_restore') AND preparation_id IS NULL AND revision_id IS NULL AND inventory_id IS NOT NULL AND inventory_review_id IS NOT NULL AND correction_id IS NULL) OR (kind NOT IN ('inventory_missing','inventory_restore') AND preparation_id IS NOT NULL AND revision_id IS NOT NULL AND inventory_id IS NULL AND inventory_review_id IS NULL)",name='nkt_operation_origin'),Index('uq_nkt_inventory_confirmation','context_id','inventory_id',unique=True,postgresql_where=text("kind='inventory_missing'"),sqlite_where=text("kind='inventory_missing'")))
 
 class NktStockEvent(Scoped,Base):
     __tablename__='nkt_stock_events'
@@ -1025,7 +1027,7 @@ class NktStockEvent(Scoped,Base):
     pallet_id: Mapped[int]=mapped_column(ForeignKey('nkt_pallets.id'),nullable=False)
     previous_event_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_stock_events.id'))
     state: Mapped[str]=mapped_column(String(20),nullable=False)
-    __table_args__=(UniqueConstraint('operation_id','pallet_id'),CheckConstraint("state IN ('available','reserved','shipped')",name='nkt_event_state'),Index('ix_nkt_event_latest','context_id','pallet_id','id'))
+    __table_args__=(UniqueConstraint('operation_id','pallet_id'),CheckConstraint("state IN ('available','reserved','shipped','missing')",name='nkt_event_state'),Index('ix_nkt_event_latest','context_id','pallet_id','id'))
 
 class NktDocument(Scoped,Base):
     __tablename__='nkt_documents'
@@ -1033,11 +1035,67 @@ class NktDocument(Scoped,Base):
     revision_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_plan_revisions.id'),unique=True)
     operation_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_operations.id'),unique=True)
     correction_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_corrections.id'),unique=True)
+    inventory_review_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_inventory_reviews.id'),unique=True)
     pdf: Mapped[bytes]=mapped_column(LargeBinary,nullable=False)
     digest: Mapped[str]=mapped_column(String(64),nullable=False)
     actor: Mapped[str]=mapped_column(String(60),nullable=False)
     created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
-    __table_args__=(CheckConstraint('(CASE WHEN revision_id IS NULL THEN 0 ELSE 1 END)+(CASE WHEN operation_id IS NULL THEN 0 ELSE 1 END)+(CASE WHEN correction_id IS NULL THEN 0 ELSE 1 END)=1',name='nkt_document_origin'),)
+    __table_args__=(CheckConstraint('(CASE WHEN revision_id IS NULL THEN 0 ELSE 1 END)+(CASE WHEN operation_id IS NULL THEN 0 ELSE 1 END)+(CASE WHEN correction_id IS NULL THEN 0 ELSE 1 END)+(CASE WHEN inventory_review_id IS NULL THEN 0 ELSE 1 END)=1',name='nkt_document_origin'),)
+
+class NktInventory(Scoped,Base):
+    __tablename__='nkt_inventories'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    title: Mapped[str]=mapped_column(String(120),nullable=False)
+    mode: Mapped[str]=mapped_column(String(20),nullable=False)
+    scope: Mapped[str]=mapped_column(Text,nullable=False)
+    opening: Mapped[str]=mapped_column(Text,nullable=False)
+    created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    version: Mapped[int]=mapped_column(Integer,default=1,nullable=False)
+    status: Mapped[str]=mapped_column(String(20),default='draft',nullable=False)
+    __table_args__=(CheckConstraint("mode IN ('complete','partial') AND status IN ('draft','confirmed') AND version>0",name='nkt_inventory_state'),)
+
+class NktInventoryCheck(Scoped,Base):
+    __tablename__='nkt_inventory_checks'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    inventory_id: Mapped[int]=mapped_column(ForeignKey('nkt_inventories.id'),nullable=False)
+    entry_id: Mapped[int]=mapped_column(ForeignKey('nkt_entries.id'),nullable=False)
+    state: Mapped[str]=mapped_column(String(20),nullable=False)
+    communicated: Mapped[str|None]=mapped_column(String(120))
+    full_peg: Mapped[bool]=mapped_column(Boolean,default=False,nullable=False)
+    pallet_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_pallets.id'))
+    snapshot: Mapped[str]=mapped_column(Text,nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint("state IN ('located','not_located','excluded')",name='nkt_inventory_check_state'),)
+
+class NktInventoryReview(Scoped,Base):
+    __tablename__='nkt_inventory_reviews'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    inventory_id: Mapped[int]=mapped_column(ForeignKey('nkt_inventories.id'),nullable=False)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    kind: Mapped[str]=mapped_column(String(20),nullable=False)
+    version: Mapped[int]=mapped_column(Integer,nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    original_id: Mapped[int|None]=mapped_column(Integer)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint("kind IN ('conference','confirm','restore')",name='nkt_inventory_review_kind'),)
+
+class NktInventoryIncident(Scoped,Base):
+    __tablename__='nkt_inventory_incidents'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    inventory_id: Mapped[int]=mapped_column(ForeignKey('nkt_inventories.id'),nullable=False)
+    communicated: Mapped[str|None]=mapped_column(String(120))
+    kind: Mapped[str]=mapped_column(String(40),nullable=False)
+    details: Mapped[str]=mapped_column(Text,nullable=False)
+    resolves_id: Mapped[int|None]=mapped_column(ForeignKey('nkt_inventory_incidents.id'),unique=True)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
 
 for _table in list(Base.metadata.tables.values()):
     if _table.name == 'physical_location_claims' or 'context_id' not in _table.c:

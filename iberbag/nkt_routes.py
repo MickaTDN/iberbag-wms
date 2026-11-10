@@ -53,7 +53,7 @@ def confirm(ident:int,request:Request,data:dict=Depends(receiving_form),db=Depen
 @router.get('/nkt/stock')
 def stock(request:Request,peg:str='',local:str='',page:int=1,status:str='on_hand',db=Depends(database)):
     user,sess=access(request,db);page=max(1,min(page,10000));peg=peg[:120];local=local[:120]
-    if status not in ('on_hand','available','reserved','shipped','all'):raise HTTPException(400,'Estado de stock inválido.')
+    if status not in ('on_hand','available','reserved','shipped','missing','all'):raise HTTPException(400,'Estado de stock inválido.')
     rows,total=service.stock(db,peg,local,page,status)
     from .nkt_loading import states
     current=states(db,[r.id for r in rows])

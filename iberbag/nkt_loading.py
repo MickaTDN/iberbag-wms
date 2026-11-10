@@ -17,7 +17,7 @@ def state_expression():
 
 def on_hand_query(db):
     query=select(Pallet)
-    if inspect(db.connection()).has_table('nkt_stock_events'):query=query.where(state_expression()!='shipped')
+    if inspect(db.connection()).has_table('nkt_stock_events'):query=query.where(state_expression().not_in(('shipped','missing')))
     return query
 
 def states(db,pallet_ids=None):
@@ -67,7 +67,7 @@ def plan(db,reference,planned_on,order,requested,prep=None):
     items=identify(db,requested);current=states(db);ids={i['pallet_id'] for i in items}
     for item in items:
         s=state_for(current,item['pallet_id'])
-        if s['state']!='available' and (prep is None or s['preparation']!=prep.id):raise ReceivingError('PEG reservado ou expedido por outra preparação: '+item['peg']+'.')
+        if s['state']!='available' and (prep is None or s['preparation']!=prep.id):raise ReceivingError('PEG reservado, expedido ou em falta por inventário: '+item['peg']+'.')
     if prep and any(s['state']=='shipped' and s['preparation']==prep.id and pid not in ids for pid,s in current.items()):raise ReceivingError('Não remover PEG já expedidos sem compensação administrativa.')
     return dict(reference=reference,planned_on=planned_on,order=int(order),items=items)
 

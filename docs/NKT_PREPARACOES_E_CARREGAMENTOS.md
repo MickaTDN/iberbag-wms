@@ -1,5 +1,7 @@
 # NKT — Fase 2C.3: preparações, reservas e carregamentos por PEG
 
+> Evolução: [Fase 2C.4 — inventários por carga](NKT_INVENTARIOS_POR_CARGA.md) acrescenta faltas/recuperações próprias, sem confundir com expedições. As exclusões de inventário deste documento descrevem a Fase 2C.3.
+
 Base: main após PR #26, merge `48d29f7`. Complementa [as entradas por Excel/contentor](NKT_EXCEL_E_CONTENTORES.md). Apenas NKT/Escapães; não reutiliza FIFO, quantidades agrupadas Iberbag ou unidades Valmet. O escritório utiliza a aplicação e entrega documentos impressos ao colaborador; não existe confirmação obrigatória numa aplicação no armazém.
 
 ## Fluxo de escritório

@@ -25,6 +25,7 @@ NUMBER_TABLES = {'load_numbers'}
 VALMET_TABLES = {'valmet_owners','valmet_entries','valmet_units','valmet_numbers','valmet_identifications','valmet_items'}
 PLANNING_TABLES = {'valmet_preparations','valmet_plan_revisions','valmet_reservations','valmet_handling'}
 SHIPPING_TABLES = {'valmet_positions','valmet_shipments','valmet_shipment_lines','valmet_occurrences','valmet_relocations','valmet_documents'}
+NKT_TABLES = {'nkt_owners','nkt_entries','nkt_reviews','nkt_pallets'}
 IMPORT_TABLES = {'valmet_import_drafts','valmet_import_revisions','valmet_import_confirmations'}
 ROLL_TABLES = {'valmet_rolls','valmet_roll_states','valmet_roll_events'}
 CONTROL_TABLES = {'valmet_inventories','valmet_counts','valmet_control_drafts','valmet_control_moves','valmet_inventory_decisions','valmet_control_documents'}
@@ -63,7 +64,8 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
-    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES - PLANNING_TABLES - SHIPPING_TABLES - CONTROL_TABLES - ROLL_TABLES - IMPORT_TABLES
+    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES - PLANNING_TABLES - SHIPPING_TABLES - CONTROL_TABLES - ROLL_TABLES - IMPORT_TABLES - NKT_TABLES
+    if missing & NKT_TABLES not in (set(),NKT_TABLES):raise ValueError('Estrutura NKT incompleta.')
     if missing & IMPORT_TABLES not in (set(),IMPORT_TABLES):raise ValueError('Esquema de importação Valmet incompleto.')
     if not missing & IMPORT_TABLES and missing & (ROLL_TABLES|CONTROL_TABLES):raise ValueError('Importação sem estrutura Valmet completa.')
     if missing & ROLL_TABLES not in (set(),ROLL_TABLES):raise ValueError('Esquema de rolos individuais incompleto.')
@@ -97,7 +99,7 @@ def read_data(connection):
             allowed = ({frozenset({'ddn_0002'}),frozenset({'ddn_0002','0007'}),frozenset({'ddn_security_0001'})}
                        if missing & NUMBER_TABLES else ({frozenset({'ddn_0003'})} if missing & VALMET_TABLES else
                        ({frozenset({'ddn_0004'}),frozenset({'ddn_0005'}),frozenset({'ddn_0006'})} if missing & PLANNING_TABLES else
-                       ({frozenset({'ddn_0007'})} if missing & SHIPPING_TABLES else ({frozenset({'ddn_0008'})} if missing & CONTROL_TABLES else ({frozenset({'ddn_0009'})} if missing & ROLL_TABLES else ({frozenset({'ddn_0010'})} if missing & IMPORT_TABLES else {frozenset({REVISION})})))))))
+                       ({frozenset({'ddn_0007'})} if missing & SHIPPING_TABLES else ({frozenset({'ddn_0008'})} if missing & CONTROL_TABLES else ({frozenset({'ddn_0009'})} if missing & ROLL_TABLES else ({frozenset({'ddn_0010'})} if missing & IMPORT_TABLES else ({frozenset({'ddn_0011'})} if missing & NKT_TABLES else {frozenset({REVISION})}))))))))
         if versions not in allowed:
             raise ValueError('Revisão/heads incompatíveis com o esquema. Não usar stamp para contornar.')
     if connection.dialect.name == 'sqlite':
@@ -144,6 +146,8 @@ def read_data(connection):
     if missing & SHIPPING_TABLES:result['valmet_positions']=initial_valmet_positions(result)
     else:
         for row in result['valmet_positions']:row['materials']=json.dumps(json.loads(row['materials']),sort_keys=True,ensure_ascii=False)
+    if missing & NKT_TABLES:
+        result['nkt_owners']=[dict(client_id=row['id']) for row in result['clients'] if row['name']=='NKT']
     return result
 
 def initial_valmet_positions(data):
@@ -188,6 +192,9 @@ def archive_inventory(connection, expected):
     data = read_data(connection)
     wanted = set(expected.get('tables', {}))
     current = {t.name for t in TABLES}
+    if not wanted & NKT_TABLES:
+        if any(data[name] for name in NKT_TABLES-{'nkt_owners'}):raise ValueError('Backup anterior não inclui entradas NKT.')
+        current-=NKT_TABLES
     if not wanted & IMPORT_TABLES:
         if any(data[name] for name in IMPORT_TABLES):raise ValueError('Backup anterior não inclui importações históricas.')
         current-=IMPORT_TABLES
@@ -303,7 +310,7 @@ def require_empty(connection):
 def apply(bundle, engine):
     require_test_target(engine)
     data, report = load_bundle(bundle)
-    if any(data[name] for name in (VALMET_TABLES-{'valmet_owners'})|PLANNING_TABLES|SHIPPING_TABLES|CONTROL_TABLES|ROLL_TABLES|IMPORT_TABLES):
+    if any(data[name] for name in (VALMET_TABLES-{'valmet_owners'})|PLANNING_TABLES|SHIPPING_TABLES|CONTROL_TABLES|ROLL_TABLES|IMPORT_TABLES|(NKT_TABLES-{'nkt_owners'})):
         raise ValueError('Importação operacional Valmet não implementada. Usar backup/restauro PostgreSQL verificado.')
     with engine.begin() as connection:
         connection.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK})
@@ -314,6 +321,8 @@ def apply(bundle, engine):
         owners=connection.execute(select(Base.metadata.tables['valmet_owners'])).mappings().all()
         if list(owners)!=data['valmet_owners']:
             raise ValueError('Configuração Valmet divergente; reconciliar numa cópia, sem substituir atribuições.')
+        nkt_owners=connection.execute(select(Base.metadata.tables['nkt_owners'])).mappings().all()
+        if list(nkt_owners)!=data['nkt_owners']:raise ValueError('Configuração NKT divergente; reconciliar sem substituir atribuições.')
         # The migration seeds only empty administrative catalogues; a snapshot
         # carries their exact values, including subsequently added clients.
         for name in ('storage_contexts','clients','warehouses'):
@@ -321,7 +330,7 @@ def apply(bundle, engine):
         connection.execute(text('ALTER TABLE stock DISABLE TRIGGER stock_clock'))
         connection.execute(text('ALTER TABLE locations DISABLE TRIGGER catalogue_clock'))
         for table in TABLES:
-            if table.name=='valmet_owners':continue  # Verified immutable seed, never disable its guards.
+            if table.name in ('valmet_owners','nkt_owners'):continue  # Verified immutable seed, never disable its guards.
             if data[table.name]:
                 rows = data[table.name]
                 if table.name == 'receipts':

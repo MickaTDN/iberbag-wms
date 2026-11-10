@@ -59,12 +59,22 @@ def occupied(db, codes):
     from sqlalchemy import inspect
     from .database import ValmetPosition,ValmetUnit
     model=ValmetPosition if inspect(db.connection()).has_table('valmet_positions') else ValmetUnit
+    if inspect(db.connection()).has_table('nkt_pallets'):
+        from .database import NktPallet
+        rows+=db.execute(select(NktPallet.local,func.count()).where(NktPallet.local.in_(sorted(codes))).group_by(NktPallet.local)).all()
     return rows+db.execute(select(model.local,func.sum(model.physical_quantity)).where(
         model.local.in_(sorted(codes)),model.physical_quantity>0).group_by(model.local)).all()
 
 def validate_location(db, code):
     code = (code or '').strip().upper()
     from .valmet import enabled
+    from .nkt import enabled_if_present
+    from .contexts import require_context
+    nkt=enabled_if_present(db,require_context(db)[1].id)
+    if nkt:
+        if not 1<=len(code)<=120 or any(ord(c)<32 for c in code):raise WarehouseError('Código de localização inválido.')
+        if is_floor(code):return 'Chão'
+        exclusive_codes(db,[code]);return code
     if enabled(db) and is_floor(code):return 'Chão'
     if enabled(db) and re.fullmatch(r'[A-Z][1-9][0-9]{0,2}',code):
         exclusive_codes(db,[code])

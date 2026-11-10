@@ -276,6 +276,17 @@ REQUIRED_WINDOWS.add('test_valmet_import.test_historical_upload_parser_bounds_an
 REQUIRED_POSTGRES |= {'test_valmet_integrated.test_integrated_valmet_office_lifecycle_and_reconciled_recovery',
     'test_valmet_integrated.test_integrated_valmet_failed_shipment_does_not_change_restorable_books'}
 
+REQUIRED_POSTGRES |= {
+    'test_nkt.test_nkt_individual_identity_review_history_capacity_and_never_reuse',
+    'test_nkt.test_nkt_invalid_identity_never_becomes_stock',
+    'test_nkt.test_nkt_concurrent_identity_capacity_and_atomic_rollback',
+    'test_nkt.test_nkt_owner_wide_identity_contexts_and_failed_confirmation',
+    'test_nkt.test_nkt_server_permissions_csrf_context_and_revision',
+    'test_nkt.test_nkt_backup_restore_and_prior_head_upgrade',
+    'test_nkt.test_nkt_sqlite_writes_disabled_and_original_text_preserved',
+}
+REQUIRED_WINDOWS.add('test_nkt.test_nkt_sqlite_writes_disabled_and_original_text_preserved')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

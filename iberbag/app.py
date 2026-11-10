@@ -48,6 +48,8 @@ def database(request: Request):
         request.state.ddn_context = ident
         request.state.ddn_contexts = available(db)
         from .database import ValmetOwner
+        from .nkt import enabled_if_present
+        request.state.office_nkt=enabled_if_present(db,owner.id)
         request.state.office_valmet = db.get(ValmetOwner, owner.id) is not None
         yield db
 
@@ -97,7 +99,8 @@ def context(request, user, sess, **kwargs):
     active = next((row for row in getattr(request.state, 'ddn_contexts', [])
                    if row[0].id == getattr(request.state, 'ddn_context', 1)), None)
     return {'request': request, 'user': user, 'csrf': sess.csrf_token if sess else '',
-            'office_context': active, 'office_operations': bool(active and active[1].pallet_operations and not getattr(request.state,'office_valmet',False)),
+            'office_context': active, 'office_operations': bool(active and active[1].pallet_operations and not getattr(request.state,'office_valmet',False) and not getattr(request.state,'office_nkt',False)),
+            'office_nkt':getattr(request.state,'office_nkt',False),
             'office_valmet': getattr(request.state,'office_valmet',False),
             'active_context_id': getattr(request.state, 'ddn_context', 1),
             'ddn_contexts': getattr(request.state, 'ddn_contexts', []), **kwargs}
@@ -238,6 +241,7 @@ async def logout(request: Request, db: Session = Depends(database)):
 def dashboard(request: Request, db: Session = Depends(database)):
     user, sess = identity(request, db)
     if unauthorized(user): return redirect('/login')
+    if getattr(request.state,'office_nkt',False):return redirect('/nkt/stock')
     if getattr(request.state,'office_valmet',False):return redirect('/valmet/stock')
     stats = db.execute(select(func.coalesce(func.sum(Stock.quantidade),0),func.count(func.distinct(Stock.artigo)),
                               func.count(func.distinct(Stock.lote)), func.count(func.distinct(Stock.local))).where(Stock.quantidade > 0)).first()
@@ -255,6 +259,7 @@ def stock_page(request: Request, artigo: str='', lote: str='', local: str='', pa
                db: Session=Depends(database)):
     user, sess = identity(request, db)
     if unauthorized(user): return redirect('/login')
+    if getattr(request.state,'office_nkt',False):return redirect('/nkt/stock')
     if getattr(request.state,'office_valmet',False):return redirect('/valmet/stock')
     page = max(1, min(page, 10000)); filters = {'artigo': artigo.strip()[:100], 'lote': lote.strip()[:100], 'local': local.strip()[:100]}
     query = select(Stock).where(Stock.quantidade > 0)
@@ -328,6 +333,7 @@ def warehouse_map(request: Request, corredor: str='', andar: int=1,
     """
     user, sess = identity(request, db)
     if unauthorized(user): return redirect('/login')
+    if getattr(request.state,'office_nkt',False) and request.url.path=='/map':return redirect('/nkt/stock')
     if getattr(request.state,'office_valmet',False) and request.url.path=='/map':return redirect('/valmet/stock')
     corridors = db.scalars(select(Corridor).order_by(Corridor.codigo)).all()
     if not corridors:
@@ -578,3 +584,6 @@ app.include_router(valmet_roll_router)
 
 from .valmet_import_routes import router as valmet_import_router
 app.include_router(valmet_import_router)
+
+from .nkt_routes import router as nkt_router
+app.include_router(nkt_router)

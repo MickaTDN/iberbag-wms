@@ -1,6 +1,6 @@
 """Global administration and explicit stock-owner/warehouse/area boundaries."""
 from sqlalchemy import select, text
-from .database import Client, Warehouse, StorageContext, Location, Audit, User, context_id, ValmetOwner, NktOwner
+from .database import Client, Warehouse, StorageContext, Location, Audit, User, context_id, ValmetOwner, NktOwner, AlcobreOwner, AlcobreZone
 
 WAREHOUSES = ((1, 'Ovar'), (2, 'Escapães'))
 CLIENTS = ((1, 'Iberbag', 'grouped', 'palete', True, 1),
@@ -22,7 +22,8 @@ def seed_contexts(db):
     for ident, name, tracking, unit, enabled, wh in CLIENTS:
         db.add(StorageContext(id=ident, client_id=ident, warehouse_id=wh, area=name, active=True))
     db.flush()
-    db.add(ValmetOwner(client_id=2));db.add(NktOwner(client_id=4))
+    db.add(ValmetOwner(client_id=2));db.add(NktOwner(client_id=4));db.add(AlcobreOwner(client_id=5,warehouse_id=1))
+    db.connection().execute(AlcobreZone.__table__.insert(),[dict(id=i,context_id=5,code=code,positions=15,active=True) for i,code in enumerate('ABCDEFGHIJKLMN',1)])
 
 
 def available(db):
@@ -39,8 +40,9 @@ def require_context(db, ident=None, operational=False):
     if row is None:
         raise ValueError('Contexto cliente/armazém inexistente ou inativo.')
     from .database import ValmetOwner
+    from .alcobre import enabled_if_present as alcobre_enabled
     from .nkt import enabled_if_present
-    if operational and (enabled_if_present(db,row[1].id) or not row[1].pallet_operations or db.get(ValmetOwner,row[1].id) is not None):
+    if operational and (alcobre_enabled(db,row[1].id) or enabled_if_present(db,row[1].id) or not row[1].pallet_operations or db.get(ValmetOwner,row[1].id) is not None):
         raise ValueError('Este cliente tem apenas estrutura configurada. O seu processo operacional exige uma fase posterior.')
     return row
 

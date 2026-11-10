@@ -49,6 +49,8 @@ def database(request: Request):
         request.state.ddn_contexts = available(db)
         from .database import ValmetOwner
         from .nkt import enabled_if_present
+        from .alcobre import enabled_if_present as alcobre_enabled
+        request.state.office_alcobre=alcobre_enabled(db,owner.id,warehouse.id)
         request.state.office_nkt=enabled_if_present(db,owner.id)
         request.state.office_valmet = db.get(ValmetOwner, owner.id) is not None
         yield db
@@ -99,7 +101,8 @@ def context(request, user, sess, **kwargs):
     active = next((row for row in getattr(request.state, 'ddn_contexts', [])
                    if row[0].id == getattr(request.state, 'ddn_context', 1)), None)
     return {'request': request, 'user': user, 'csrf': sess.csrf_token if sess else '',
-            'office_context': active, 'office_operations': bool(active and active[1].pallet_operations and not getattr(request.state,'office_valmet',False) and not getattr(request.state,'office_nkt',False)),
+            'office_context': active, 'office_operations': bool(active and active[1].pallet_operations and not getattr(request.state,'office_valmet',False) and not getattr(request.state,'office_nkt',False) and not getattr(request.state,'office_alcobre',False)),
+            'office_alcobre':getattr(request.state,'office_alcobre',False),
             'office_nkt':getattr(request.state,'office_nkt',False),
             'office_valmet': getattr(request.state,'office_valmet',False),
             'active_context_id': getattr(request.state, 'ddn_context', 1),
@@ -241,6 +244,7 @@ async def logout(request: Request, db: Session = Depends(database)):
 def dashboard(request: Request, db: Session = Depends(database)):
     user, sess = identity(request, db)
     if unauthorized(user): return redirect('/login')
+    if getattr(request.state,'office_alcobre',False):return redirect('/alcobre/stock')
     if getattr(request.state,'office_nkt',False):return redirect('/nkt/stock')
     if getattr(request.state,'office_valmet',False):return redirect('/valmet/stock')
     stats = db.execute(select(func.coalesce(func.sum(Stock.quantidade),0),func.count(func.distinct(Stock.artigo)),
@@ -259,6 +263,7 @@ def stock_page(request: Request, artigo: str='', lote: str='', local: str='', pa
                db: Session=Depends(database)):
     user, sess = identity(request, db)
     if unauthorized(user): return redirect('/login')
+    if getattr(request.state,'office_alcobre',False):return redirect('/alcobre/stock')
     if getattr(request.state,'office_nkt',False):return redirect('/nkt/stock')
     if getattr(request.state,'office_valmet',False):return redirect('/valmet/stock')
     page = max(1, min(page, 10000)); filters = {'artigo': artigo.strip()[:100], 'lote': lote.strip()[:100], 'local': local.strip()[:100]}
@@ -318,6 +323,7 @@ def settings_page(request: Request, db: Session=Depends(database)):
 def location_settings_page(request: Request, db: Session=Depends(database)):
     user, sess = identity(request, db)
     if unauthorized(user, True): return forbidden(request, user, sess)
+    if getattr(request.state,'office_alcobre',False):return redirect('/alcobre/settings')
     corridors = db.scalars(select(Corridor).order_by(Corridor.codigo)).all()
     current_count = db.scalar(select(func.count()).select_from(Location)) or 0
     return render(request, 'settings.html', context(request, user, sess,
@@ -333,6 +339,7 @@ def warehouse_map(request: Request, corredor: str='', andar: int=1,
     """
     user, sess = identity(request, db)
     if unauthorized(user): return redirect('/login')
+    if getattr(request.state,'office_alcobre',False):return redirect('/alcobre/stock')
     if getattr(request.state,'office_nkt',False) and request.url.path=='/map':return redirect('/nkt/stock')
     if getattr(request.state,'office_valmet',False) and request.url.path=='/map':return redirect('/valmet/stock')
     corridors = db.scalars(select(Corridor).order_by(Corridor.codigo)).all()
@@ -596,3 +603,6 @@ app.include_router(nkt_loading_router)
 
 from .nkt_inventory_routes import router as nkt_inventory_router
 app.include_router(nkt_inventory_router)
+
+from .alcobre_routes import router as alcobre_router
+app.include_router(alcobre_router)

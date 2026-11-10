@@ -356,6 +356,29 @@ REQUIRED_POSTGRES |= {
     'test_nkt_integrated.test_integrated_nkt_inventory_and_reservation_race_never_adjusts_reserved_load',
 }
 
+REQUIRED_POSTGRES |= {
+    'test_alcobre.test_alcobre_pdf_admission_limit_blocks_without_starting_another_parser',
+    'test_alcobre.test_alcobre_pdf_column_only_original_numbers_and_sqlite_refusal',
+    'test_alcobre.test_alcobre_pdf_ambiguous_layouts_duplicates_and_malformed_never_automatic',
+    'test_alcobre.test_alcobre_pdf_direct_putaway_preserves_one_identity_and_source',
+    'test_alcobre.test_alcobre_partial_identification_conserves_physical_pending_and_known_locations',
+    'test_alcobre.test_alcobre_concurrent_confirmation_and_pending_reference_are_atomic',
+    'test_alcobre.test_alcobre_invalid_numbers_capacity_zone_and_context_never_create_stock',
+    'test_alcobre.test_alcobre_confirmation_rollback_and_runtime_immutable_books',
+    'test_alcobre.test_alcobre_pdf_unreliable_corrections_and_repeated_numbers_require_proof',
+    'test_alcobre.test_alcobre_http_upload_permissions_csrf_metadata_and_context',
+    'test_alcobre.test_alcobre_ddn15_upgrade_encrypted_restore_and_original_histories',
+    'test_alcobre.test_alcobre_administrator_configures_zones_and_corrects_only_empty_positions',
+    'test_alcobre.test_alcobre_unknown_material_requires_proved_positive_whole_quantity',
+    'test_alcobre.test_alcobre_pdf_parsing_releases_lock_and_revalidates_actor',
+    'test_alcobre.test_alcobre_runtime_refuses_null_or_excess_identification_review',
+}
+REQUIRED_WINDOWS |= {
+    'test_alcobre.test_alcobre_pdf_admission_limit_blocks_without_starting_another_parser',
+    'test_alcobre.test_alcobre_pdf_column_only_original_numbers_and_sqlite_refusal',
+    'test_alcobre.test_alcobre_pdf_ambiguous_layouts_duplicates_and_malformed_never_automatic',
+}
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

@@ -9,3 +9,5 @@ cryptography>=50,<51
 defusedxml==0.7.1
 colorama==0.4.6
 tzdata>=2025
+
+pypdf==6.21.4

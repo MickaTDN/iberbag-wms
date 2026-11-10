@@ -1097,6 +1097,89 @@ class NktInventoryIncident(Scoped,Base):
     actor: Mapped[str]=mapped_column(String(60),nullable=False)
     created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
 
+class AlcobreOwner(Base):
+    __tablename__='alcobre_owners'
+    client_id: Mapped[int]=mapped_column(ForeignKey('clients.id',deferrable=True,initially='DEFERRED'),primary_key=True)
+    warehouse_id: Mapped[int]=mapped_column(ForeignKey('warehouses.id',deferrable=True,initially='DEFERRED'),nullable=False)
+
+class AlcobreZone(Scoped,Base):
+    __tablename__='alcobre_zones'
+    context_id: Mapped[int]=mapped_column(ForeignKey('storage_contexts.id',deferrable=True,initially='DEFERRED'),nullable=False,default=1,server_default='1',index=True)
+    id: Mapped[int]=mapped_column(primary_key=True)
+    code: Mapped[str]=mapped_column(String(20),nullable=False)
+    positions: Mapped[int]=mapped_column(Integer,nullable=False)
+    active: Mapped[bool]=mapped_column(Boolean,default=True,nullable=False)
+    __table_args__=(UniqueConstraint('code'),CheckConstraint('positions BETWEEN 1 AND 500',name='alcobre_zone_positions'))
+
+class AlcobreSlot(Scoped,Base):
+    __tablename__='alcobre_slots'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    zone_id: Mapped[int]=mapped_column(ForeignKey('alcobre_zones.id'),nullable=False)
+    position: Mapped[int]=mapped_column(Integer,nullable=False)
+    local: Mapped[str]=mapped_column(String(120),nullable=False)
+    __table_args__=(UniqueConstraint('zone_id','position'),UniqueConstraint('local'),ForeignKeyConstraint(['context_id','local'],['locations.context_id','locations.codigo']))
+
+class AlcobreEntry(Scoped,Base):
+    __tablename__='alcobre_entries'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    mode: Mapped[str]=mapped_column(String(20),nullable=False)
+    reference: Mapped[str|None]=mapped_column(String(200))
+    received_on: Mapped[str|None]=mapped_column(String(10))
+    source_name: Mapped[str|None]=mapped_column(String(240))
+    source_pdf: Mapped[bytes|None]=mapped_column(LargeBinary)
+    source_digest: Mapped[str|None]=mapped_column(String(64))
+    extraction: Mapped[str]=mapped_column(Text,nullable=False)
+    version: Mapped[int]=mapped_column(Integer,default=0,nullable=False)
+    status: Mapped[str]=mapped_column(String(20),default='draft',nullable=False)
+    quantity: Mapped[int|None]=mapped_column(Integer)
+    created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    confirmed_by: Mapped[str|None]=mapped_column(String(60))
+    confirmed_at: Mapped[datetime|None]=mapped_column(DateTime)
+    __table_args__=(CheckConstraint("mode IN ('direct','pending') AND version>=0 AND status IN ('draft','confirmed')",name='alcobre_entry_state'),CheckConstraint('quantity IS NULL OR quantity BETWEEN 1 AND 300',name='alcobre_quantity'),CheckConstraint('(source_pdf IS NULL AND source_digest IS NULL AND source_name IS NULL) OR (source_pdf IS NOT NULL AND source_digest IS NOT NULL AND source_name IS NOT NULL)',name='alcobre_source_complete'),UniqueConstraint('source_digest'))
+
+class AlcobreReview(Scoped,Base):
+    __tablename__='alcobre_reviews'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    entry_id: Mapped[int]=mapped_column(ForeignKey('alcobre_entries.id'),nullable=False)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    kind: Mapped[str]=mapped_column(String(20),nullable=False)
+    version: Mapped[int]=mapped_column(Integer,nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint("kind IN ('receive','identify','place')",name='alcobre_review_kind'),)
+
+class AlcobreAction(Scoped,Base):
+    __tablename__='alcobre_actions'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    entry_id: Mapped[int]=mapped_column(ForeignKey('alcobre_entries.id'),nullable=False)
+    review_id: Mapped[int]=mapped_column(ForeignKey('alcobre_reviews.id'),unique=True,nullable=False)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+
+class AlcobreBobine(Scoped,Base):
+    __tablename__='alcobre_bobines'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    entry_id: Mapped[int]=mapped_column(ForeignKey('alcobre_entries.id'),nullable=False)
+    action_id: Mapped[int]=mapped_column(ForeignKey('alcobre_actions.id'),nullable=False)
+    client_id: Mapped[int]=mapped_column(ForeignKey('clients.id'),nullable=False)
+    number: Mapped[str]=mapped_column(String(120),nullable=False)
+    number_key: Mapped[str]=mapped_column(String(240),nullable=False)
+    __table_args__=(Index('uq_alcobre_owner_number','client_id','number_key',unique=True),)
+
+class AlcobrePlacement(Scoped,Base):
+    __tablename__='alcobre_placements'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    bobine_id: Mapped[int]=mapped_column(ForeignKey('alcobre_bobines.id'),unique=True,nullable=False)
+    action_id: Mapped[int]=mapped_column(ForeignKey('alcobre_actions.id'),nullable=False)
+    local: Mapped[str]=mapped_column(String(120),unique=True,nullable=False)
+    __table_args__=(ForeignKeyConstraint(['context_id','local'],['alcobre_slots.context_id','alcobre_slots.local']),)
+
 for _table in list(Base.metadata.tables.values()):
     if _table.name == 'physical_location_claims' or 'context_id' not in _table.c:
         continue

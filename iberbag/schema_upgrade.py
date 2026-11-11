@@ -7,7 +7,7 @@ from sqlalchemy import text
 from .migrations import config, REVISION
 from .transfer import inventory, read_data, archive_inventory, digest_file, LOCK
 
-SUPPORTED_HEADS = {frozenset({v}) for v in ('0001','0002','0003','0004','0005','0006','0007','ddn_0001','ddn_0002','ddn_security_0001','ddn_0003','ddn_0004','ddn_0005','ddn_0006','ddn_0007','ddn_0008','ddn_0009','ddn_0010','ddn_0011','ddn_0012','ddn_0013','ddn_0014','ddn_0015','ddn_0016',REVISION)} | {
+SUPPORTED_HEADS = {frozenset({v}) for v in ('0001','0002','0003','0004','0005','0006','0007','ddn_0001','ddn_0002','ddn_security_0001','ddn_0003','ddn_0004','ddn_0005','ddn_0006','ddn_0007','ddn_0008','ddn_0009','ddn_0010','ddn_0011','ddn_0012','ddn_0013','ddn_0014','ddn_0015','ddn_0016','ddn_0017',REVISION)} | {
     frozenset({'0007','ddn_0001'}),frozenset({'0007','ddn_0002'})}
 
 

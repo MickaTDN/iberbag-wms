@@ -76,6 +76,11 @@ def validate_rows(db, entry, kind, rows):
             unit = db.scalar(select(m.AlcobreBobine).where(m.AlcobreBobine.entry_id == entry.id, m.AlcobreBobine.number_key == row['number'].casefold()))
             if not unit or db.scalar(select(m.AlcobrePlacement.id).where(m.AlcobrePlacement.bobine_id == unit.id)):
                 raise ReceivingError('Bobine não pertence à entrada ou já está arrumada; não há transferências nesta fase.')
+            from .alcobre_dispatch import states,current
+            from .alcobre_inventory import placements
+            p=placements(db)
+            if current(states(db),unit.id)['state']!='available' or db.scalar(select(p.id).where(p.bobine_id==unit.id)):
+                raise ReceivingError('Bobine já corrigida/localizada ou indisponível; usar reconciliação administrativa.')
             row['number'] = unit.number
             if not row['local']: raise ReceivingError('Indicar posição comprovada para arrumar.', 400)
         elif row['number'].casefold() in issued: raise ReceivingError('Número de bobine já registado para este proprietário.')
@@ -238,18 +243,23 @@ def configure_slot(db, actor, zone_id, position, code):
 
 def stock(db, number='', local='', state='all', page=1):
     if not enabled(db): raise ReceivingError('Consulta Alcobre não autorizada.', 403)
-    if state not in ('all', 'available', 'unlocated', 'pending', 'reserved', 'shipped', 'blocked', 'on_hand'): raise ReceivingError('Estado inválido.', 400)
-    query = select(m.AlcobreBobine, m.AlcobrePlacement, m.AlcobreEntry).join(m.AlcobreEntry, m.AlcobreEntry.id == m.AlcobreBobine.entry_id).outerjoin(m.AlcobrePlacement, m.AlcobrePlacement.bobine_id == m.AlcobreBobine.id)
+    if state not in ('all', 'available', 'unlocated', 'pending', 'reserved', 'shipped', 'blocked', 'missing', 'on_hand'): raise ReceivingError('Estado inválido.', 400)
+    from .alcobre_inventory import placements
+    p=placements(db)
+    query = select(m.AlcobreBobine, p, m.AlcobreEntry).join(m.AlcobreEntry, m.AlcobreEntry.id == m.AlcobreBobine.entry_id).outerjoin(p, p.bobine_id == m.AlcobreBobine.id)
     if number: query = query.where(m.AlcobreBobine.number.icontains(number, autoescape=True))
-    if local: query = query.where(m.AlcobrePlacement.local.icontains(local, autoescape=True))
+    if local: query = query.where(p.local.icontains(local, autoescape=True))
     from .alcobre_dispatch import enabled_events,state_expression
     has_events=enabled_events(db)
     if state == 'available':
-        query = query.where(m.AlcobrePlacement.id.is_not(None))
+        query = query.where(p.id.is_not(None))
         if has_events:query=query.where(state_expression()=='available')
-    if state in ('reserved','shipped','blocked'):query=query.where(state_expression()==state) if has_events else query.where(m.AlcobreBobine.id<0)
-    if state=='on_hand' and has_events:query=query.where(state_expression()!='shipped')
-    if state == 'unlocated': query = query.where(m.AlcobrePlacement.id.is_(None))
+        from .alcobre_inventory import incident_locations
+        incidents=incident_locations(db)
+        if incidents:query=query.where(p.local.not_in(sorted(incidents)))
+    if state in ('reserved','shipped','blocked','missing'):query=query.where(state_expression()==state) if has_events else query.where(m.AlcobreBobine.id<0)
+    if state=='on_hand' and has_events:query=query.where(state_expression().not_in(('shipped','missing')))
+    if state == 'unlocated': query = query.where(p.id.is_(None))
     if state == 'pending': query = query.where(m.AlcobreBobine.id < 0)
     count = db.scalar(select(func.count()).select_from(query.subquery()))
     units = db.execute(query.order_by(m.AlcobreBobine.id).offset((page-1)*100).limit(100)).all()

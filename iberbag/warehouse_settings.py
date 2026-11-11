@@ -65,10 +65,11 @@ def occupied(db, codes):
         selected=on_hand_query(db).where(NktPallet.local.in_(sorted(codes))).subquery()
         rows+=db.execute(select(selected.c.local,func.count()).group_by(selected.c.local)).all()
     if inspect(db.connection()).has_table('alcobre_placements'):
-        from .database import AlcobrePlacement
         from .alcobre_dispatch import live_placements
-        live=live_placements(db).where(AlcobrePlacement.local.in_(sorted(codes))).subquery()
-        rows+=db.execute(select(live.c.local,func.count()).group_by(live.c.local)).all()
+        from .alcobre_inventory import incident_locations
+        live=live_placements(db).subquery()
+        current_rows=db.execute(select(live.c.local,func.count()).where(live.c.local.in_(sorted(codes))).group_by(live.c.local)).all();rows+=current_rows
+        rows += [(code,1) for code in sorted(incident_locations(db)&set(codes)-{r[0] for r in current_rows})]
     return rows+db.execute(select(model.local,func.sum(model.physical_quantity)).where(
         model.local.in_(sorted(codes)),model.physical_quantity>0).group_by(model.local)).all()
 

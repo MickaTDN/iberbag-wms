@@ -609,3 +609,6 @@ app.include_router(alcobre_router)
 
 from .alcobre_dispatch_routes import router as alcobre_dispatch_router
 app.include_router(alcobre_dispatch_router)
+
+from .alcobre_inventory_routes import router as alcobre_inventory_router
+app.include_router(alcobre_inventory_router)

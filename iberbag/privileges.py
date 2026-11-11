@@ -3,7 +3,7 @@ import argparse
 import re
 from sqlalchemy import text
 
-IMMUTABLE = {'alcobre_dispatch_revisions','alcobre_dispatch_operations','alcobre_dispatch_events','alcobre_dispatch_documents','alcobre_owners','alcobre_reviews','alcobre_actions','alcobre_bobines','alcobre_placements','nkt_inventory_checks','nkt_inventory_reviews','nkt_inventory_incidents','nkt_plan_revisions','nkt_operations','nkt_corrections','nkt_stock_events','nkt_documents','nkt_receiving_reviews','nkt_containers','nkt_owners','nkt_reviews','nkt_pallets','valmet_import_drafts','valmet_import_revisions','valmet_import_confirmations','audit', 'dispatch_documents', 'receipt_documents', 'stock_adjustments',
+IMMUTABLE = {'alcobre_inventory_checks','alcobre_inventory_reviews','alcobre_inventory_operations','alcobre_inventory_documents','alcobre_dispatch_revisions','alcobre_dispatch_operations','alcobre_dispatch_events','alcobre_dispatch_documents','alcobre_owners','alcobre_reviews','alcobre_actions','alcobre_bobines','alcobre_placements','nkt_inventory_checks','nkt_inventory_reviews','nkt_inventory_incidents','nkt_plan_revisions','nkt_operations','nkt_corrections','nkt_stock_events','nkt_documents','nkt_receiving_reviews','nkt_containers','nkt_owners','nkt_reviews','nkt_pallets','valmet_import_drafts','valmet_import_revisions','valmet_import_confirmations','audit', 'dispatch_documents', 'receipt_documents', 'stock_adjustments',
              'lot_resolutions', 'preparation_completions', 'preparation_compensations',
              'customer_pending', 'pending_allocations', 'allocation_collections',
              'physical_location_claims', 'load_numbers', 'valmet_owners', 'valmet_units',

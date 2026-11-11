@@ -216,7 +216,7 @@ def test_nkt_loading_prior_head_upgrade_encrypted_restore_and_original_metadata(
     seed(engine,actor)
     with engine.connect() as conn:before=transfer.inventory(transfer.read_data(conn))
     folder=tmp_path/'prior';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD);backup.restore(target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0017'
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0018'
     with engine.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==before
     ident=prepare(engine,actor);reserve(engine,actor,ident);original=ship(engine,actor,ident,['001']);correction=fix(engine,actor,ident,original);apply_fix(engine,actor,correction)
     folder2=tmp_path/'after';target2=pg_databases(restricted=True);backup.backup(engine,folder2,runner=docker_client,passphrase=BACKUP_PASSWORD);backup.restore(target2,folder2,runner=docker_client,passphrase=BACKUP_PASSWORD)

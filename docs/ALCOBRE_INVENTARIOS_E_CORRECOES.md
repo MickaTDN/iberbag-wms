@@ -25,7 +25,7 @@ O completo não termina com posições/identidades por conferir, receções pend
 
 ## Ocorrências sem identidade segura
 
-Um número desconhecido (ou anteriormente expedido e comunicado como encontrado) gera uma ocorrência imutável, com número comunicado, posição comprovada quando exista, prova, autor e instante. Não cria bobine, entrada, guia, stock ou número alternativo. Não se distribui automaticamente uma quantidade pendente de fornecedor por identidades presumidas.
+Uma bobine sem número comprovado, um número desconhecido (ou anteriormente expedido e comunicado como encontrado) gera uma ocorrência imutável, com número comunicado, posição comprovada quando exista, prova, autor e instante. Não cria bobine, entrada, guia, stock ou número alternativo. Não se distribui automaticamente uma quantidade pendente de fornecedor por identidades presumidas.
 
 Uma ocorrência localizada ainda por investigar protege essa posição contra novas colocações, recuperações e preparações; não cria stock identificado. O Administrador pode registar uma decisão comprovada referindo o ID original da ocorrência, sem apagar a observação ou criar material. Resolver uma ocorrência não altera quantidades; uma eventual entrada regular exige o procedimento próprio e prova suficiente. A conferência só termina depois de uma decisão explícita, mantendo ambos os registos auditáveis.
 

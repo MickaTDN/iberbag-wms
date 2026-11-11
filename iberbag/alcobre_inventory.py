@@ -96,6 +96,7 @@ def record(db,actor,ident,version,result,evidence,number=None,local=None,entry_i
             if unit and call(db,'alcobre_inventory_unit',unit_id=unit.id)['state']!='shipped':raise ReceivingError('Bobine fora do âmbito; não alterar inventário por inferência.')
             unit=None;result='unknown'
     elif entry_id is not None:src=call(db,'alcobre_inventory_pending',entry=entry_id)
+    elif result=='unknown':src={}
     else:src=call(db,'alcobre_inventory_location',code=local)
     check=m.AlcobreInventoryCheck(inventory_id=inv.id,bobine_id=unit.id if unit else None,entry_id=entry_id,number=number,local=local,result=result,snapshot=a.dump(src),evidence=evidence,resolves_id=resolves,actor=actor.username)
     db.add(check);inv.version+=1;db.flush();conference(db,actor,inv);a.audit(db,actor,'INVENTARIO_CONFERIR',dict(inventory=inv.id,check=check.id,result=result,number=number,local=local,evidence=evidence,snapshot=src,resolves=resolves));return check.id

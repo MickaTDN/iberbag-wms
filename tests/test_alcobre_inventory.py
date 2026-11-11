@@ -385,3 +385,24 @@ def test_alcobre_inventory_catalog_change_shows_blocking_without_unsafe_confirma
     before=snapshot(engine)
     with pytest.raises(a.ReceivingError):confirm(engine,actor,inv,rev)
     assert snapshot(engine)==before
+
+
+def test_alcobre_inventory_unlabelled_found_material_never_gets_invented_identity(warehouse):
+    engine,u=warehouse;actor=u['admin'][0];seed(engine,actor)
+    from test_alcobre import positions
+    positions(engine,actor,4);inv=create(engine,actor,['FICT-ALC-4'])
+    incident=record(engine,actor,inv,'unknown',local='FICT-ALC-4')
+    with scoped(engine,5) as db:
+        item=db.get(m.AlcobreInventoryCheck,incident)
+        assert item.number is None and item.bobine_id is None and item.entry_id is None
+        assert db.scalar(select(func.count()).select_from(m.AlcobreBobine))==4
+        assert s.summary(db,db.get(m.AlcobreInventory,inv))['blocking']
+    with pytest.raises(a.ReceivingError):review(engine,actor,inv)
+    record(engine,actor,inv,'resolved',resolves=incident)
+    record(engine,actor,inv,'unverified',local='FICT-ALC-4')
+    with pytest.raises(a.ReceivingError):review(engine,actor,inv)
+    record(engine,actor,inv,'empty',local='FICT-ALC-4')
+    confirm(engine,actor,inv)
+    with scoped(engine,5) as db:
+        assert db.scalar(select(func.count()).select_from(m.AlcobreBobine))==4
+        assert db.scalar(select(func.count()).select_from(m.AlcobreDispatchEvent).where(m.AlcobreDispatchEvent.control_operation_id.is_not(None)))==0

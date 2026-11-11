@@ -429,6 +429,7 @@ REQUIRED_POSTGRES |= {
 }
 REQUIRED_POSTGRES |= {'test_alcobre_inventory.test_alcobre_inventory_incident_after_reservation_blocks_shipping_until_decision','test_alcobre_inventory.test_alcobre_inventory_concurrent_counts_use_versions_without_lost_history'}
 REQUIRED_POSTGRES |= {'test_alcobre_inventory.test_alcobre_inventory_empty_count_invalid_after_unknown_resolved_elsewhere','test_alcobre_inventory.test_alcobre_inventory_catalog_change_shows_blocking_without_unsafe_confirmation'}
+REQUIRED_POSTGRES.add('test_alcobre_inventory.test_alcobre_inventory_unlabelled_found_material_never_gets_invented_identity')
 REQUIRED_WINDOWS.add('test_alcobre_inventory.test_alcobre_inventory_pdf_sqlite_is_read_only_and_absence_not_unknown')
 
 def verify(path, backend, required=None):

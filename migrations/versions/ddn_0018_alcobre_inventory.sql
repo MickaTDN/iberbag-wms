@@ -67,8 +67,9 @@ BEGIN
  END LOOP;
  IF (SELECT count(*) FROM jsonb_array_elements(effects) e WHERE e->>'state'='available')<>(SELECT count(DISTINCT e->>'local') FROM jsonb_array_elements(effects) e WHERE e->>'state'='available') THEN errors=errors||jsonb_build_array('Dois ajustes não podem ocupar a mesma posição.'); END IF;
  FOR x IN SELECT * FROM jsonb_array_elements(inv.scope::jsonb->'locations') LOOP
-  SELECT * INTO c FROM alcobre_inventory_checks WHERE inventory_id=inv.id AND context_id=ctx AND bobine_id IS NULL AND entry_id IS NULL AND number IS NULL AND local=x #>> '{}' ORDER BY id DESC LIMIT 1;
+  SELECT * INTO c FROM alcobre_inventory_checks WHERE inventory_id=inv.id AND context_id=ctx AND bobine_id IS NULL AND entry_id IS NULL AND number IS NULL AND result IN ('empty','unverified') AND local=x #>> '{}' ORDER BY id DESC LIMIT 1;
   covered=EXISTS(SELECT 1 FROM jsonb_array_elements(rows) r WHERE r->>'result'<>'unverified' AND ((r->'source'->>'local')=x #>> '{}' OR r->>'local'=x #>> '{}')) OR EXISTS(SELECT 1 FROM alcobre_inventory_checks q WHERE q.context_id=ctx AND q.inventory_id=inv.id AND q.local=x #>> '{}' AND q.result='unknown');
+  IF c.id IS NOT NULL AND c.id>greatest(coalesce((SELECT max((r->>'check_id')::integer) FROM jsonb_array_elements(rows) r WHERE r->>'result'<>'unverified' AND (r->'source'->>'local'=x #>> '{}' OR r->>'local'=x #>> '{}')),0),coalesce((SELECT max(q.id) FROM alcobre_inventory_checks q WHERE q.context_id=ctx AND q.inventory_id=inv.id AND q.result IN ('unknown','resolved') AND q.local=x #>> '{}'),0)) THEN covered=false; END IF;
   IF NOT covered AND (c.id IS NULL OR c.result<>'empty' OR c.snapshot::jsonb IS DISTINCT FROM alcobre_inventory_location(x #>> '{}',ctx)) THEN errors=errors||jsonb_build_array('Posição ainda não conferida ou alterada: '||(x #>> '{}')); END IF;
   IF c.id IS NOT NULL AND c.result='empty' AND EXISTS(SELECT 1 FROM jsonb_array_elements(rows) r WHERE r->>'result' IN ('found','elsewhere') AND r->>'local'=x #>> '{}' AND (r->>'check_id')::integer<c.id) THEN errors=errors||jsonb_build_array('Conferências contraditórias de vazio/presença: '||(x #>> '{}')); END IF;
   places=places||jsonb_build_array(jsonb_build_object('local',x,'counted',covered OR (c.id IS NOT NULL AND c.result='empty' AND c.snapshot::jsonb=alcobre_inventory_location(x #>> '{}',ctx)),'check_id',c.id,'result',CASE WHEN covered THEN 'unit_conference' WHEN c.id IS NOT NULL THEN c.result ELSE 'unverified' END));
@@ -82,7 +83,7 @@ BEGIN
  FOR c IN SELECT q.* FROM alcobre_inventory_checks q WHERE q.context_id=ctx AND q.inventory_id=inv.id AND q.result='unknown' ORDER BY q.id LOOP
   covered=EXISTS(SELECT 1 FROM alcobre_inventory_checks r WHERE r.context_id=ctx AND r.resolves_id=c.id);
   incidents=incidents||jsonb_build_array(jsonb_build_object('id',c.id,'number',c.number,'local',c.local,'evidence',c.evidence,'resolved',covered));
-  IF NOT covered THEN errors=errors||jsonb_build_array('Ocorrência por investigar: '||c.number); END IF;
+  IF NOT covered THEN errors=errors||jsonb_build_array('Ocorrência por investigar: '||coalesce(c.number,'Sem número comprovado')); END IF;
  END LOOP;
  RETURN jsonb_build_object('inventory_id',inv.id,'mode',inv.mode,'scope',inv.scope::jsonb,'rows',rows,'locations',places,'pending',pending,'incidents',incidents,'blocking',errors,'events',effects);
 END $$;
@@ -129,10 +130,10 @@ BEGIN
   ELSIF NEW.result='resolved' THEN
    SELECT * INTO original FROM alcobre_inventory_checks WHERE id=NEW.resolves_id AND inventory_id=inv.id AND context_id=NEW.context_id AND result='unknown';
    IF who.role<>'admin' OR original.id IS NULL OR NEW.number IS DISTINCT FROM original.number OR NEW.local IS DISTINCT FROM original.local OR NEW.snapshot::jsonb IS DISTINCT FROM jsonb_build_object('original',original.id) THEN RAISE EXCEPTION 'Administrative evidenced incident decision required'; END IF;
-  ELSIF NEW.number IS NOT NULL THEN
-   IF NEW.result<>'unknown' OR NEW.resolves_id IS NOT NULL OR length(NEW.number) NOT BETWEEN 1 AND 120 OR NEW.number<>btrim(NEW.number) OR (NEW.local IS NOT NULL AND (NOT inv.scope::jsonb->'locations' ? NEW.local OR alcobre_inventory_location(NEW.local,NEW.context_id) IS NULL)) OR NEW.snapshot::jsonb<>'{}'::jsonb THEN RAISE EXCEPTION 'Unknown identity creates investigation only'; END IF;
+  ELSIF NEW.result='unknown' THEN
+   IF NEW.result<>'unknown' OR NEW.resolves_id IS NOT NULL OR (NEW.number IS NOT NULL AND (length(NEW.number) NOT BETWEEN 1 AND 120 OR NEW.number<>btrim(NEW.number))) OR (NEW.local IS NOT NULL AND (NOT inv.scope::jsonb->'locations' ? NEW.local OR alcobre_inventory_location(NEW.local,NEW.context_id) IS NULL)) OR NEW.snapshot::jsonb<>'{}'::jsonb THEN RAISE EXCEPTION 'Unknown identity creates investigation only'; END IF;
   ELSE
-   IF NEW.result NOT IN ('empty','unverified') OR NEW.local IS NULL OR NOT inv.scope::jsonb->'locations' ? NEW.local OR NEW.resolves_id IS NOT NULL OR NEW.snapshot::jsonb IS DISTINCT FROM alcobre_inventory_location(NEW.local,NEW.context_id) OR (NEW.result='empty' AND (jsonb_array_length(NEW.snapshot::jsonb->'occupants')<>0 OR (NEW.snapshot::jsonb->>'incident')::boolean)) THEN RAISE EXCEPTION 'Empty must be counted explicitly without hiding registered bobines'; END IF;
+   IF NEW.result NOT IN ('empty','unverified') OR NEW.number IS NOT NULL OR NEW.local IS NULL OR NOT inv.scope::jsonb->'locations' ? NEW.local OR NEW.resolves_id IS NOT NULL OR NEW.snapshot::jsonb IS DISTINCT FROM alcobre_inventory_location(NEW.local,NEW.context_id) OR (NEW.result='empty' AND (jsonb_array_length(NEW.snapshot::jsonb->'occupants')<>0 OR (NEW.snapshot::jsonb->>'incident')::boolean)) THEN RAISE EXCEPTION 'Empty must be counted explicitly without hiding registered bobines'; END IF;
   END IF;
   RETURN NEW;
  END IF;

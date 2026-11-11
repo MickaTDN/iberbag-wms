@@ -51,8 +51,10 @@ def full_history(engine, actor):
 
 
 def snapshot_legacy(engine):
+    # Compare published historical columns; new pair/PDF defaults are covered
+    # separately by test_stacked_upgrade18_encrypted_backup_restore_and_historical_documents.
     with engine.connect() as conn:
-        return {t.name: [{k: v for k, v in row.items() if k != 'context_id'}
+        return {t.name: [{k: v for k, v in row.items() if k != 'context_id' and k not in transfer.STACKED_DEFAULTS.get(t.name,{})}
                 for row in conn.execute(select(t)).mappings()]
             for t in Base.metadata.sorted_tables
             if t.name not in transfer.CONTEXT_TABLES | transfer.PHYSICAL_TABLES | transfer.VALMET_TABLES | transfer.NKT_TABLES | transfer.NKT_RECEIVING_TABLES | transfer.NKT_LOADING_TABLES | (transfer.NKT_INVENTORY_TABLES | (transfer.ALCOBRE_TABLES | (transfer.ALCOBRE_DISPATCH_TABLES | transfer.ALCOBRE_INVENTORY_TABLES)))}
@@ -110,7 +112,7 @@ def test_encrypted_verified_upgrade_origin_matrix(warehouse, pg_databases, tmp_p
         assert conn.execute(text('SELECT version_num FROM alembic_version')).scalars().all() == [REVISION]
         assert transfer.inventory(transfer.read_data(conn)) == before
         for name, rows in expected.items():
-            actual = [{k: v for k, v in row.items() if k != 'context_id'}
+            actual = [{k: v for k, v in row.items() if k != 'context_id' and k not in transfer.STACKED_DEFAULTS.get(name,{})}
                       for row in conn.execute(select(Base.metadata.tables[name])).mappings()]
             assert sorted(actual, key=repr) == sorted(rows, key=repr), name
     with scoped(target) as db, scoped(source) as original:
@@ -216,7 +218,7 @@ def test_existing_pr9_encrypted_archive_uses_original_authenticated_inventory(pg
     with source.connect() as conn:
         for name, rows in native.items():
             table = Table(name, MetaData(), autoload_with=conn)
-            actual = [{k: v for k, v in row.items() if k != 'context_id'}
+            actual = [{k: v for k, v in row.items() if k != 'context_id' and k not in transfer.STACKED_DEFAULTS.get(name,{})}
                       for row in conn.execute(select(table).order_by(*table.primary_key.columns)).mappings()]
             assert actual == rows, name
         assert conn.scalar(text("SELECT capacidade FROM locations WHERE context_id=1 AND codigo='A101'")) == 19

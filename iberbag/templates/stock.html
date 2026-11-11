@@ -9,9 +9,9 @@
   <label>Localização<input type="search" name="local" maxlength="100" value="{{ filters.local }}" placeholder="Corredor ou Chão"></label>
   <button class="btn btn-primary" type="submit">Pesquisar</button><a class="btn btn-light" href="/stock">Limpar</a>
 </div></form></section>
-<section class="panel table-panel"><div class="panel-head"><div><h2>Resultados <span class="pill soft">{{ count }} registos</span></h2><p>{{ pallet_count }} paletes nas condições pesquisadas</p></div><span class="label-muted">{{ page }} / {{ total_pages }} páginas</span></div>
+<section class="panel table-panel"><div class="panel-head"><div><h2>Resultados <span class="pill soft">{{ count }} registos</span></h2><p>{{ pallet_count }} paletes (unidades da guia) nas condições pesquisadas</p></div><span class="label-muted">{{ page }} / {{ total_pages }} páginas</span></div>
   <div class="table-wrap"><table><thead><tr><th>Artigo</th><th>Lote</th><th>Localização</th><th class="numeric">Paletes</th><th>Informações</th></tr></thead><tbody>
-    {% for item in rows %}<tr><td class="code strong"><a class="table-link" href="/stock/{{ item.id }}">{{ item.artigo }}</a></td><td class="code">{{ item.lote }}</td><td><span class="loc-tag">{{ item.local }}</span></td><td class="numeric strong">{{ item.quantidade }}</td><td><a class="btn btn-small btn-light" href="/stock/{{ item.id }}" aria-label="Ver detalhes do artigo {{ item.artigo }}, lote {{ item.lote }}, localização {{ item.local }}">Ver detalhes →</a></td></tr>
+    {% for item in rows %}<tr><td class="code strong"><a class="table-link" href="/stock/{{ item.id }}">{{ item.artigo }}</a></td><td class="code">{{ item.lote }} <span class="pill outline">{{ "Sobrepostas" if item.stacked else "Normais" }}</span></td><td><span class="loc-tag">{{ item.local }}</span></td><td class="numeric strong">{{ item.quantidade }}</td><td><a class="btn btn-small btn-light" href="/stock/{{ item.id }}" aria-label="Ver detalhes do artigo {{ item.artigo }}, lote {{ item.lote }}, localização {{ item.local }}">Ver detalhes →</a></td></tr>
     {% else %}<tr><td colspan="5" class="empty">Sem registos para esta pesquisa.</td></tr>{% endfor %}
   </tbody></table></div>
   <div class="pagination"><span>50 registos por página</span><div>

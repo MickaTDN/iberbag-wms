@@ -314,3 +314,9 @@ e `pip check` passaram. O PDF fictício foi verificado em conteúdo, formato A4,
 renderização e número de páginas. Permanece um aviso de depreciação Starlette/httpx.
 Não existe preenchimento automático/editor de antiguidade de cargas: dados de entrada
 não comprovados continuam bloqueados até esclarecimento administrativo documentado.
+
+
+Regra Iberbag/Ovar atual: consultar [Paletes sobrepostas](IBERBAG_PALETES_SOBREPOSTAS.md).
+O tipo integra a identidade do saldo; a seleção FIFO não mistura tipos e os
+formulários atuais bloqueiam stock insuficiente do tipo escolhido. Os pendentes e
+os documentos históricos permanecem preservados.

@@ -36,6 +36,8 @@ def target_location(db, stock, local, qty):
     local = canonical_location(db, local)
     if local == stock.local or (is_floor(local) and is_floor(stock.local)):
         raise TransferError('Origem e destino não podem ser a mesma localização.', 400)
+    from .stacked import validate
+    validate(db, stock.stacked, local)
     return destination(db, local, qty)
 
 
@@ -53,7 +55,7 @@ def review_transfer(db, actor, key, stock_id, local, quantidade):
     local = target_location(db, stock, local, qty)
     record = StockTransfer(request_key=key, source_stock_id=stock.id, artigo=stock.artigo,
         lote=stock.lote, carga=stock.carga, entrada=original_date(db, stock.carga), source_local=stock.local,
-        destination_local=local, quantidade=qty, created_by=actor.id)
+        destination_local=local, quantidade=qty, created_by=actor.id, stacked=stock.stacked)
     db.add(record); db.flush()
     db.add(Audit(username=actor.username, action='REVER_TRANSFERENCIA', details=f'Transferência {record.id}; stock {stock.id}; {qty} paletes; {stock.local} → {local}.'))
     return record.id
@@ -66,17 +68,17 @@ def confirm_transfer(db, actor, transfer_id):
     if record.status == 'confirmed':
         return record.id
     stock = source_stock(db, record.source_stock_id, record.quantidade)
-    if (stock.artigo, stock.lote, stock.carga, stock.local, original_date(db, stock.carga)) != (
-            record.artigo, record.lote, record.carga, record.source_local, record.entrada):
+    if (stock.artigo, stock.lote, stock.carga, stock.local, original_date(db, stock.carga), stock.stacked) != (
+            record.artigo, record.lote, record.carga, record.source_local, record.entrada, record.stacked):
         raise TransferError('Os dados da origem mudaram. Revê novamente antes de transferir.')
     protect_dispatches(db, stock)
     local = target_location(db, stock, record.destination_local, record.quantidade)
     if local != record.destination_local:
         raise TransferError('O catálogo de destino mudou. Revê a transferência.')
     target = db.scalar(select(Stock).where(Stock.artigo == stock.artigo, Stock.lote == stock.lote,
-        Stock.carga == stock.carga, Stock.local == local).with_for_update())
+        Stock.carga == stock.carga, Stock.local == local, Stock.stacked == stock.stacked).with_for_update())
     if target is None:
-        target = Stock(artigo=stock.artigo, lote=stock.lote, carga=stock.carga, local=local, quantidade=record.quantidade)
+        target = Stock(artigo=stock.artigo, lote=stock.lote, carga=stock.carga, local=local, quantidade=record.quantidade, stacked=stock.stacked)
         db.add(target)
     else:
         if target.quantidade + record.quantidade > MAX_INT:

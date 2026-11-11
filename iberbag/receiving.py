@@ -215,20 +215,22 @@ def confirmed_line(db, line_id):
 
 
 @operation
-def review_putaway(db, actor, key, line_id, local, quantidade):
+def review_putaway(db, actor, key, line_id, local, quantidade, stacked=False):
+    from .stacked import validate
+    stacked = validate(db, stacked, local)
     key, qty = request_key(key), quantity(quantidade)
     previous = db.scalar(select(Putaway).where(Putaway.request_key == key))
     if previous:
         owned(previous, actor)
         canonical = canonical_location(db, local)
-        if (previous.line_id, previous.local, previous.quantidade) != (line_id, canonical, qty):
+        if (previous.line_id, previous.local, previous.quantidade, previous.stacked) != (line_id, canonical, qty, stacked):
             raise ReceivingError('Pedido já utilizado com outros dados.')
         return previous.id
     line, receipt = confirmed_line(db, line_id)
     if qty > remaining(db, line):
         raise ReceivingError('Quantidade superior às paletes que aguardam arrumação.')
     local = destination(db, local, qty)
-    record = Putaway(request_key=key, line_id=line.id, local=local, quantidade=qty, created_by=actor.id)
+    record = Putaway(request_key=key, line_id=line.id, local=local, quantidade=qty, created_by=actor.id, stacked=stacked)
     db.add(record)
     db.flush()
     return record.id
@@ -243,20 +245,25 @@ def confirm_putaway(db, actor, putaway_id):
     line, receipt = confirmed_line(db, record.line_id)
     if record.quantidade > remaining(db, line):
         raise ReceivingError('As paletes já foram arrumadas por outra operação. Atualiza a lista.')
+    from .stacked import validate
+    validate(db, record.stacked, record.local)
     destination(db, record.local, record.quantidade)
     stock = db.scalar(select(Stock).where(Stock.artigo == line.artigo, Stock.lote == line.lote,
-        Stock.carga == receipt.code, Stock.local == record.local).with_for_update())
+        Stock.carga == receipt.code, Stock.local == record.local, Stock.stacked == record.stacked).with_for_update())
     if stock:
         if stock.quantidade + record.quantidade > MAX_INT:
             raise ReceivingError('Quantidade excede o limite técnico do grupo de stock.')
         stock.quantidade += record.quantidade
     else:
         stock = Stock(artigo=line.artigo, lote=line.lote, carga=receipt.code,
-                      local=record.local, quantidade=record.quantidade)
+                      local=record.local, quantidade=record.quantidade, stacked=record.stacked)
         db.add(stock)
     db.flush()
     record.stock_id, record.arranger = stock.id, actor.username
     record.status, record.confirmed_at = 'confirmed', now_utc()
+    from .putaway_pdf import render_pdf
+    record.document_pdf = render_pdf(record, line, receipt)
+    record.document_sha256 = hashlib.sha256(record.document_pdf).hexdigest()
     db.add(Audit(username=actor.username, action='CONFIRMAR_ARRUMACAO',
-        details=f'Arrumação {record.id}; entrada {receipt.id}; linha {line.id}; {record.quantidade} paletes em {record.local}; stock {stock.id}.'))
+        details=f'Arrumação {record.id}; entrada {receipt.id}; linha {line.id}; {record.quantidade} paletes em {record.local}; stock {stock.id}; sobrepostas={record.stacked}.'))
     return record.id

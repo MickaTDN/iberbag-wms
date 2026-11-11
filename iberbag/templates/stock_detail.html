@@ -9,7 +9,7 @@
     <div><dt>Artigo</dt><dd class="code strong">{{ item.artigo }}</dd></div>
     <div><dt>Lote</dt><dd class="code strong">{{ item.lote }}</dd></div>
     <div><dt>Localização</dt><dd><span class="loc-tag">{{ item.local }}</span></dd></div>
-    <div><dt>Quantidade</dt><dd>{{ item.quantidade }} {{ 'palete' if item.quantidade == 1 else 'paletes' }}</dd></div>
+    <div><dt>Tipo</dt><dd>{{ "SOBREPOSTAS — 2 PALETES FÍSICAS, RETIRAR JUNTAS" if item.stacked else "Normais" }}</dd></div><div><dt>Quantidade (unidades da guia)</dt><dd>{{ item.quantidade }} {{ 'palete' if item.quantidade == 1 else 'paletes' }}</dd></div>
   </dl>
 </section>
 <section class="panel details-panel">

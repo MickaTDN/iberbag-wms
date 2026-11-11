@@ -23,8 +23,11 @@ def render_pdf(order, rows):
         p(getattr(order,'ddn_label','DDN WMS')), p(order.reference), p(f'Confirmada: {order.confirmed_at} UTC · Preparou: {order.confirmed_by}'),
         p('Stock já descontado. Recolher apenas os grupos abaixo; comunicar divergências ao escritório.'), Spacer(1, 5*mm)]
     data = [[p(v) for v in ('Lote','Artigo','Paletes','Carga','Localização')]]
+    from .stacked import WARNING
     for row in rows:
-        data.append([p(row[key]) for key in ('lote','artigo','quantidade','carga','local')])
+        values = [p(row[key]) for key in ('lote','artigo','quantidade','carga','local')]
+        if row.get('stacked'): values[-1] = p(str(row['local']) + ' · ' + WARNING)
+        data.append(values)
     table = LongTable(data, colWidths=[36*mm,40*mm,17*mm,45*mm,40*mm], repeatRows=1)
     table.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#e2e8f0')),
         ('GRID',(0,0),(-1,-1),0.3,colors.grey), ('VALIGN',(0,0),(-1,-1),'TOP'),

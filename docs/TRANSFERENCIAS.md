@@ -169,3 +169,9 @@ exigir ensaio local. Não foi feito deploy nem foram alterados dados reais.
 Resultado local desta entrega: **110 testes passaram em PostgreSQL 17**; **31 passaram
 e 79 foram omitidos em SQLite** por exigirem PostgreSQL/Docker. `git diff --check`
 passou. Permanece um aviso de depreciação Starlette/httpx, sem falhas de testes.
+
+
+Regra Iberbag/Ovar atual: consultar [Paletes sobrepostas](IBERBAG_PALETES_SOBREPOSTAS.md).
+O tipo integra a identidade do saldo; a seleção FIFO não mistura tipos e os
+formulários atuais bloqueiam stock insuficiente do tipo escolhido. Os pendentes e
+os documentos históricos permanecem preservados.

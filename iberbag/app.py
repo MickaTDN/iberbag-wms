@@ -101,6 +101,7 @@ def context(request, user, sess, **kwargs):
     active = next((row for row in getattr(request.state, 'ddn_contexts', [])
                    if row[0].id == getattr(request.state, 'ddn_context', 1)), None)
     return {'request': request, 'user': user, 'csrf': sess.csrf_token if sess else '',
+            'stacked_enabled': bool(active and active[1].id == 1 and active[2].id == 1),
             'office_context': active, 'office_operations': bool(active and active[1].pallet_operations and not getattr(request.state,'office_valmet',False) and not getattr(request.state,'office_nkt',False) and not getattr(request.state,'office_alcobre',False)),
             'office_alcobre':getattr(request.state,'office_alcobre',False),
             'office_nkt':getattr(request.state,'office_nkt',False),

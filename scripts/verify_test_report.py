@@ -432,6 +432,25 @@ REQUIRED_POSTGRES |= {'test_alcobre_inventory.test_alcobre_inventory_empty_count
 REQUIRED_POSTGRES.add('test_alcobre_inventory.test_alcobre_inventory_unlabelled_found_material_never_gets_invented_identity')
 REQUIRED_WINDOWS.add('test_alcobre_inventory.test_alcobre_inventory_pdf_sqlite_is_read_only_and_absence_not_unknown')
 
+REQUIRED_POSTGRES |= {
+    'test_iberbag_stacked.test_stacked_pure_flags_pdf_and_sqlite_write_guard',
+    'test_iberbag_stacked.test_stacked_partial_putaway_separate_balances_documents_and_idempotence',
+    'test_iberbag_stacked.test_stacked_floor_only_and_idempotent_key_payload',
+    'test_iberbag_stacked.test_stacked_fifo_each_type_unknown_dates_and_no_fallback',
+    'test_iberbag_stacked.test_stacked_shortage_changed_after_review_rollback_and_concurrent_preparations',
+    'test_iberbag_stacked.test_stacked_pdf_failure_rolls_back_stock_confirmation_and_archive',
+    'test_iberbag_stacked.test_stacked_inventory_preserves_type_admin_adjustment_and_transfer_guards',
+    'test_iberbag_stacked.test_stacked_inventory_stale_reservation_and_compensation_type',
+    'test_iberbag_stacked.test_stacked_restricted_runtime_sql_guards_context_permissions_and_csrf',
+    'test_iberbag_stacked.test_stacked_restricted_runtime_rejects_cross_type_pick_and_adjustment',
+    'test_iberbag_stacked.test_stacked_upgrade18_encrypted_backup_restore_and_historical_documents',
+    'test_iberbag_stacked.test_stacked_concurrent_mixed_putaway_never_exceeds_guide_units',
+    'test_iberbag_stacked.test_stacked_mixed_lines_and_typed_reservations_do_not_mix',
+    'test_iberbag_stacked.test_stacked_new_office_review_blocks_legacy_shortage_without_losing_pendentes',
+    'test_iberbag_stacked.test_stacked_inventory_cannot_invent_pair_type_from_normal_stock',
+}
+REQUIRED_WINDOWS.add('test_iberbag_stacked.test_stacked_pure_flags_pdf_and_sqlite_write_guard')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

@@ -18,11 +18,11 @@ def picks(db, order_id):
     return db.scalars(select(DispatchPick).join(DispatchLine).where(DispatchLine.order_id == order_id).order_by(DispatchPick.id)).all()
 
 
-def availability(db, artigo, lote):
+def availability(db, artigo, lote, stacked=False):
     total = db.scalar(select(func.coalesce(func.sum(Stock.quantidade), 0)).where(
-        Stock.artigo == artigo, Stock.lote == lote, Stock.quantidade > 0))
+        Stock.artigo == artigo, Stock.lote == lote, Stock.quantidade > 0, Stock.stacked == stacked))
     reserved = db.scalar(select(func.coalesce(func.sum(DispatchPick.quantidade), 0)).join(DispatchLine).join(DispatchOrder).where(
-        DispatchLine.artigo == artigo, DispatchLine.lote == lote, DispatchOrder.status.in_(ACTIVE)))
+        DispatchLine.artigo == artigo, DispatchLine.lote == lote, DispatchLine.stacked == stacked, DispatchOrder.status.in_(ACTIVE)))
     return {'total': total, 'reserved': reserved, 'free': max(0, total - reserved)}
 
 
@@ -30,10 +30,11 @@ def payload(reference, rows):
     reference = required(reference, 'Referência do pedido')
     if not 1 <= len(rows) <= 20:
         raise DispatchError('Indica 1–20 grupos de artigo/lote.', 400)
-    values = [(required(a, 'Artigo'), required(l, 'Lote'), quantity(q)) for a, l, q in rows]
-    if len({(a, l) for a, l, q in values}) != len(values):
+    from .stacked import flag
+    values = [(required(r[0], 'Artigo'), required(r[1], 'Lote'), quantity(r[2]), flag(r[3]) if len(r)==4 else False) for r in rows]
+    if len({(a, l, t) for a, l, q, t in values}) != len(values):
         raise DispatchError('Agrupa cada artigo/lote numa única linha.', 400)
-    digest = hashlib.sha256(json.dumps([reference, values], ensure_ascii=False).encode()).hexdigest()
+    digest = hashlib.sha256(json.dumps([reference, [v if len(r)==4 else v[:3] for r,v in zip(rows,values)]], ensure_ascii=False).encode()).hexdigest()
     return reference, values, digest
 
 
@@ -58,20 +59,25 @@ def save_order(db, actor, key, reference, rows, order_id=None, version=None):
         db.execute(delete(DispatchLine).where(DispatchLine.order_id == order.id))
         order.reference, order.payload_hash = reference, digest
         order.version += 1
-    for artigo, lote, qty in values:
-        db.add(DispatchLine(order_id=order.id, artigo=artigo, lote=lote, quantidade=qty))
+    order.typed_selection = bool(order.typed_selection) or any(len(r)==4 for r in rows)
+    from .stacked import validate
+    for artigo, lote, qty, stacked in values:
+        validate(db, stacked)
+        db.add(DispatchLine(order_id=order.id, artigo=artigo, lote=lote, quantidade=qty, stacked=stacked))
     db.add(Audit(username=actor.username, action='RASCUNHO_SAIDA', details=json.dumps(
         {'pedido': order.id, 'revisao': order.version, 'referencia': reference, 'linhas': values}, ensure_ascii=False)))
     return order.id
 
 
 def fifo(db, line, allow_shortage=False, consumed=None):
+    from .stacked import validate
+    validate(db, line.stacked)
     from .lots import resolve
     article = resolve(db,line.lote,required=False)
     if article is not None and article != line.artigo:
         raise DispatchError('Artigo/lote contraditório. Exige reconciliação administrativa.')
     rows = db.execute(select(Stock, Carga).outerjoin(Carga, Carga.codigo == Stock.carga).where(
-        Stock.artigo == line.artigo, Stock.lote == line.lote, Stock.quantidade > 0).order_by(
+        Stock.artigo == line.artigo, Stock.lote == line.lote, Stock.stacked == line.stacked, Stock.quantidade > 0).order_by(
         Carga.entrada, Carga.id, Stock.id).with_for_update(of=Stock)).all()
     unknown = [stock.carga for stock, carga in rows if carga is None or carga.entrada is None]
     if unknown:
@@ -79,7 +85,7 @@ def fifo(db, line, allow_shortage=False, consumed=None):
                             + line.artigo + '/' + line.lote + ' (carga ' + unknown[0] + '). Requer resolução administrativa.')
     consumed = consumed if consumed is not None else {}
     if not allow_shortage and sum(stock.quantidade-consumed.get(stock.id,0) for stock, carga in rows) < line.quantidade:
-        raise DispatchError('Stock insuficiente para ' + line.artigo + '/' + line.lote + '.')
+        raise DispatchError('Stock insuficiente para ' + line.artigo + '/' + line.lote + (' (sobrepostas)' if line.stacked else ' (normais)') + '. Não utilizar o outro tipo.')
     plan, needed = [], line.quantidade
     for stock, carga in rows:
         if not needed: break
@@ -97,7 +103,8 @@ def fifo(db, line, allow_shortage=False, consumed=None):
 def other_active(db, line, order_id):
     return db.scalar(select(DispatchOrder.id).join(DispatchLine).where(
         DispatchOrder.id != order_id, DispatchOrder.status.in_(ACTIVE),
-        DispatchLine.artigo == line.artigo, DispatchLine.lote == line.lote).limit(1))
+        DispatchLine.artigo == line.artigo, DispatchLine.lote == line.lote,
+        DispatchLine.stacked == getattr(line, "stacked", False)).limit(1))
 
 
 @operation
@@ -191,7 +198,8 @@ def confirm_order(db, actor, order_id):
 @operation
 def save_preparation(db, actor, key, reference, lot_rows, order_id=None, version=None):
     from .lots import resolve
-    rows = [(resolve(db, required(lote, 'Lote')), required(lote, 'Lote'), quantidade) for lote, quantidade in lot_rows]
+    from .stacked import validate
+    rows = [(resolve(db, required(r[0], 'Lote')), required(r[0], 'Lote'), r[1], validate(db, r[2]) if len(r)==3 else False) for r in lot_rows]
     # Reuse the validated draft writer inside this same transaction, without nested commit.
     if order_id:
         order = db.get(DispatchOrder, order_id); owned(order, actor)
@@ -202,11 +210,12 @@ def save_preparation(db, actor, key, reference, lot_rows, order_id=None, version
         order.reviewed_at = None
     ident = save_order.__wrapped__(db, actor, key, reference, rows, order_id, version)
     db.get(DispatchOrder, ident).office = True
+    db.get(DispatchOrder, ident).typed_selection = True
     return ident
 
 
 @operation
-def review_preparation(db, actor, order_id, version):
+def review_preparation(db, actor, order_id, version, *, typed_selection=False):
     from sqlalchemy import delete
     from .lots import resolve
     order = db.get(DispatchOrder, order_id); owned(order, actor)
@@ -215,12 +224,14 @@ def review_preparation(db, actor, order_id, version):
     db.execute(delete(DispatchPick).where(DispatchPick.line_id.in_(select(DispatchLine.id).where(DispatchLine.order_id == order_id))))
     from .commercial import context
     commercial=context(db,order_id)
+    from .stacked import enabled
+    if typed_selection and enabled(db): order.typed_selection = True
     consumed={}
     for line in lines(db, order_id):
         if resolve(db, line.lote) != line.artigo:
             raise DispatchError('A associação do lote mudou. Rever o rascunho.')
         if other_active(db, line, order_id): raise DispatchError('Existem reservas antigas para este lote; resolução administrativa necessária.')
-        for stock, entrada, qty in fifo(db, line,allow_shortage=bool(commercial),consumed=consumed):
+        for stock, entrada, qty in fifo(db, line,allow_shortage=bool(commercial) and not order.typed_selection,consumed=consumed):
             db.add(DispatchPick(line_id=line.id,stock_id=stock.id,quantidade=qty,carga=stock.carga,local=stock.local,entrada=entrada))
     order.reviewed_at = now_utc()
     db.add(Audit(username=actor.username,action='REVER_PREPARACAO',details=f'Preparação {order.id}; sem reserva temporária.'))
@@ -247,7 +258,7 @@ def confirm_preparation(db, actor, order_id):
     for line in by_line.values():
         if resolve(db,line.lote) != line.artigo or other_active(db,line,order_id):
             raise DispatchError('Lote em conflito ou com reservas antigas; requer reconciliação.')
-        current = fifo(db,line,allow_shortage=bool(commercial),consumed=consumed)
+        current = fifo(db,line,allow_shortage=bool(commercial) and not order.typed_selection,consumed=consumed)
         expected=[(s.id,s.carga,s.local,day,qty) for s,day,qty in current]
         recorded=[(p.stock_id,p.carga,p.local,p.entrada,p.quantidade) for p in plan if p.line_id==line.id]
         if expected != recorded:
@@ -258,7 +269,7 @@ def confirm_preparation(db, actor, order_id):
     order.checked_by, order.checked_at = actor.username, order.confirmed_at
     db.flush()
     rows=[dict(lote=by_line[p.line_id].lote,artigo=by_line[p.line_id].artigo,
-               quantidade=p.quantidade,carga=p.carga,local=p.local) for p in plan]
+               quantidade=p.quantidade,carga=p.carga,local=p.local,stacked=by_line[p.line_id].stacked) for p in plan]
     from .contexts import label
     order.ddn_label = label(db)
     if commercial:
@@ -304,7 +315,7 @@ def archive_legacy_document(db,actor,order_id):
     if not order or order.status!='confirmed':raise DispatchError('Só emitir documento de saída confirmada.')
     if db.get(DispatchDocument,order_id):return order_id
     by_line={line.id:line for line in lines(db,order_id)}
-    rows=[dict(artigo=by_line[p.line_id].artigo,lote=by_line[p.line_id].lote,carga=p.carga,local=p.local,quantidade=p.quantidade) for p in picks(db,order_id)]
+    rows=[dict(artigo=by_line[p.line_id].artigo,lote=by_line[p.line_id].lote,carga=p.carga,local=p.local,quantidade=p.quantidade,stacked=by_line[p.line_id].stacked) for p in picks(db,order_id)]
     if not rows:raise DispatchError('Sem seleção histórica comprovada para emitir documento.')
     from .contexts import label
     order.ddn_label=label(db)

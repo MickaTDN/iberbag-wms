@@ -64,8 +64,8 @@ def new(request: Request, channel: str = 'normal', db: Session = Depends(databas
 def save(request: Request, data: dict = Depends(receiving_form), db: Session = Depends(database)):
     user, sess = form_actor(request, db, data)
     try:
-        rows = [(data.get(f'lote_{i}', ''), data.get(f'quantidade_{i}', ''),data.get(f'destination_{i}','')) for i in range(20)]
-        rows = [row for row in rows if any(v.strip() for v in row)]
+        rows = [(data.get(f'lote_{i}', ''), data.get(f'quantidade_{i}', ''),data.get(f'destination_{i}',''), data.get(f'stacked_{i}','0')) for i in range(20)]
+        rows = [row for row in rows if any(v.strip() for v in row[:3]) or row[3] != '0']
         ident = commercial.save_preparation(db, user.id, data.get('request_key'), data.get('reference') or 'Preparação de escritório', data.get('customer'),data.get('channel'),rows,
             integer(data['order_id']) if data.get('order_id') else None,
             integer(data['version']) if data.get('version') else None)
@@ -94,7 +94,7 @@ def detail(ident: int, request: Request, db: Session = Depends(database)):
         commercial=commercial.context(db,ident),prepared={l.id:commercial.line_prepared(db,l.id) for l in lines},
         incident_key=secrets.token_hex(16), document=db.get(DispatchDocument,order.id), completion=db.get(PreparationCompletion,order.id), compensation=db.get(PreparationCompensation,order.id),
         picks=service.picks(db, ident), by_line={l.id: l for l in lines},
-        available={l.id: service.availability(db, l.artigo, l.lote) for l in lines}))
+        available={l.id: service.availability(db, l.artigo, l.lote, l.stacked) for l in lines}))
 
 
 @router.post('/dispatches/{ident}/review')
@@ -104,7 +104,7 @@ def review(ident: int, request: Request, data: dict = Depends(receiving_form), d
         order = visible(db,ident,user)
         if not order.office: raise HTTPException(409,'Pedido legado: cancelar administrativamente e recriar a preparação.')
         method = service.review_preparation
-        method(db, user.id, ident, integer(data.get('version')))
+        method(db, user.id, ident, integer(data.get('version')), typed_selection=True)
         return redirect(f'/dispatches/{ident}')
     except service.DispatchError as error: return failure(request, user, sess, error)
 

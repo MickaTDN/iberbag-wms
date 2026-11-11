@@ -8,9 +8,9 @@
 <div><dt>Localização</dt><dd>{{ operation.local }}</dd></div><div><dt>Paletes</dt><dd>{{ operation.quantidade }}</dd></div>
 <div><dt>Quem arrumou</dt><dd>{{ operation.arranger or user.username }}</dd></div>
 {% if operation.confirmed_at %}<div><dt>Data/hora UTC</dt><dd>{{ operation.confirmed_at.strftime('%d/%m/%Y %H:%M:%S') }}</dd></div>{% endif %}
-</dl></section>
+<div><dt>Tipo</dt><dd>{{ "SOBREPOSTAS — 2 PALETES FÍSICAS, RETIRAR JUNTAS" if operation.stacked else "Normais" }}</dd></div></dl></section>
 {% if operation.status == 'draft' %}<p>A revisão não reserva a posição. Só a confirmação atualiza o stock; pode falhar se outro operador ocupar a posição entretanto.</p>
 <form method="post" action="/putaway/{{ operation.id }}/confirm"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="context_id" value="{{ active_context_id }}"><button class="btn" type="submit">Confirmar arrumação</button></form>
-{% else %}<p><a href="/stock/{{ operation.stock_id }}">Consultar stock e rastreabilidade</a></p>{% endif %}
+{% else %}{% if operation.document_pdf %}<p><a class="btn" href="/putaway/{{ operation.id }}/document.pdf" target="_blank" rel="noopener">Imprimir folha A4 de arrumação arquivada</a></p>{% endif %}<p><a href="/stock/{{ operation.stock_id }}">Consultar stock e rastreabilidade</a></p>{% endif %}
 <p><a href="/putaway">Voltar às paletes pendentes</a></p>
 {% endblock %}

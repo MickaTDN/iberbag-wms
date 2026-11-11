@@ -35,6 +35,9 @@ NKT_TABLES = {'nkt_owners','nkt_entries','nkt_reviews','nkt_pallets'}
 IMPORT_TABLES = {'valmet_import_drafts','valmet_import_revisions','valmet_import_confirmations'}
 ROLL_TABLES = {'valmet_rolls','valmet_roll_states','valmet_roll_events'}
 CONTROL_TABLES = {'valmet_inventories','valmet_counts','valmet_control_drafts','valmet_control_moves','valmet_inventory_decisions','valmet_control_documents'}
+STACKED_DEFAULTS = {name: {'stacked': False} for name in ('stock','putaways','dispatch_lines','stock_transfers','inventory_counts','stock_adjustments')}
+STACKED_DEFAULTS['putaways'].update(document_pdf=None, document_sha256=None)
+STACKED_DEFAULTS['dispatch_orders'] = {'typed_selection': False}
 LOCK = 72834002
 RECEIVING_TABLES = {'receipts', 'receipt_lines', 'putaways'}
 DISPATCH_TABLES = {'dispatch_orders', 'dispatch_lines', 'dispatch_picks'}
@@ -117,7 +120,7 @@ def read_data(connection):
             allowed = ({frozenset({'ddn_0002'}),frozenset({'ddn_0002','0007'}),frozenset({'ddn_security_0001'})}
                        if missing & NUMBER_TABLES else ({frozenset({'ddn_0003'})} if missing & VALMET_TABLES else
                        ({frozenset({'ddn_0004'}),frozenset({'ddn_0005'}),frozenset({'ddn_0006'})} if missing & PLANNING_TABLES else
-                       ({frozenset({'ddn_0007'})} if missing & SHIPPING_TABLES else ({frozenset({'ddn_0008'})} if missing & CONTROL_TABLES else ({frozenset({'ddn_0009'})} if missing & ROLL_TABLES else ({frozenset({'ddn_0010'})} if missing & IMPORT_TABLES else ({frozenset({'ddn_0011'})} if missing & NKT_TABLES else ({frozenset({'ddn_0012'})} if missing & NKT_RECEIVING_TABLES else ({frozenset({'ddn_0013'})} if missing & NKT_LOADING_TABLES else ({frozenset({'ddn_0014'})} if missing & NKT_INVENTORY_TABLES else ({frozenset({'ddn_0015'})} if missing & ALCOBRE_TABLES else ({frozenset({'ddn_0016'})} if missing & ALCOBRE_DISPATCH_TABLES else ({frozenset({'ddn_0017'})} if missing & ALCOBRE_INVENTORY_TABLES else {frozenset({REVISION})}))))))))))))))
+                       ({frozenset({'ddn_0007'})} if missing & SHIPPING_TABLES else ({frozenset({'ddn_0008'})} if missing & CONTROL_TABLES else ({frozenset({'ddn_0009'})} if missing & ROLL_TABLES else ({frozenset({'ddn_0010'})} if missing & IMPORT_TABLES else ({frozenset({'ddn_0011'})} if missing & NKT_TABLES else ({frozenset({'ddn_0012'})} if missing & NKT_RECEIVING_TABLES else ({frozenset({'ddn_0013'})} if missing & NKT_LOADING_TABLES else ({frozenset({'ddn_0014'})} if missing & NKT_INVENTORY_TABLES else ({frozenset({'ddn_0015'})} if missing & ALCOBRE_TABLES else ({frozenset({'ddn_0016'})} if missing & ALCOBRE_DISPATCH_TABLES else ({frozenset({'ddn_0017'})} if missing & ALCOBRE_INVENTORY_TABLES else ({frozenset({'ddn_0018'})} if 'stacked' not in {c['name'] for c in inspector.get_columns('stock')} else {frozenset({REVISION})})))))))))))))))
         if versions not in allowed:
             raise ValueError('Revisão/heads incompatíveis com o esquema. Não usar stamp para contornar.')
     if connection.dialect.name == 'sqlite':
@@ -126,6 +129,7 @@ def read_data(connection):
         if 'active' in {c['name'] for c in inspector.get_columns('locations')}:
             if connection.scalar(text('SELECT count(*) FROM locations WHERE active NOT IN (0, 1) OR active IS NULL')):
                 raise ValueError('Valor booleano inválido em locations.active; não será convertido.')
+    has_stacked = 'stacked' in {c['name'] for c in inspector.get_columns('stock')}
     result = {}
     for table in TABLES:
         if table.name in missing:
@@ -134,6 +138,11 @@ def read_data(connection):
         columns = {c['name'] for c in inspector.get_columns(table.name)}
         legacy_locations = table.name == 'locations' and legacy_revision in ('0001','0002','0003') and columns == set(table.columns.keys()) - {'active','context_id'}
         defaults={}
+        for field, value in STACKED_DEFAULTS.get(table.name, {}).items():
+            if field not in columns:
+                if has_stacked:
+                    raise ValueError('Estrutura de paletes sobrepostas incompleta: '+table.name)
+                defaults[field] = value
         if table.name=='alcobre_dispatch_events' and missing & ALCOBRE_INVENTORY_TABLES:defaults.update(control_operation_id=None,local=None)
         if 'context_id' in table.c and 'context_id' not in columns:
             defaults['context_id']=1
@@ -220,6 +229,14 @@ def archive_inventory(connection, expected):
     never hide another client's data by accepting an arbitrary table subset.
     """
     data = read_data(connection)
+    # Project only additive default metadata when it exactly matches an authenticated
+    # historical table digest. Never conceal pairs, new PDFs or typed preparations.
+    for name, defaults in STACKED_DEFAULTS.items():
+        old = expected.get('tables', {}).get(name)
+        if old and fingerprint(data[name]) != old['sha256']:
+            if all(all(row.get(k) == v for k,v in defaults.items()) for row in data[name]):
+                projected = [{k:v for k,v in row.items() if k not in defaults} for row in data[name]]
+                if fingerprint(projected) == old['sha256']: data[name] = projected
     wanted = set(expected.get('tables', {}))
     current = {t.name for t in TABLES}
     if not wanted & ALCOBRE_INVENTORY_TABLES:

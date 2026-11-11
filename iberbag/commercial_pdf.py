@@ -40,6 +40,7 @@ def document(title,subtitle,sections,closing=()):
 
 
 def render_preparation(order,info,lines,picks):
+    from .stacked import WARNING
     by_line={l.id:l for l in lines}
     totals={l.id:sum(p.quantidade for p in picks if p.line_id==l.id) for l in lines}
     sections=[]
@@ -49,7 +50,7 @@ def render_preparation(order,info,lines,picks):
         ids={l.id for l in selected}
         plan=[p for p in picks if p.line_id in ids]
         if info.channel=='normal':plan.sort(key=lambda p:(p.local.upper(),p.id))
-        rows=[(by_line[p.line_id].lote,by_line[p.line_id].artigo,p.quantidade,p.local,p.carga) for p in plan]
+        rows=[(by_line[p.line_id].lote,by_line[p.line_id].artigo,p.quantidade,(p.local+" · "+WARNING) if getattr(by_line[p.line_id],"stacked",False) else p.local,p.carga) for p in plan]
         for l in selected:
             shortage=l.quantidade-totals[l.id]
             if shortage:rows.append((l.lote,l.artigo,shortage,'PENDENTE — não recolher','S/ STOCK'))
@@ -60,6 +61,7 @@ def render_preparation(order,info,lines,picks):
             rows=[tuple(row)+('',) for row in rows]
         sections.append((('Destino: '+dest) if dest else 'CARGA — recolha por localização',
             headers,rows,
+            ([WARNING] if any(getattr(l,'stacked',False) for l in selected) else [])+
             [f'Pedidas: {asked} · Preparadas: {prepared} · Pendentes: {asked-prepared}']+
             [f'Lote {l.lote} / {l.artigo}: pedidas {l.quantidade}, preparadas {totals[l.id]}, pendentes {l.quantidade-totals[l.id]}' for l in selected],
             any(l.destination_highlight for l in selected)))

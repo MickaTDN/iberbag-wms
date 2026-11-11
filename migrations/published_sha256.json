@@ -7,5 +7,6 @@
   "migrations/versions/0006_commercial_pending_and_incoming_allocation.py": "d08e22d236883d241ca7a9ba69dd1eae4b0b47f6033001506bc444edbfe27f51",
   "migrations/versions/0007_audit_append_only.py": "fc62ce9b1597f636751547190c81049b478c9c6653559184e64b311cc534c7a2",
   "migrations/versions/ddn_0001_client_warehouse_contexts.py": "734c2305e2dac6d732bc874c213c850cf43a7631c24b3f5bf01bcd1fd46e5f42",
-  "migrations/versions/ddn_0002_exclusive_physical_codes.py": "03f36b12f1744c1ff3cccf32dde86cd90dbfc3fb18d941c6bf645d1506e614e6"
+  "migrations/versions/ddn_0002_exclusive_physical_codes.py": "03f36b12f1744c1ff3cccf32dde86cd90dbfc3fb18d941c6bf645d1506e614e6",
+  "migrations/versions/ddn_0019_iberbag_stacked.py": "c02dd9388d6850c46b36e2ea63b64314d0f72b713b7894f43d86978e6fdab88e"
 }

@@ -262,3 +262,9 @@ permanece incluída. `git diff --check` e `pip check` sem erros. Os três exempl
 verificados em conteúdo, formato A4, paginação e renderização. Subsiste um aviso de
 depreciação anterior do Starlette/httpx. Estes resultados não substituem a aceitação
 Windows/impressora/área física; não são uma declaração de validação em produção.
+
+
+Regra Iberbag/Ovar atual: consultar [Paletes sobrepostas](IBERBAG_PALETES_SOBREPOSTAS.md).
+O tipo integra a identidade do saldo; a seleção FIFO não mistura tipos e os
+formulários atuais bloqueiam stock insuficiente do tipo escolhido. Os pendentes e
+os documentos históricos permanecem preservados.

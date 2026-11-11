@@ -23,7 +23,7 @@ def render_pdf(ident,version,title,report,kind,actor,created,reason):
     story=[p(f'Alcobre · Inventário {ident} · Versão {version}'),p(title),p(labels[kind]),p(f'{actor} · {created.isoformat()}'),p(reason),Spacer(1,8)]
     data=[[p(x) for x in ['Bobine / receção','Local registado','Conferência / local real','Efeito / prova']]]
     for r in report['rows']:
-        src=r['source'];data.append([p(src['number']),p(src['local'] or 'Não informado'),p(LABELS[r['result']]+(' · '+r['local'] if r['local'] else '')),p(ACTIONS[r['action']]+' · '+(r['evidence'] or 'Por conferir'))])
+        src=r['source'];data.append([p(src['number']),p(src['local'] or 'Não informado'),p(LABELS[r['result']]+(' · '+r['local'] if r['local'] else '')+f" · Registado: {r['recorded_quantity']} · Físico: {r['physical_quantity'] if r['physical_quantity'] is not None else 'Desconhecido'} · Diferença: {r['difference'] if r['difference'] is not None else 'Por apurar'}"),p(ACTIONS[r['action']]+' · '+(r['evidence'] or 'Por conferir'))])
     for r in report['pending']:data.append([p('Receção '+str(r['source']['entry_id'])),p('Sem identidades/localização presumidas'),p(str(r['source']['remaining'])+' bobines por identificar'),p(r['evidence'] or 'Omissão por resolver')])
     for r in report['incidents']:data.append([p(r['number']),p(r['local'] or 'Não informada'),p('Ocorrência '+str(r['id'])+(' — decidida' if r['resolved'] else ' — investigar')),p(r['evidence'])])
     table=LongTable(data,colWidths=[110,95,150,168],repeatRows=1,splitInRow=1);table.setStyle(TableStyle([('GRID',(0,0),(-1,-1),.3,'#777777'),('VALIGN',(0,0),(-1,-1),'TOP')]))

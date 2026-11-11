@@ -41,7 +41,7 @@ def test_alcobre_inventory_missing_recovery_and_position_correction_keep_identit
     record(engine,actor,inv,'missing','000101')
     with scoped(engine,5) as db:
         assert a.stock(db,state='on_hand')[1]==4 and a.stock(db,state='missing')[1]==0
-        raw=s.summary(db,db.get(m.AlcobreInventory,inv));assert raw['rows'][0]['action']=='missing' and not raw['blocking']
+        raw=s.summary(db,db.get(m.AlcobreInventory,inv));assert raw['rows'][0]['action']=='missing' and raw['rows'][0]['recorded_quantity']==1 and raw['rows'][0]['physical_quantity']==0 and raw['rows'][0]['difference']==-1 and not raw['blocking']
     rev=review(engine,actor,inv);key=secrets.token_hex(16);op=confirm(engine,actor,inv,rev,key)
     assert confirm(engine,actor,inv,rev,key)==op
     from iberbag.warehouse_settings import occupied
@@ -96,7 +96,7 @@ def test_alcobre_inventory_complete_unverified_empty_pending_are_distinct(wareho
     inv=create(engine,actor,mode='complete')
     with scoped(engine,5) as db:
         raw=s.summary(db,db.get(m.AlcobreInventory,inv));assert len(raw['rows'])==4 and len(raw['locations'])==4 and raw['blocking']
-        assert all(r['result']=='unverified' for r in raw['rows'])
+        assert all(r['result']=='unverified' and r['physical_quantity'] is None and r['difference'] is None for r in raw['rows'])
     with pytest.raises(a.ReceivingError):review(engine,actor,inv)
     for n,loc in [('000101','FICT-ALC-1'),('000102','FICT-ALC-2'),('000103','FICT-ALC-3')]:record(engine,actor,inv,'found',n,loc)
     record(engine,actor,inv,'empty',local='FICT-ALC-4')
@@ -147,10 +147,10 @@ def test_alcobre_inventory_reserved_or_shipped_never_adjusted_and_stale_counts_b
 
 
 def test_alcobre_inventory_pdf_sqlite_is_read_only_and_absence_not_unknown():
-    report=dict(rows=[dict(source=dict(number='0000001',local='FICT-1'),result='unverified',local=None,action='none',evidence=None)],pending=[],incidents=[],locations=[dict(local='FICT-1',result='unverified',counted=False),dict(local='FICT-2',result='empty',counted=True)],events=[],blocking=['Por conferir'])
+    report=dict(rows=[dict(source=dict(number='0000001',local='FICT-1'),result='unverified',local=None,action='none',evidence=None,recorded_quantity=1,physical_quantity=None,difference=None)],pending=[],incidents=[],locations=[dict(local='FICT-1',result='unverified',counted=False),dict(local='FICT-2',result='empty',counted=True)],events=[],blocking=['Por conferir'])
     raw=render_pdf(1,1,'Inventário fictício',report,'conference','Fictício',datetime(2027,1,1),'Só conferência')
     reader=PdfReader(BytesIO(raw));words=' '.join(p.extract_text() for p in reader.pages)
-    assert 'POR CONFERIR' in words and 'zero contado' in words and '0000001' in words
+    assert 'POR CONFERIR' in words and 'zero contado' in words and '0000001' in words and 'Desconhecido' in words
     assert all(abs(float(p.mediabox.width)-595.28)<1 and abs(float(p.mediabox.height)-841.89)<1 for p in reader.pages)
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session

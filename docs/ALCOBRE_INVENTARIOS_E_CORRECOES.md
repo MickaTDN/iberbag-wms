@@ -31,7 +31,7 @@ Uma ocorrência localizada ainda por investigar protege essa posição contra no
 
 ## Revisão e confirmação administrativa
 
-Guardar contagens não altera saldos, estados ou localizações. Apenas o Administrador pode **Rever todos os efeitos** e, depois, **Confirmar reconciliação administrativa**, aceitando expressamente a revisão/digest e o motivo. O relatório distingue por bobine os valores registados, resultado físico, diferença/ação e prova:
+Guardar contagens não altera saldos, estados ou localizações. Apenas o Administrador pode **Rever todos os efeitos** e, depois, **Confirmar reconciliação administrativa**, aceitando expressamente a revisão/digest e o motivo. O relatório distingue por bobine a quantidade registada (1 ou 0), a quantidade física (1, 0 ou desconhecida), diferença numérica quando apurada, ação e prova. Por conferir/excluída não recebem zero físico ou diferença inventada:
 
 - Disponível/bloqueada e comprovadamente em falta → novo evento **missing**, sem expedição/GT; a ocupação só é libertada nesse commit. Identidade e última posição permanecem históricas. Uma ausência já confirmada não é descontada novamente.
 - Bloqueada ou em falta, entretanto encontrada → novo evento **available**, apenas com número existente, prova física e posição real configurada/ativa/exclusiva e livre. Não cria uma segunda bobine. O destino original ocupado por outra identidade impede a recuperação; não a sobrepõe.

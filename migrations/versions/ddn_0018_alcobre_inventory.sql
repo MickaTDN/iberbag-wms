@@ -8,14 +8,14 @@ CREATE FUNCTION alcobre_inventory_blocked(code text,ctx integer) RETURNS boolean
  SELECT EXISTS(SELECT 1 FROM alcobre_inventory_checks c WHERE c.context_id=ctx AND c.result='unknown' AND c.local=code AND NOT EXISTS(SELECT 1 FROM alcobre_inventory_checks r WHERE r.resolves_id=c.id AND r.context_id=ctx))
 $$;
 CREATE FUNCTION alcobre_inventory_unit(unit_id integer,ctx integer) RETURNS jsonb LANGUAGE sql VOLATILE SET search_path=__WMS_SCHEMA__,pg_catalog,pg_temp AS $$
- SELECT jsonb_build_object('id',b.id,'number',b.number,'entry_id',b.entry_id,'event',alcobre_current_event(b.id),'state',alcobre_current_state(b.id),'placement_id',p.id,'local',p.local)
+ SELECT jsonb_build_object('id',b.id,'number',b.number,'entry_id',b.entry_id,'event',alcobre_current_event(b.id),'state',alcobre_current_state(b.id),'placement_id',p.id,'local',p.local,'incident_version',coalesce((SELECT max(c.id) FROM alcobre_inventory_checks c WHERE c.context_id=ctx AND c.local=p.local AND c.result IN ('unknown','resolved')),0))
  FROM alcobre_bobines b LEFT JOIN alcobre_current_placements() p ON p.bobine_id=b.id AND p.context_id=ctx WHERE b.id=unit_id AND b.context_id=ctx
 $$;
 CREATE FUNCTION alcobre_inventory_pending(entry integer,ctx integer) RETURNS jsonb LANGUAGE sql VOLATILE SET search_path=__WMS_SCHEMA__,pg_catalog,pg_temp AS $$
  SELECT jsonb_build_object('entry_id',e.id,'quantity',e.quantity,'remaining',e.quantity-(SELECT count(*) FROM alcobre_bobines b WHERE b.entry_id=e.id AND b.context_id=ctx)) FROM alcobre_entries e WHERE e.context_id=ctx AND e.id=entry AND e.mode='pending' AND e.status='confirmed'
 $$;
 CREATE FUNCTION alcobre_inventory_location(wanted_code text,ctx integer) RETURNS jsonb LANGUAGE sql VOLATILE SET search_path=__WMS_SCHEMA__,pg_catalog,pg_temp AS $$
- SELECT jsonb_build_object('local',l.codigo,'active',l.active,'capacity',l.capacidade,'slot',s.id,'zone',z.id,'zone_active',z.active,'occupants',coalesce((SELECT jsonb_agg(alcobre_inventory_unit(p.bobine_id,ctx) ORDER BY p.bobine_id) FROM alcobre_current_placements() p WHERE p.context_id=ctx AND p.local=wanted_code AND alcobre_current_state(p.bobine_id) NOT IN ('shipped','missing')),'[]'::jsonb),'incident',alcobre_inventory_blocked(wanted_code,ctx))
+ SELECT jsonb_build_object('local',l.codigo,'active',l.active,'capacity',l.capacidade,'slot',s.id,'zone',z.id,'zone_active',z.active,'occupants',coalesce((SELECT jsonb_agg(alcobre_inventory_unit(p.bobine_id,ctx) ORDER BY p.bobine_id) FROM alcobre_current_placements() p WHERE p.context_id=ctx AND p.local=wanted_code AND alcobre_current_state(p.bobine_id) NOT IN ('shipped','missing')),'[]'::jsonb),'incident',alcobre_inventory_blocked(wanted_code,ctx),'incident_version',coalesce((SELECT max(c.id) FROM alcobre_inventory_checks c WHERE c.context_id=ctx AND c.local=wanted_code AND c.result IN ('unknown','resolved')),0))
  FROM locations l JOIN alcobre_slots s ON s.context_id=ctx AND s.local=l.codigo JOIN alcobre_zones z ON z.context_id=ctx AND z.id=s.zone_id WHERE l.context_id=ctx AND l.codigo=wanted_code
 $$;
 CREATE FUNCTION alcobre_inventory_scope(kind text,selected jsonb,ctx integer) RETURNS jsonb LANGUAGE plpgsql VOLATILE SET search_path=__WMS_SCHEMA__,pg_catalog,pg_temp AS $$

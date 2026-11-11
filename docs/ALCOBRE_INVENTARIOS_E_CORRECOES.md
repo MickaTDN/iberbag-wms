@@ -46,6 +46,8 @@ O documento A4 final, utilizador/data, motivo, provas, exclusões e movimentos f
 
 Mantém PostgreSQL 17/READ COMMITTED, contexto imutável de formulário/sessão, autenticação, CSRF e revalidação de permissões após o lock transacional existente. Não mantém locks durante a introdução prolongada de contagens. Cada conferência guarda uma referência ao estado/localização e ao evento corrente; uma reserva seguida de cancelamento também invalida a referência antiga, mesmo que o estado volte a Disponível.
 
+Ocorrências e decisões posteriores também mudam a referência da posição/bobine: resolver uma ocorrência não faz reviver uma contagem anterior; exige nova conferência física.
+
 Antes da aprovação e novamente ao confirmar, as funções SQL recompõem o relatório e verificam referências, reservas, posições, capacidades, ocorrências, âmbito, versões e digest. Um conflito exige nova conferência/revisão humana. Inventários concorrentes não podem sobrescrever o primeiro ajuste. Chaves idempotentes e confirmação única por inventário impedem repetição; falhas de ligação/documento/auditoria revertem tudo.
 
 A projeção de localização é apenas uma consulta: arrumação original + último evento de correção, sem tabela de saldos editável. A localização projetada identifica a revisão de correção; planos antigos de saída não continuam válidos após alterações de posição/estado. O livro de eventos já existente passa a encadear reservas, saídas e correções na mesma ordem por bobine. Funções SQL são invoker com search_path fixo, sem privilégios administrativos atribuídos ao runtime. Guardas validam origem/ator, prova, snapshot, posição no instante do evento e ordenação monotónica; livros/PDFs permanecem imutáveis. Não existe UPDATE direto de stock/projeção.

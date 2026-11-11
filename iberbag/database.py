@@ -1272,7 +1272,7 @@ class AlcobreInventoryCheck(Scoped,Base):
     resolves_id: Mapped[int|None]=mapped_column(ForeignKey('alcobre_inventory_checks.id'),unique=True)
     actor: Mapped[str]=mapped_column(String(60),nullable=False)
     created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
-    __table_args__=(CheckConstraint("result IN ('found','missing','elsewhere','unverified','excluded','empty','unknown','resolved')",name='alcobre_inventory_result'),)
+    __table_args__=(Index('ix_alcobre_inventory_check_unit','context_id','inventory_id','bobine_id','id'),Index('ix_alcobre_inventory_check_local','context_id','local','id'),CheckConstraint("result IN ('found','missing','elsewhere','unverified','excluded','empty','unknown','resolved')",name='alcobre_inventory_result'),)
 
 class AlcobreInventoryReview(Scoped,Base):
     __tablename__='alcobre_inventory_reviews'

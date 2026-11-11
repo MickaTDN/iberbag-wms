@@ -121,7 +121,9 @@ def test_alcobre_inventory_unknown_incident_does_not_create_stock_and_blocks_loc
     record(engine,actor,inv,'found','000101','FICT-ALC-1')
     with pytest.raises(a.ReceivingError):review(engine,actor,inv)
     with pytest.raises(a.ReceivingError):record(engine,u['operador'][0],inv,'resolved',resolves=check)
-    record(engine,actor,inv,'resolved',resolves=check);confirm(engine,actor,inv)
+    record(engine,actor,inv,'resolved',resolves=check)
+    with pytest.raises(a.ReceivingError):review(engine,actor,inv)
+    record(engine,actor,inv,'found','000101','FICT-ALC-1');confirm(engine,actor,inv)
     with scoped(engine,5) as db:
         assert not s.incident_locations(db) and a.stock(db,state='available')[1]==3
         assert db.scalar(select(func.count()).select_from(m.AlcobreBobine))==4
@@ -337,7 +339,9 @@ def test_alcobre_inventory_incident_after_reservation_blocks_shipping_until_deci
     before=snapshot(engine)
     with pytest.raises(a.ReceivingError):ship(engine,actor,guide,['000101'])
     assert snapshot(engine)==before
-    record(engine,actor,inv,'found','000101','FICT-ALC-1');record(engine,actor,inv,'resolved',resolves=check);confirm(engine,actor,inv)
+    record(engine,actor,inv,'found','000101','FICT-ALC-1');record(engine,actor,inv,'resolved',resolves=check)
+    with pytest.raises(a.ReceivingError):review(engine,actor,inv)
+    record(engine,actor,inv,'found','000101','FICT-ALC-1');confirm(engine,actor,inv)
     with scoped(engine,5) as db:assert a.stock(db,state='reserved')[1]==1
     ship(engine,actor,guide,['000101'])
     with scoped(engine,5) as db:assert a.stock(db,state='shipped')[1]==1
@@ -356,3 +360,15 @@ def test_alcobre_inventory_concurrent_counts_use_versions_without_lost_history(w
     with scoped(engine,5) as db:
         assert db.scalar(select(func.count()).select_from(m.AlcobreInventoryCheck))==1
         assert db.get(m.AlcobreInventory,inv).version==version+1 and a.stock(db,state='missing')[1]==0
+
+
+def test_alcobre_inventory_empty_count_invalid_after_unknown_resolved_elsewhere(warehouse):
+    engine,u=warehouse;actor=u['admin'][0];seed(engine,actor)
+    from test_alcobre import positions
+    positions(engine,actor,4)
+    first=create(engine,actor,['FICT-ALC-4']);record(engine,actor,first,'empty',local='FICT-ALC-4');rev=review(engine,actor,first)
+    second=create(engine,actor,['FICT-ALC-4']);incident=record(engine,actor,second,'unknown','FICT-UNCERTAIN','FICT-ALC-4')
+    record(engine,actor,second,'resolved',resolves=incident)
+    with pytest.raises(a.ReceivingError):confirm(engine,actor,first,rev)
+    record(engine,actor,first,'empty',local='FICT-ALC-4');confirm(engine,actor,first)
+    with scoped(engine,5) as db:assert a.stock(db,state='on_hand')[1]==4

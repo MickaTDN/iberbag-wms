@@ -317,9 +317,17 @@ def test_ui_permissions_csrf_pdf_and_zero_pick_confirmation(warehouse,monkeypatc
             response=client.post('/dispatches/save',data={'csrf':csrf,'request_key':secrets.token_hex(16),'reference':'UI FICTÍCIA','customer':'CLIENTE UI','channel':'normal','lote_0':'L','quantidade_0':'3'},follow_redirects=False)
             assert response.status_code==303
             url=response.headers['location'];ident=int(url.rsplit('/',1)[1])
-            assert client.post(url+'/review',data={'csrf':csrf,'version':'1'}).status_code==200
-            assert 'Confirmar preparação e descontar stock' in client.get(url).text
-            assert client.post(url+'/confirm',data={'csrf':csrf}).status_code==200
+            # The current type-aware office form must block a shortage; keep
+            # historical zero-pick documents/backorders independently accessible.
+            rejected=client.post(url+'/review',data={'csrf':csrf,'version':'1'})
+            assert rejected.status_code==409 and 'Stock insuficiente' in rejected.text
+            assert 'Confirmar preparação e descontar stock' not in client.get(url).text
+            assert client.post(url+'/confirm',data={'csrf':csrf}).status_code==409
+            with Session(engine) as db:
+                assert db.scalar(select(func.count()).select_from(CustomerPending))==0
+                assert db.get(DispatchOrder,ident).status=='draft'
+            legacy=preparation(engine,actor,qty=3,customer='CLIENTE UI');confirm(engine,actor,legacy)
+            url=f'/dispatches/{legacy}'
             first=client.get(url+'/document.pdf');assert first.status_code==200 and 'CLIENTE UI' in pdf_text(first.content)
             assert client.get('/pending').status_code==200
             incoming_id,line=incoming(engine,actor,2)

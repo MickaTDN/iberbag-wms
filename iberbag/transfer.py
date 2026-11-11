@@ -231,12 +231,14 @@ def archive_inventory(connection, expected):
     data = read_data(connection)
     # Project only additive default metadata when it exactly matches an authenticated
     # historical table digest. Never conceal pairs, new PDFs or typed preparations.
+    pre_context_schema = not inspect(connection).has_table('storage_contexts')
     for name, defaults in STACKED_DEFAULTS.items():
         old = expected.get('tables', {}).get(name)
         if old and fingerprint(data[name]) != old['sha256']:
             if all(all(row.get(k) == v for k,v in defaults.items()) for row in data[name]):
                 projected = [{k:v for k,v in row.items() if k not in defaults} for row in data[name]]
-                if fingerprint(projected) == old['sha256']: data[name] = projected
+                old_context_projection = pre_context_schema and all(row.get('context_id',1)==1 for row in projected) and fingerprint([{k:v for k,v in row.items() if k!='context_id'} for row in projected])==old['sha256']
+                if fingerprint(projected) == old['sha256'] or old_context_projection: data[name] = projected
     wanted = set(expected.get('tables', {}))
     current = {t.name for t in TABLES}
     if not wanted & ALCOBRE_INVENTORY_TABLES:

@@ -4,6 +4,7 @@ from threading import Barrier
 from io import BytesIO
 import hashlib
 import secrets
+import re
 
 import pytest
 from fastapi.testclient import TestClient
@@ -208,7 +209,17 @@ def test_stacked_restricted_runtime_sql_guards_context_permissions_and_csrf(rest
         response=client.post('/putaway/review',data=base,follow_redirects=False);assert response.status_code==303
         assert client.get(f'/putaway/{ident}/document.pdf').content==client.get(f'/putaway/{ident}/document.pdf').content
         assert 'Sobrepostas' in client.get('/stock').text
-        assert client.post('/dispatches/save',data={'csrf':tokens['operador'][1],'context_id':'1','request_key':secrets.token_hex(16),'customer':'Fictício','channel':'normal','lote_0':'LOT','quantidade_0':'1','stacked_0':'1'},follow_redirects=False).status_code==303
+        form=client.get('/dispatches/new').text
+        assert 'checked' not in re.search(r'<input[^>]+name="stacked_0"[^>]*>',form).group()
+        assert 'name="stacked"' not in client.get('/receipts/new').text
+        saved=client.post('/dispatches/save',data={'csrf':tokens['operador'][1],'context_id':'1','request_key':secrets.token_hex(16),'customer':'Fictício','channel':'normal','lote_0':'LOT','quantidade_0':'1','stacked_0':'1'},follow_redirects=False)
+        assert saved.status_code==303
+        outgoing=int(saved.headers['location'].split('/')[-1])
+        valid={'csrf':tokens['operador'][1],'context_id':'1','version':'1'}
+        assert client.post(f'/dispatches/{outgoing}/review',data=valid,follow_redirects=False).status_code==303
+        assert client.post(f'/dispatches/{outgoing}/confirm',data=valid,follow_redirects=False).status_code==303
+        assert client.get(f'/dispatches/{outgoing}/document.pdf').content==client.get(f'/dispatches/{outgoing}/document.pdf').content
+        with Session(runtime) as db:assert db.scalar(select(m.Stock.quantidade).where(m.Stock.stacked.is_(True)))==1
         order=int(client.post('/dispatches/save',data={'csrf':tokens['operador'][1],'context_id':'1','request_key':secrets.token_hex(16),'customer':'Fictício','channel':'normal','lote_0':'LOT','quantidade_0':'1'},follow_redirects=False).headers['location'].split('/')[-1])
         with Session(runtime) as db:assert not d.lines(db,order)[0].stacked and db.get(m.DispatchOrder,order).typed_selection
         client.cookies.set('wms_session',tokens['admin'][0])
@@ -236,6 +247,25 @@ def test_stacked_restricted_runtime_rejects_cross_type_pick_and_adjustment(restr
         dl=d.lines(db,order)[0];stock=db.scalar(select(m.Stock));load=db.scalar(select(m.Carga))
         with pytest.raises(DBAPIError):
             db.add(m.DispatchPick(line_id=dl.id,stock_id=stock.id,carga=stock.carga,local=stock.local,entrada=load.entrada,quantidade=1));db.commit()
+    with Session(runtime) as db:
+        stock=db.scalar(select(m.Stock));inv=i.create_inventory(db,actor,secrets.token_hex(16),'FORJADO','partial',['Chão'])
+        with pytest.raises(DBAPIError):
+            db.add(m.StockAdjustment(inventory_id=inv,stock_id=stock.id,artigo=stock.artigo,lote=stock.lote,carga=stock.carga,
+                local=stock.local,stacked=False,before=2,after=3,delta=1,reason='Forjado',actor='admin'));db.commit()
+    with runtime.begin() as conn,pytest.raises(DBAPIError):
+        conn.execute(text('UPDATE dispatch_orders SET typed_selection=false WHERE id=:id'),{'id':order})
+    with Session(runtime) as db:
+        forged=m.DispatchOrder(request_key=secrets.token_hex(16),payload_hash='a'*64,reference='FORJADO',created_by=actor,office=True)
+        db.add(forged);db.flush()
+        with pytest.raises(DBAPIError):
+            db.add(m.DispatchLine(order_id=forged.id,artigo='ART',lote='LOT',quantidade=1,stacked=True));db.commit()
+    with Session(runtime) as db:
+        forged=m.DispatchOrder(request_key=secrets.token_hex(16),payload_hash='b'*64,reference='TEMP FICTÍCIO',created_by=actor,office=True)
+        db.add(forged);db.flush();ident=forged.id
+        db.execute(text('CREATE TEMP TABLE dispatch_orders(id integer,context_id integer,typed_selection boolean,status text)'))
+        db.execute(text("INSERT INTO pg_temp.dispatch_orders VALUES(:id,1,true,'draft')"),{'id':ident})
+        with pytest.raises(DBAPIError):
+            db.add(m.DispatchLine(order_id=ident,artigo='ART',lote='LOT',quantidade=1,stacked=True));db.commit()
 
 
 def test_stacked_upgrade18_encrypted_backup_restore_and_historical_documents(pg_databases,tmp_path):

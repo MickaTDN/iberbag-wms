@@ -60,6 +60,7 @@ def save_order(db, actor, key, reference, rows, order_id=None, version=None):
         order.reference, order.payload_hash = reference, digest
         order.version += 1
     order.typed_selection = bool(order.typed_selection) or any(len(r)==4 for r in rows)
+    db.flush()  # SQL child guards must see the strict parent policy before inserts.
     from .stacked import validate
     for artigo, lote, qty, stacked in values:
         validate(db, stacked)

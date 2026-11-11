@@ -5,7 +5,7 @@ from .stacked import WARNING
 
 def render_pdf(operation, line, receipt):
     return document(f'Arrumação #{operation.id}',
-        [f'Carga: {receipt.code} · Entrada: {receipt.received_on:%d/%m/%Y}',
+        [getattr(receipt,'ddn_label','DDN WMS'), f'Carga: {receipt.code} · Entrada: {receipt.received_on:%d/%m/%Y}',
          f'Arrumou: {operation.arranger} · {operation.confirmed_at} UTC'],
         [('Arrumação confirmada', ('Artigo', 'Lote', 'Carga', 'Localização', 'Unidades da guia'),
           [(line.artigo, line.lote, receipt.code, operation.local, operation.quantidade)],

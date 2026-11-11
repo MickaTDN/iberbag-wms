@@ -259,6 +259,8 @@ def confirm_putaway(db, actor, putaway_id):
                       local=record.local, quantidade=record.quantidade, stacked=record.stacked)
         db.add(stock)
     db.flush()
+    from .contexts import label
+    receipt.ddn_label = label(db)
     record.stock_id, record.arranger = stock.id, actor.username
     record.status, record.confirmed_at = 'confirmed', now_utc()
     from .putaway_pdf import render_pdf

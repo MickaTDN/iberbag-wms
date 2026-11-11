@@ -51,6 +51,7 @@ def save_preparation(db, actor, key, reference, customer, channel, rows, order_i
         order.version+=1
         info.customer,info.channel=customer,channel
     order.typed_selection = bool(order.typed_selection) or typed
+    db.flush()  # SQL child guards must see the strict parent policy before inserts.
     for artigo,lote,qty,dest,stacked in values:
         option=db.scalar(select(MercadonaDestination).where(MercadonaDestination.name==dest,MercadonaDestination.active.is_(True))) if dest else None
         if channel=='mercadona' and not option: raise ReceivingError('Destino Mercadona inexistente ou inativo. Configurar em Definições.')

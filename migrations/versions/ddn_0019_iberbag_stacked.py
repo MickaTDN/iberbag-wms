@@ -45,6 +45,9 @@ def upgrade():
         RAISE EXCEPTION 'Stacked pairs only in Iberbag Ovar' USING ERRCODE='23514';
       END IF;
       IF TG_TABLE_NAME='dispatch_lines' THEN
+        IF NEW.stacked AND NOT EXISTS(SELECT 1 FROM dispatch_orders WHERE id=NEW.order_id AND context_id=NEW.context_id AND typed_selection) THEN
+          RAISE EXCEPTION 'Stacked lines require strict typed selection' USING ERRCODE='23514';
+        END IF;
         IF EXISTS(SELECT 1 FROM dispatch_picks p JOIN stock s ON s.id=p.stock_id AND s.context_id=p.context_id
           WHERE p.line_id=NEW.id AND p.context_id=NEW.context_id AND s.stacked IS DISTINCT FROM NEW.stacked) THEN
           RAISE EXCEPTION 'Cannot relabel a typed pick plan' USING ERRCODE='23514';
@@ -104,7 +107,9 @@ def upgrade():
       RETURN NEW;
     END $$''')
     op.execute('CREATE TRIGGER stacked_dispatch_complete BEFORE UPDATE ON dispatch_orders FOR EACH ROW EXECUTE FUNCTION ddn_stacked_dispatch_complete()')
+    schema = op.get_bind().dialect.identifier_preparer.quote(op.get_bind().scalar(sa.text('SELECT current_schema()')))
     for fn in ('ddn_stacked_guard()','ddn_stacked_dispatch_complete()'):
+        op.execute(f'ALTER FUNCTION {fn} SET search_path TO pg_catalog, {schema}, pg_temp')
         op.execute(f'REVOKE ALL ON FUNCTION {fn} FROM PUBLIC')
 
 

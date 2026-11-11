@@ -16,6 +16,6 @@
 {% if allocations %}<h2>Carregadas contabilisticamente para clientes</h2><p>Separar estas paletes; não entram no stock disponível. <a href="/pending/allocations">Consultar situação física / recolhas sem segundo desconto</a>.</p><table><thead><tr><th>Cliente / destino</th><th>Lote / artigo</th><th>Paletes</th><th>Encomenda</th></tr></thead><tbody>{% for a,p,l,o,c,r,h in allocations %}<tr><td>{{ c.customer }} {{ '/ '+l.destination if l.destination else '' }}</td><td>{{ r.lote }} / {{ r.artigo }}</td><td>{{ a.quantidade }}</td><td><a href="/dispatches/{{ o.id }}">{{ o.reference }}</a></td></tr>{% endfor %}</tbody></table>{% endif %}
 <h2>Histórico de arrumação</h2>
 <section class="panel"><table><thead><tr><th>Operação</th><th>Localização</th><th>Paletes</th><th>Quem arrumou</th><th>Data/hora UTC</th></tr></thead><tbody>
-{% for event in events %}<tr><td><a href="/putaway/{{ event.id }}">#{{ event.id }}</a></td><td>{{ event.local }}</td><td>{{ event.quantidade }}</td><td>{{ event.arranger }}</td><td>{{ event.confirmed_at.strftime('%d/%m/%Y %H:%M:%S') }}</td></tr>{% else %}<tr><td colspan="5">Sem arrumações confirmadas.</td></tr>{% endfor %}
+{% for event in events %}<tr><td><a href="/putaway/{{ event.id }}">#{{ event.id }}</a></td><td>{{ event.local }} · {{ "Sobrepostas" if event.stacked else "Normais" }}</td><td>{{ event.quantidade }}</td><td>{{ event.arranger }}</td><td>{{ event.confirmed_at.strftime('%d/%m/%Y %H:%M:%S') }}</td></tr>{% else %}<tr><td colspan="5">Sem arrumações confirmadas.</td></tr>{% endfor %}
 </tbody></table></section>
 {% endblock %}

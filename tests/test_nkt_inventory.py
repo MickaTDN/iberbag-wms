@@ -285,7 +285,7 @@ def test_nkt_inventory_ddn14_upgrade_native_archive_and_encrypted_recovery(pg_da
         for row in native['nkt_documents']:row.pop('inventory_review_id')
         legacy=transfer.inventory(native);assert transfer.archive_inventory(conn,legacy)==legacy
     folder=tmp_path/'prior14';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD);backup.restore(target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0018'
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0019'
     with engine.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==before and transfer.archive_inventory(conn,legacy)==legacy
     first,second=entries(engine);ident=create(engine,actor);mark(engine,actor,ident,'not_located',entry=first);original=confirm(engine,actor,ident,review(engine,actor,ident))
     with scoped(engine,4) as db:

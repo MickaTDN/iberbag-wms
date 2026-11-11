@@ -433,6 +433,27 @@ REQUIRED_POSTGRES.add('test_alcobre_inventory.test_alcobre_inventory_unlabelled_
 REQUIRED_WINDOWS.add('test_alcobre_inventory.test_alcobre_inventory_pdf_sqlite_is_read_only_and_absence_not_unknown')
 
 REQUIRED_POSTGRES |= {
+    'test_iberbag_stacked.test_stacked_pure_flags_pdf_and_sqlite_write_guard',
+    'test_iberbag_stacked.test_stacked_partial_putaway_separate_balances_documents_and_idempotence',
+    'test_iberbag_stacked.test_stacked_floor_only_and_idempotent_key_payload',
+    'test_iberbag_stacked.test_stacked_fifo_each_type_unknown_dates_and_no_fallback',
+    'test_iberbag_stacked.test_stacked_shortage_changed_after_review_rollback_and_concurrent_preparations',
+    'test_iberbag_stacked.test_stacked_pdf_failure_rolls_back_stock_confirmation_and_archive',
+    'test_iberbag_stacked.test_stacked_inventory_preserves_type_admin_adjustment_and_transfer_guards',
+    'test_iberbag_stacked.test_stacked_inventory_stale_reservation_and_compensation_type',
+    'test_iberbag_stacked.test_stacked_restricted_runtime_sql_guards_context_permissions_and_csrf',
+    'test_iberbag_stacked.test_stacked_restricted_runtime_rejects_cross_type_pick_and_adjustment',
+    'test_iberbag_stacked.test_stacked_upgrade18_encrypted_backup_restore_and_historical_documents',
+    'test_iberbag_stacked.test_stacked_concurrent_mixed_putaway_never_exceeds_guide_units',
+    'test_iberbag_stacked.test_stacked_mixed_lines_and_typed_reservations_do_not_mix',
+    'test_iberbag_stacked.test_stacked_new_office_review_blocks_legacy_shortage_without_losing_pendentes',
+    'test_iberbag_stacked.test_stacked_inventory_cannot_invent_pair_type_from_normal_stock',
+    'test_iberbag_stacked.test_stacked_inventory_never_converts_pairs_into_normal_units',
+    'test_iberbag_stacked.test_stacked_restricted_runtime_forbids_balanced_type_conversion',
+    'test_iberbag_stacked.test_stacked_independent_positive_adjustment_missing_and_proven_pair_recovery',
+}
+REQUIRED_WINDOWS.add('test_iberbag_stacked.test_stacked_pure_flags_pdf_and_sqlite_write_guard')
+REQUIRED_POSTGRES |= {
     'test_alcobre_integrated.test_integrated_alcobre_receipts_dispatch_inventory_and_full_encrypted_recovery',
     'test_alcobre_integrated.test_integrated_alcobre_review_stale_after_location_correction_or_receipt_putaway',
     'test_alcobre_integrated.test_integrated_alcobre_failures_between_ledger_document_and_audit_are_atomic',

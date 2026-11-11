@@ -232,7 +232,7 @@ def test_migration_preserves_every_legacy_column_and_document(warehouse,pg_datab
     engine,accounts=warehouse;actor=accounts['admin'][0]
     receive(engine,actor,qty=5);prepare(engine,actor,1,7)
     with engine.connect() as conn:
-        legacy={t.name:[{k:v for k,v in r.items() if k!='context_id'} for r in conn.execute(select(t)).mappings()]
+        legacy={t.name:[{k:v for k,v in r.items() if k!='context_id' and k not in transfer.STACKED_DEFAULTS.get(t.name,{})} for r in conn.execute(select(t)).mappings()]
                 for t in Base.metadata.sorted_tables if t.name not in transfer.CONTEXT_TABLES | transfer.PHYSICAL_TABLES | transfer.VALMET_TABLES | transfer.NKT_TABLES | transfer.NKT_RECEIVING_TABLES | transfer.NKT_LOADING_TABLES | (transfer.NKT_INVENTORY_TABLES | (transfer.ALCOBRE_TABLES | (transfer.ALCOBRE_DISPATCH_TABLES | transfer.ALCOBRE_INVENTORY_TABLES)))}
     target=pg_databases(restricted=True)
     with target.begin() as conn:
@@ -257,7 +257,13 @@ def test_migration_preserves_every_legacy_column_and_document(warehouse,pg_datab
         command.upgrade(cfg,REVISION)
         for name,expected in legacy.items():
             table=Base.metadata.tables[name]
-            actual=[{k:v for k,v in r.items() if k!='context_id'} for r in conn.execute(select(table)).mappings()]
+            restored=[dict(r) for r in conn.execute(select(table)).mappings()]
+            # 0006 never had physical-type flags or putaway PDFs. Preserve every
+            # historical column/document and separately prove the additive defaults.
+            for row in restored:
+                for column,default in transfer.STACKED_DEFAULTS.get(name,{}).items():
+                    assert row[column]==default,(name,column)
+            actual=[{k:v for k,v in r.items() if k!='context_id' and k not in transfer.STACKED_DEFAULTS.get(name,{})} for r in restored]
             assert sorted(actual,key=repr)==sorted(expected,key=repr),name
         assert conn.scalar(text('SELECT count(*) FROM stock WHERE context_id<>1'))==0
         assert conn.scalar(text('SELECT count(*) FROM clients'))==5

@@ -104,7 +104,7 @@ def scope(ident:int,request:Request,db:Session=Depends(database)):
     if not item:raise HTTPException(404)
     rows=service.counts(db,item.id)
     output=StringIO(); writer=csv.writer(output,delimiter=';',lineterminator='\n')
-    for row in rows:writer.writerow([row.artigo or '',row.lote or '',row.carga or '',row.quantidade])
+    for row in rows:writer.writerow([row.artigo or '',row.lote or '',row.carga or '',row.quantidade,'sobrepostas' if row.stacked else 'normal'])
     return render(request,'inventory_scope.html',context(request,user,sess,scope=item,
         inv=db.get(PhysicalInventory,item.inventory_id),baseline=json.loads(item.baseline),physical=output.getvalue(),
         stale=service.clock(db,item.local)!=item.clock,pending=any(row.pending for row in rows)))
@@ -117,8 +117,12 @@ def count(ident:int,request:Request,data:dict=Depends(receiving_form),db:Session
         rows=[]
         for row in csv.reader(StringIO(data.get('physical','')),delimiter=';'):
             if not any(value.strip() for value in row):continue
-            if len(row)!=4:raise service.InventoryError('Cada linha deve ter artigo;lote;carga;paletes.',400)
-            rows.append(tuple(value.strip() for value in row))
+            if len(row) not in (4,5):raise service.InventoryError('Cada linha deve ter artigo;lote;carga;unidades;tipo (normal/sobrepostas).',400)
+            values=[value.strip() for value in row]
+            if len(values)==5:
+                if values[4] not in ('normal','sobrepostas'):raise service.InventoryError('Tipo deve ser normal ou sobrepostas.',400)
+                values[4]=values[4]=='sobrepostas'
+            rows.append(tuple(values))
         inv=service.save_count(db,user.id,ident,integer(data.get('version')),rows,data.get('note',''),data.get('empty')=='1')
         return redirect(f'/inventory/{inv}')
     except (csv.Error,service.InventoryError) as error:

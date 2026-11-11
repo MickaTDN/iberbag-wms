@@ -94,6 +94,7 @@ class FailedLogin(Base):
     occurred_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, nullable=False)
 
 class Stock(Scoped, Base):
+    stacked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'), nullable=False)
     __tablename__ = 'stock'
     id: Mapped[int] = mapped_column(primary_key=True)
     artigo: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -102,7 +103,7 @@ class Stock(Scoped, Base):
     local: Mapped[str] = mapped_column(String(120), nullable=False)
     quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
     __table_args__ = (
-        UniqueConstraint('artigo', 'lote', 'carga', 'local', name='stock_key_unique'),
+        UniqueConstraint('artigo', 'lote', 'carga', 'local', 'stacked', name='stock_key_unique'),
         CheckConstraint('quantidade >= 0', name='stock_nonnegative'),
         Index('ix_stock_article_lot_location', 'artigo', 'lote', 'local'),
     )
@@ -257,6 +258,9 @@ class ReceiptLine(Scoped, Base):
 
 
 class Putaway(Scoped, Base):
+    document_pdf: Mapped[bytes | None] = mapped_column(LargeBinary)
+    document_sha256: Mapped[str | None] = mapped_column(String(64))
+    stacked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'), nullable=False)
     __tablename__ = 'putaways'
     id: Mapped[int] = mapped_column(primary_key=True)
     request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
@@ -277,6 +281,7 @@ class Putaway(Scoped, Base):
 
 
 class DispatchOrder(Scoped, Base):
+    typed_selection: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'), nullable=False)
     __tablename__ = 'dispatch_orders'
     office: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'), nullable=False)
     cancellation_reason: Mapped[str | None] = mapped_column(Text)
@@ -306,6 +311,7 @@ class DispatchOrder(Scoped, Base):
 
 
 class DispatchLine(Scoped, Base):
+    stacked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'), nullable=False)
     __tablename__ = 'dispatch_lines'
     destination: Mapped[str] = mapped_column(String(120), nullable=False, default='', server_default='')
     destination_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
@@ -316,7 +322,7 @@ class DispatchLine(Scoped, Base):
     lote: Mapped[str] = mapped_column(String(120), nullable=False)
     quantidade: Mapped[int] = mapped_column(Integer, nullable=False)
     __table_args__ = (
-        UniqueConstraint('order_id', 'artigo', 'lote', 'destination', name='dispatch_line_unique'),
+        UniqueConstraint('order_id', 'artigo', 'lote', 'destination', 'stacked', name='dispatch_line_unique'),
         CheckConstraint('quantidade > 0', name='dispatch_line_positive'),
     )
 
@@ -339,6 +345,7 @@ class DispatchPick(Scoped, Base):
 
 
 class StockTransfer(Scoped, Base):
+    stacked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'), nullable=False)
     __tablename__ = 'stock_transfers'
     id: Mapped[int] = mapped_column(primary_key=True)
     request_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
@@ -430,6 +437,7 @@ class InventoryScope(Scoped, Base):
 
 
 class InventoryCount(Scoped, Base):
+    stacked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'), nullable=False)
     __tablename__ = 'inventory_counts'
     id: Mapped[int] = mapped_column(primary_key=True)
     scope_id: Mapped[int] = mapped_column(ForeignKey('inventory_scopes.id'), nullable=False, index=True)
@@ -462,6 +470,7 @@ class StockIncident(Scoped, Base):
 
 
 class StockAdjustment(Scoped, Base):
+    stacked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text('false'), nullable=False)
     __tablename__ = 'stock_adjustments'
     id: Mapped[int] = mapped_column(primary_key=True)
     inventory_id: Mapped[int] = mapped_column(ForeignKey('physical_inventories.id'), nullable=False, index=True)

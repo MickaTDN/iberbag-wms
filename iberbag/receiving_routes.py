@@ -150,7 +150,7 @@ def review_putaway(request: Request, data: dict = Depends(receiving_form), db: S
     user, sess = form_actor(request, db, data)
     try:
         operation = service.review_putaway(db, user.id, data.get('request_key'), integer(data.get('line_id')),
-            data.get('local'), data.get('quantidade'))
+            data.get('local'), data.get('quantidade'), data.get('stacked', '0'))
         return redirect(f'/putaway/{operation}')
     except service.ReceivingError as error:
         return failure(request, user, sess, error)
@@ -197,3 +197,16 @@ def receipt_archive(receipt_id:int,request:Request,data:dict=Depends(receiving_f
         commercial.archive_legacy_receipt(db,user.id,receipt_id)
         return redirect(f'/receipts/{receipt_id}')
     except service.ReceivingError as error:return failure(request,user,sess,error)
+
+
+@router.get('/putaway/{operation_id}/document.pdf')
+def putaway_pdf(operation_id: int, request: Request, db: Session = Depends(database)):
+    from fastapi.responses import Response
+    user, sess = identity(request, db)
+    if not user: return redirect('/login')
+    item = db.get(Putaway, operation_id)
+    if not item or item.status != 'confirmed' or not item.document_pdf:
+        raise HTTPException(404, 'Documento de arrumação não disponível.')
+    return Response(item.document_pdf, media_type='application/pdf', headers={
+        'Content-Disposition': f'inline; filename="arrumacao-{operation_id}.pdf"',
+        'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})

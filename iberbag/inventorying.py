@@ -29,7 +29,7 @@ def admin(actor):
 
 def snapshot(db,local):
     rows=db.scalars(select(Stock).where(Stock.local==local,Stock.quantidade>0).order_by(Stock.id)).all()
-    return [dict(artigo=s.artigo,lote=s.lote,carga=s.carga,quantidade=s.quantidade) for s in rows]
+    return [dict(artigo=s.artigo,lote=s.lote,carga=s.carga,quantidade=s.quantidade,stacked=s.stacked) for s in rows]
 
 
 def scopes(db,inventory_id):
@@ -86,20 +86,23 @@ def save_count(db,actor,scope_id,version,rows,note='',empty=False):
     if not empty and not rows: raise InventoryError('Assinalar vazia ou indicar grupos. Não contada não significa zero.',400)
     if len(note)>1000: raise InventoryError('Observação demasiado longa.',400)
     entries=[]; known=set()
-    for artigo,lote,carga,qty in rows:
+    for values in rows:
+        artigo,lote,carga,qty = values[:4]
+        from .stacked import validate
+        stacked = validate(db, values[4] if len(values)==5 else False, scope.local)
         artigo=required(artigo,'Artigo') if artigo.strip() else None
         lote=required(lote,'Lote') if lote.strip() else None
         carga=required(carga,'Carga') if carga.strip() else None
         qty=quantity(qty); pending=not all((artigo,lote,carga))
         if not pending:
-            key=(artigo,lote,carga)
+            key=(artigo,lote,carga,stacked)
             if key in known: raise InventoryError('Agrupar linhas repetidas da contagem.',400)
             known.add(key)
             try: assert_lot(db,lote,artigo)
             except InventoryError: pending=True
             if not db.scalar(select(Carga.id).where(Carga.codigo==carga)): pending=True
         if pending and not note.strip(): raise InventoryError('Identidade desconhecida/contraditória exige observação para investigação.',400)
-        entries.append(dict(artigo=artigo,lote=lote,carga=carga,quantidade=qty,pending=pending))
+        entries.append(dict(artigo=artigo,lote=lote,carga=carga,quantidade=qty,pending=pending,stacked=stacked))
     db.execute(delete(InventoryCount).where(InventoryCount.scope_id==scope.id))
     for row in entries: db.add(InventoryCount(scope_id=scope.id,**row))
     scope.counted=True; scope.version+=1
@@ -128,13 +131,13 @@ def submit_inventory(db,actor,inventory_id):
 def differences(db,inventory_id):
     result=[]
     for scope in scopes(db,inventory_id):
-        baseline={(r['artigo'],r['lote'],r['carga']):r['quantidade'] for r in json.loads(scope.baseline)}
+        baseline={(r['artigo'],r['lote'],r['carga'],r.get('stacked',False)):r['quantidade'] for r in json.loads(scope.baseline)}
         physical_rows=counts(db,scope.id)
         uncertain=any(row.pending for row in physical_rows)
-        physical={(r.artigo,r.lote,r.carga):r.quantidade for r in physical_rows if not r.pending}
+        physical={(r.artigo,r.lote,r.carga,r.stacked):r.quantidade for r in physical_rows if not r.pending}
         for key in sorted(set(baseline)|set(physical)):
             before=baseline.get(key,0); after=physical.get(key,0) if scope.counted and not uncertain else None
-            result.append(dict(scope=scope,artigo=key[0],lote=key[1],carga=key[2],before=before,after=after,
+            result.append(dict(scope=scope,artigo=key[0],lote=key[1],carga=key[2],stacked=key[3],before=before,after=after,
                                delta=None if after is None else after-before))
     return result
 
@@ -150,7 +153,7 @@ def open_preparations(db,row,except_order=None):
         PreparationCompensation,PreparationCompensation.order_id==DispatchOrder.id).where(
         DispatchOrder.status=='confirmed',PreparationCompletion.order_id.is_(None),
         PreparationCompensation.order_id.is_(None),DispatchLine.artigo==row['artigo'],DispatchLine.lote==row['lote'],
-        DispatchPick.carga==row['carga'],DispatchPick.local==row['scope'].local)
+        DispatchPick.carga==row['carga'],DispatchPick.local==row['scope'].local,DispatchLine.stacked==row['stacked'])
     if except_order is not None: query=query.where(DispatchOrder.id!=except_order)
     return db.scalar(query.limit(1))
 
@@ -177,6 +180,12 @@ def approve_inventory(db,actor,inventory_id,reason,compensate_order=None):
         location=db.scalar(select(Location).where(Location.codigo==scope.local))
         if location and location.capacidade is not None and total>location.capacidade: raise InventoryError('Capacidade física excedida em '+scope.local)
     changes=[r for r in differences(db,inv.id) if r['delta']]
+    # Two balances are identities, not interchangeable quantities. Even an
+    # administrator must not compensate one type by creating the other.
+    positive={(r['artigo'],r['lote'],r['carga'],r['stacked']) for r in changes if r['delta']>0}
+    negative={(r['artigo'],r['lote'],r['carga'],r['stacked']) for r in changes if r['delta']<0}
+    if any((a,l,c,not kind) in negative for a,l,c,kind in positive):
+        raise InventoryError('Conversão entre normais e sobrepostas bloqueada. Rever a identificação física, sem compensar tipos.')
     if compensate_order is not None:
         from .dispatching import picks,lines
         order=db.get(DispatchOrder,compensate_order); doc=db.get(DispatchDocument,compensate_order)
@@ -194,13 +203,23 @@ def approve_inventory(db,actor,inventory_id,reason,compensate_order=None):
         for pick in picks(db,order.id):
             original=db.scalar(select(Carga).where(Carga.codigo==pick.carga))
             if original is None or original.entrada!=pick.entrada: raise InventoryError('Data/carga alterada desde a preparação. Compensação exige reconciliação.')
-            line=by_line[pick.line_id]; key=(line.artigo,line.lote,pick.carga,pick.local)
+            line=by_line[pick.line_id]; key=(line.artigo,line.lote,pick.carga,pick.local,line.stacked)
             expected[key]=expected.get(key,0)+pick.quantidade
-        actual={(r['artigo'],r['lote'],r['carga'],r['scope'].local):r['delta'] for r in changes}
+        actual={(r['artigo'],r['lote'],r['carga'],r['scope'].local,r['stacked']):r['delta'] for r in changes}
         if expected!=actual: raise InventoryError('A contagem física não comprova a restituição exata de toda a preparação.')
     for row in changes:
+        from .stacked import validate
+        validate(db, row['stacked'], row['scope'].local)
         protect_reservations(db,row['artigo'],row['lote'])
         if row['delta']>0:
+            has_pairs=db.scalar(select(Stock.id).where(Stock.artigo==row['artigo'],Stock.lote==row['lote'],Stock.carga==row['carga'],Stock.stacked.is_(True)).limit(1))
+            if row['stacked'] or has_pairs:
+                from .database import Putaway, ReceiptLine, Receipt
+                evidence=db.scalar(select(Putaway.id).join(ReceiptLine).join(Receipt).where(
+                    Putaway.status=='confirmed',Putaway.stacked==row['stacked'],ReceiptLine.artigo==row['artigo'],
+                    ReceiptLine.lote==row['lote'],Receipt.code==row['carga']).limit(1))
+                if not evidence:
+                    raise InventoryError('Não converter o tipo por ajuste. Tipo original não comprovado na arrumação.')
             from .commercial import outstanding_group
             if outstanding_group(db,row['artigo'],row['lote'],row['carga']):
                 raise InventoryError('Há paletes carregadas contabilisticamente para clientes a aguardar recolha. Não repor como stock livre.')
@@ -221,16 +240,16 @@ def approve_inventory(db,actor,inventory_id,reason,compensate_order=None):
             if open_preparations(db,row,compensate_order): raise InventoryError('Há preparação impressa ainda não concluída fisicamente. Não duplicar paletes já descontadas.')
         if not 0<=row['after']<=MAX_INT: raise InventoryError('Quantidade fora do limite técnico.')
     for row in changes:
-        stock=db.scalar(select(Stock).where(Stock.artigo==row['artigo'],Stock.lote==row['lote'],Stock.carga==row['carga'],Stock.local==row['scope'].local).with_for_update())
+        stock=db.scalar(select(Stock).where(Stock.artigo==row['artigo'],Stock.lote==row['lote'],Stock.carga==row['carga'],Stock.local==row['scope'].local,Stock.stacked==row['stacked']).with_for_update())
         if stock is None:
-            stock=Stock(artigo=row['artigo'],lote=row['lote'],carga=row['carga'],local=row['scope'].local,quantidade=row['after'])
+            stock=Stock(artigo=row['artigo'],lote=row['lote'],carga=row['carga'],local=row['scope'].local,quantidade=row['after'],stacked=row['stacked'])
             db.add(stock)
         else:
             if stock.quantidade!=row['before']: raise InventoryError('Saldo mudou durante a aprovação. Reconciliar novamente.')
             stock.quantidade=row['after']
         db.flush()
         db.add(StockAdjustment(inventory_id=inv.id,stock_id=stock.id,artigo=stock.artigo,lote=stock.lote,carga=stock.carga,local=stock.local,
-            before=row['before'],after=row['after'],delta=row['delta'],reason=reason,actor=actor.username))
+            stacked=stock.stacked,before=row['before'],after=row['after'],delta=row['delta'],reason=reason,actor=actor.username))
     inv.status='applied'; inv.applied_by,inv.applied_at,inv.reason=actor.username,now_utc(),reason
     if compensate_order is not None:
         db.add(PreparationCompensation(order_id=compensate_order,inventory_id=inv.id,reason=reason,actor=actor.username))

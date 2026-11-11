@@ -24,9 +24,11 @@ def save_preparation(db, actor, key, reference, customer, channel, rows, order_i
     if channel not in ('normal','mercadona'): raise ReceivingError('Tipo de preparação inválido.',400)
     if channel=='mercadona': customer='Mercadona'
     if not 1<=len(rows)<=20: raise ReceivingError('Indicar 1–20 linhas.',400)
-    values=[(resolve(db,required(l,'Lote')),required(l,'Lote'),quantity(q),required(d,'Destino') if channel=='mercadona' else '') for l,q,d in rows]
-    if len({(l,d) for a,l,q,d in values})!=len(values): raise ReceivingError('Agrupar o mesmo lote/destino numa única linha.',400)
-    digest=hashlib.sha256(json.dumps([reference,customer,channel,values],ensure_ascii=False).encode()).hexdigest()
+    from .stacked import validate, enabled
+    typed = enabled(db) and any(len(r)==4 for r in rows)
+    values=[(resolve(db,required(r[0],'Lote')),required(r[0],'Lote'),quantity(r[1]),required(r[2],'Destino') if channel=='mercadona' else '',validate(db,r[3]) if len(r)==4 else False) for r in rows]
+    if len({(l,d,t) for a,l,q,d,t in values})!=len(values): raise ReceivingError('Agrupar o mesmo lote/destino numa única linha.',400)
+    digest=hashlib.sha256(json.dumps([reference,customer,channel,[v if len(r)==4 else v[:4] for r,v in zip(rows,values)]],ensure_ascii=False).encode()).hexdigest()
     if order_id is None:
         order=db.scalar(select(DispatchOrder).where(DispatchOrder.request_key==key))
         if order:
@@ -48,10 +50,12 @@ def save_preparation(db, actor, key, reference, customer, channel, rows, order_i
         order.reference,order.payload_hash,order.reviewed_at=reference,digest,None
         order.version+=1
         info.customer,info.channel=customer,channel
-    for artigo,lote,qty,dest in values:
+    order.typed_selection = bool(order.typed_selection) or typed
+    db.flush()  # SQL child guards must see the strict parent policy before inserts.
+    for artigo,lote,qty,dest,stacked in values:
         option=db.scalar(select(MercadonaDestination).where(MercadonaDestination.name==dest,MercadonaDestination.active.is_(True))) if dest else None
         if channel=='mercadona' and not option: raise ReceivingError('Destino Mercadona inexistente ou inativo. Configurar em Definições.')
-        db.add(DispatchLine(order_id=order.id,artigo=artigo,lote=lote,quantidade=qty,destination=dest,
+        db.add(DispatchLine(order_id=order.id,artigo=artigo,lote=lote,quantidade=qty,destination=dest,stacked=stacked,
             destination_order=option.sort_order if option else 0,destination_highlight=option.highlighted if option else False))
     db.add(Audit(username=actor.username,action='RASCUNHO_COMERCIAL',details=f'Preparação {order.id}; cliente {customer}; {channel}; revisão {order.version}.'))
     return order.id
@@ -86,7 +90,7 @@ def incoming_plan(db,receipt_id):
         left=line.quantidade
         for item in demands:
             pending,old,order,info,balance=item
-            if old.lote!=line.lote or not balance: continue
+            if old.lote!=line.lote or old.stacked or not balance: continue
             if old.artigo!=line.artigo: raise ReceivingError('Pendente com artigo/lote contraditório; reconciliação administrativa necessária.')
             take=min(left,balance)
             if take:

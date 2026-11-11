@@ -450,6 +450,14 @@ REQUIRED_POSTGRES |= {
     'test_iberbag_stacked.test_stacked_inventory_cannot_invent_pair_type_from_normal_stock',
 }
 REQUIRED_WINDOWS.add('test_iberbag_stacked.test_stacked_pure_flags_pdf_and_sqlite_write_guard')
+REQUIRED_POSTGRES |= {
+    'test_alcobre_integrated.test_integrated_alcobre_receipts_dispatch_inventory_and_full_encrypted_recovery',
+    'test_alcobre_integrated.test_integrated_alcobre_review_stale_after_location_correction_or_receipt_putaway',
+    'test_alcobre_integrated.test_integrated_alcobre_failures_between_ledger_document_and_audit_are_atomic',
+    'test_alcobre_integrated.test_integrated_alcobre_a4_inventory_keeps_every_long_number_and_unknown_quantity',
+    'test_alcobre_integrated.test_integrated_alcobre_two_authenticated_users_cannot_adjust_a_reserved_bobine',
+}
+REQUIRED_WINDOWS.add('test_alcobre_integrated.test_integrated_alcobre_a4_inventory_keeps_every_long_number_and_unknown_quantity')
 
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()

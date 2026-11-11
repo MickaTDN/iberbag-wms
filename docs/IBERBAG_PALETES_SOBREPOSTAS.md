@@ -99,4 +99,5 @@ prova da CI; não equivalem a homologação física.
 Permanece necessária homologação Windows 11/PostgreSQL 17 nativo, dois PCs,
 catálogo físico comprovado e impressão A4. DEMO SQLite não simula esta nova
 operação e não passa a oferecer garantias PostgreSQL. Sem importação de dados reais,
-deploy, merge ou alterações da revisão integrada Alcobre da PR #33.
+deploy ou merge. A PR #33 foi integrada na main durante esta tarefa; a branch foi
+atualizada por merge da main, preservando a revisão Alcobre e repetindo a regressão.

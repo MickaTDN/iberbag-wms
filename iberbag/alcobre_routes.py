@@ -46,9 +46,11 @@ def detail(ident:int,request:Request,review:int|None=None,db=Depends(database)):
     revision=next((r for r in revisions if r.id==review),None) if review else (revisions[0] if revisions else None)
     if review and not revision:raise HTTPException(404,'Revisão fora desta receção.')
     units=db.execute(select(m.AlcobreBobine,m.AlcobrePlacement).outerjoin(m.AlcobrePlacement,m.AlcobrePlacement.bobine_id==m.AlcobreBobine.id).where(m.AlcobreBobine.entry_id==ident).order_by(m.AlcobreBobine.id)).all()
+    from .alcobre_dispatch import states
+    current=states(db)
     source=json.loads(entry.extraction)
     return render(request,'alcobre_entry.html',context(request,user,sess,entry=entry,source=source,revisions=revisions,revision=revision,plan=json.loads(revision.payload) if revision else None,
-        key=secrets.token_hex(16),confirm_key=secrets.token_hex(16),units=units,remaining=entry.quantity-len(units) if entry.quantity is not None else None,
+        states=current,key=secrets.token_hex(16),confirm_key=secrets.token_hex(16),units=units,remaining=entry.quantity-len(units) if entry.quantity is not None else None,
         actions=db.scalars(select(m.AlcobreAction).where(m.AlcobreAction.entry_id==ident).order_by(m.AlcobreAction.id)).all()))
 
 @router.post('/alcobre/entries/{ident}/review')
@@ -84,7 +86,8 @@ def stock(request:Request,number:str='',local:str='',state:str='all',page:int=1,
     user,sess=allowed(request,db);page=max(1,min(page,10000));number=number[:120];local=local[:120]
     try:rows,total,pending=service.stock(db,number,local,state,page)
     except service.ReceivingError as error:return failure(request,user,sess,error)
-    return render(request,'alcobre_stock.html',context(request,user,sess,rows=rows,total=total,pending=pending,number=number,local=local,state=state,page=page))
+    from .alcobre_dispatch import states
+    return render(request,'alcobre_stock.html',context(request,user,sess,rows=rows,total=total,pending=pending,number=number,local=local,state=state,page=page,states=states(db)))
 
 @router.get('/alcobre/settings')
 def settings(request:Request,db=Depends(database)):

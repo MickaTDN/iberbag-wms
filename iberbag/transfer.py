@@ -25,6 +25,7 @@ NUMBER_TABLES = {'load_numbers'}
 VALMET_TABLES = {'valmet_owners','valmet_entries','valmet_units','valmet_numbers','valmet_identifications','valmet_items'}
 PLANNING_TABLES = {'valmet_preparations','valmet_plan_revisions','valmet_reservations','valmet_handling'}
 SHIPPING_TABLES = {'valmet_positions','valmet_shipments','valmet_shipment_lines','valmet_occurrences','valmet_relocations','valmet_documents'}
+ALCOBRE_DISPATCH_TABLES = {'alcobre_dispatches','alcobre_dispatch_revisions','alcobre_dispatch_operations','alcobre_dispatch_events','alcobre_dispatch_documents'}
 ALCOBRE_TABLES = {'alcobre_owners','alcobre_zones','alcobre_slots','alcobre_entries','alcobre_reviews','alcobre_actions','alcobre_bobines','alcobre_placements'}
 NKT_INVENTORY_TABLES = {'nkt_inventories','nkt_inventory_checks','nkt_inventory_reviews','nkt_inventory_incidents'}
 NKT_LOADING_TABLES = {'nkt_preparations','nkt_plan_revisions','nkt_operations','nkt_corrections','nkt_stock_events','nkt_documents'}
@@ -68,7 +69,9 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
-    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES - PLANNING_TABLES - SHIPPING_TABLES - CONTROL_TABLES - ROLL_TABLES - IMPORT_TABLES - NKT_TABLES - NKT_RECEIVING_TABLES - NKT_LOADING_TABLES - NKT_INVENTORY_TABLES - ALCOBRE_TABLES
+    missing_legacy = missing - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES - PLANNING_TABLES - SHIPPING_TABLES - CONTROL_TABLES - ROLL_TABLES - IMPORT_TABLES - NKT_TABLES - NKT_RECEIVING_TABLES - NKT_LOADING_TABLES - NKT_INVENTORY_TABLES - ALCOBRE_TABLES - ALCOBRE_DISPATCH_TABLES
+    if missing & ALCOBRE_DISPATCH_TABLES not in (set(),ALCOBRE_DISPATCH_TABLES):raise ValueError('Estrutura de saídas Alcobre incompleta.')
+    if not missing & ALCOBRE_DISPATCH_TABLES and missing & ALCOBRE_TABLES:raise ValueError('Saídas Alcobre sem entradas.')
     if missing & ALCOBRE_TABLES not in (set(),ALCOBRE_TABLES):raise ValueError('Estrutura Alcobre incompleta.')
     if not missing & ALCOBRE_TABLES and missing & NKT_INVENTORY_TABLES:raise ValueError('Alcobre sem esquema anterior completo.')
     if missing & NKT_INVENTORY_TABLES not in (set(),NKT_INVENTORY_TABLES):raise ValueError('Estrutura de inventários NKT incompleta.')
@@ -111,7 +114,7 @@ def read_data(connection):
             allowed = ({frozenset({'ddn_0002'}),frozenset({'ddn_0002','0007'}),frozenset({'ddn_security_0001'})}
                        if missing & NUMBER_TABLES else ({frozenset({'ddn_0003'})} if missing & VALMET_TABLES else
                        ({frozenset({'ddn_0004'}),frozenset({'ddn_0005'}),frozenset({'ddn_0006'})} if missing & PLANNING_TABLES else
-                       ({frozenset({'ddn_0007'})} if missing & SHIPPING_TABLES else ({frozenset({'ddn_0008'})} if missing & CONTROL_TABLES else ({frozenset({'ddn_0009'})} if missing & ROLL_TABLES else ({frozenset({'ddn_0010'})} if missing & IMPORT_TABLES else ({frozenset({'ddn_0011'})} if missing & NKT_TABLES else ({frozenset({'ddn_0012'})} if missing & NKT_RECEIVING_TABLES else ({frozenset({'ddn_0013'})} if missing & NKT_LOADING_TABLES else ({frozenset({'ddn_0014'})} if missing & NKT_INVENTORY_TABLES else ({frozenset({'ddn_0015'})} if missing & ALCOBRE_TABLES else {frozenset({REVISION})}))))))))))))
+                       ({frozenset({'ddn_0007'})} if missing & SHIPPING_TABLES else ({frozenset({'ddn_0008'})} if missing & CONTROL_TABLES else ({frozenset({'ddn_0009'})} if missing & ROLL_TABLES else ({frozenset({'ddn_0010'})} if missing & IMPORT_TABLES else ({frozenset({'ddn_0011'})} if missing & NKT_TABLES else ({frozenset({'ddn_0012'})} if missing & NKT_RECEIVING_TABLES else ({frozenset({'ddn_0013'})} if missing & NKT_LOADING_TABLES else ({frozenset({'ddn_0014'})} if missing & NKT_INVENTORY_TABLES else ({frozenset({'ddn_0015'})} if missing & ALCOBRE_TABLES else ({frozenset({'ddn_0016'})} if missing & ALCOBRE_DISPATCH_TABLES else {frozenset({REVISION})})))))))))))))
         if versions not in allowed:
             raise ValueError('Revisão/heads incompatíveis com o esquema. Não usar stamp para contornar.')
     if connection.dialect.name == 'sqlite':
@@ -215,6 +218,9 @@ def archive_inventory(connection, expected):
     data = read_data(connection)
     wanted = set(expected.get('tables', {}))
     current = {t.name for t in TABLES}
+    if not wanted & ALCOBRE_DISPATCH_TABLES:
+        if any(data[n] for n in ALCOBRE_DISPATCH_TABLES):raise ValueError('Backup anterior não abrange saídas Alcobre.')
+        current-=ALCOBRE_DISPATCH_TABLES
     if not wanted & ALCOBRE_TABLES:
         owners,zones=initial_alcobre_catalogue(data)
         if any(data[n] for n in ALCOBRE_TABLES-{'alcobre_owners','alcobre_zones'}) or data['alcobre_owners']!=owners or data['alcobre_zones']!=zones:raise ValueError('Backup anterior não abrange dados ou catálogo Alcobre.')
@@ -353,7 +359,7 @@ def require_empty(connection):
 def apply(bundle, engine):
     require_test_target(engine)
     data, report = load_bundle(bundle)
-    if any(data[name] for name in (VALMET_TABLES-{'valmet_owners'})|PLANNING_TABLES|SHIPPING_TABLES|CONTROL_TABLES|ROLL_TABLES|IMPORT_TABLES|(NKT_TABLES-{'nkt_owners'})|NKT_RECEIVING_TABLES|NKT_LOADING_TABLES|NKT_INVENTORY_TABLES|(ALCOBRE_TABLES-{'alcobre_owners','alcobre_zones'})):
+    if any(data[name] for name in (VALMET_TABLES-{'valmet_owners'})|PLANNING_TABLES|SHIPPING_TABLES|CONTROL_TABLES|ROLL_TABLES|IMPORT_TABLES|(NKT_TABLES-{'nkt_owners'})|NKT_RECEIVING_TABLES|NKT_LOADING_TABLES|NKT_INVENTORY_TABLES|(ALCOBRE_TABLES-{'alcobre_owners','alcobre_zones'})|ALCOBRE_DISPATCH_TABLES):
         raise ValueError('Importação operacional Valmet não implementada. Usar backup/restauro PostgreSQL verificado.')
     with engine.begin() as connection:
         connection.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK})

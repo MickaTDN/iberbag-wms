@@ -238,18 +238,24 @@ def configure_slot(db, actor, zone_id, position, code):
 
 def stock(db, number='', local='', state='all', page=1):
     if not enabled(db): raise ReceivingError('Consulta Alcobre não autorizada.', 403)
-    if state not in ('all', 'available', 'unlocated', 'pending'): raise ReceivingError('Estado inválido.', 400)
+    if state not in ('all', 'available', 'unlocated', 'pending', 'reserved', 'shipped', 'blocked', 'on_hand'): raise ReceivingError('Estado inválido.', 400)
     query = select(m.AlcobreBobine, m.AlcobrePlacement, m.AlcobreEntry).join(m.AlcobreEntry, m.AlcobreEntry.id == m.AlcobreBobine.entry_id).outerjoin(m.AlcobrePlacement, m.AlcobrePlacement.bobine_id == m.AlcobreBobine.id)
     if number: query = query.where(m.AlcobreBobine.number.icontains(number, autoescape=True))
     if local: query = query.where(m.AlcobrePlacement.local.icontains(local, autoescape=True))
-    if state == 'available': query = query.where(m.AlcobrePlacement.id.is_not(None))
+    from .alcobre_dispatch import enabled_events,state_expression
+    has_events=enabled_events(db)
+    if state == 'available':
+        query = query.where(m.AlcobrePlacement.id.is_not(None))
+        if has_events:query=query.where(state_expression()=='available')
+    if state in ('reserved','shipped','blocked'):query=query.where(state_expression()==state) if has_events else query.where(m.AlcobreBobine.id<0)
+    if state=='on_hand' and has_events:query=query.where(state_expression()!='shipped')
     if state == 'unlocated': query = query.where(m.AlcobrePlacement.id.is_(None))
     if state == 'pending': query = query.where(m.AlcobreBobine.id < 0)
     count = db.scalar(select(func.count()).select_from(query.subquery()))
     units = db.execute(query.order_by(m.AlcobreBobine.id).offset((page-1)*100).limit(100)).all()
     pending = []
     # Unknown numbers/locations cannot match a number/location search.
-    if state in ('all', 'pending') and not number and not local:
+    if state in ('all', 'pending', 'on_hand') and not number and not local:
         for entry in db.scalars(select(m.AlcobreEntry).where(m.AlcobreEntry.status == 'confirmed', m.AlcobreEntry.mode == 'pending').order_by(m.AlcobreEntry.id)):
             remaining = entry.quantity - identified(db, entry.id)
             if remaining: pending.append((entry, remaining))

@@ -1177,8 +1177,70 @@ class AlcobrePlacement(Scoped,Base):
     id: Mapped[int]=mapped_column(primary_key=True)
     bobine_id: Mapped[int]=mapped_column(ForeignKey('alcobre_bobines.id'),unique=True,nullable=False)
     action_id: Mapped[int]=mapped_column(ForeignKey('alcobre_actions.id'),nullable=False)
-    local: Mapped[str]=mapped_column(String(120),unique=True,nullable=False)
+    local: Mapped[str]=mapped_column(String(120),nullable=False)
     __table_args__=(ForeignKeyConstraint(['context_id','local'],['alcobre_slots.context_id','alcobre_slots.local']),)
+
+class AlcobreDispatch(Scoped,Base):
+    __tablename__='alcobre_dispatches'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    source_name: Mapped[str]=mapped_column(String(240),nullable=False)
+    source_pdf: Mapped[bytes]=mapped_column(LargeBinary,nullable=False)
+    source_digest: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    extraction: Mapped[str]=mapped_column(Text,nullable=False)
+    created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    version: Mapped[int]=mapped_column(Integer,default=0,nullable=False)
+    active_revision: Mapped[int|None]=mapped_column(Integer)
+    status: Mapped[str]=mapped_column(String(20),default='draft',nullable=False)
+    __table_args__=(CheckConstraint("version>=0 AND status IN ('draft','prepared','confirmed','cancelled')",name='alcobre_dispatch_status'),)
+
+class AlcobreDispatchRevision(Scoped,Base):
+    __tablename__='alcobre_dispatch_revisions'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    dispatch_id: Mapped[int]=mapped_column(ForeignKey('alcobre_dispatches.id'),nullable=False)
+    version: Mapped[int]=mapped_column(Integer,nullable=False)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    manual: Mapped[bool]=mapped_column(Boolean,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(UniqueConstraint('dispatch_id','version'),)
+
+class AlcobreDispatchOperation(Scoped,Base):
+    __tablename__='alcobre_dispatch_operations'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    dispatch_id: Mapped[int]=mapped_column(ForeignKey('alcobre_dispatches.id'),nullable=False)
+    revision_id: Mapped[int|None]=mapped_column(ForeignKey('alcobre_dispatch_revisions.id'))
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    kind: Mapped[str]=mapped_column(String(20),nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    snapshot: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint("kind IN ('prepare','confirm','cancel')",name='alcobre_dispatch_operation_kind'),)
+
+class AlcobreDispatchEvent(Scoped,Base):
+    __tablename__='alcobre_dispatch_events'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    operation_id: Mapped[int]=mapped_column(ForeignKey('alcobre_dispatch_operations.id'),nullable=False)
+    bobine_id: Mapped[int]=mapped_column(ForeignKey('alcobre_bobines.id'),nullable=False)
+    previous_id: Mapped[int|None]=mapped_column(ForeignKey('alcobre_dispatch_events.id'))
+    state: Mapped[str]=mapped_column(String(20),nullable=False)
+    __table_args__=(UniqueConstraint('operation_id','bobine_id'),CheckConstraint("state IN ('available','reserved','shipped','blocked')",name='alcobre_dispatch_event_state'))
+
+class AlcobreDispatchDocument(Scoped,Base):
+    __tablename__='alcobre_dispatch_documents'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    revision_id: Mapped[int|None]=mapped_column(ForeignKey('alcobre_dispatch_revisions.id'),unique=True)
+    operation_id: Mapped[int|None]=mapped_column(ForeignKey('alcobre_dispatch_operations.id'),unique=True)
+    pdf: Mapped[bytes]=mapped_column(LargeBinary,nullable=False)
+    digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint('(revision_id IS NULL) <> (operation_id IS NULL)',name='alcobre_dispatch_document_origin'),)
 
 for _table in list(Base.metadata.tables.values()):
     if _table.name == 'physical_location_claims' or 'context_id' not in _table.c:

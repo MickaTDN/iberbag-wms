@@ -384,6 +384,33 @@ REQUIRED_WINDOWS |= {
     'test_alcobre.test_alcobre_pdf_ambiguous_layouts_duplicates_and_malformed_never_automatic',
 }
 
+REQUIRED_POSTGRES |= {
+    'test_alcobre_dispatch.test_alcobre_outgoing_mixed_guide_reserves_only_exact_available_and_confirms_once',
+    'test_alcobre_dispatch.test_alcobre_departure_reuses_position_keeps_original_identity_and_location',
+    'test_alcobre_dispatch.test_alcobre_uncollected_bobine_is_exception_blocked_not_shipped_or_free',
+    'test_alcobre_dispatch.test_alcobre_cancel_before_expedition_releases_reservations_preserves_books',
+    'test_alcobre_dispatch.test_alcobre_two_guides_concurrent_reservation_never_overlap',
+    'test_alcobre_dispatch.test_alcobre_revision_releases_only_removed_numbers_and_archives_old_pdf',
+    'test_alcobre_dispatch.test_alcobre_stock_changes_between_review_prepare_and_confirmation_require_revision',
+    'test_alcobre_dispatch.test_alcobre_full_confirmation_rollback_and_retry',
+    'test_alcobre_dispatch.test_alcobre_duplicate_and_ambiguous_pdf_cannot_be_prepared_silently',
+    'test_alcobre_dispatch.test_alcobre_pdf_archive_navigation_permissions_csrf_and_context',
+    'test_alcobre_dispatch.test_alcobre_runtime_cannot_forge_expedition_or_incomplete_preparation',
+    'test_alcobre_dispatch.test_alcobre_a4_full_rows_totals_and_sqlite_operational_refusal',
+    'test_alcobre_dispatch.test_alcobre_ddn16_upgrade_encrypted_restore_and_guide_history',
+    'test_alcobre_dispatch.test_alcobre_complete_sem_stock_guide_confirms_exceptions_without_events',
+    'test_alcobre_dispatch.test_alcobre_concurrent_whole_guide_confirmations_discount_once',
+    'test_alcobre_dispatch.test_alcobre_confirmation_cannot_repoint_active_revision',
+}
+REQUIRED_POSTGRES |= {
+    'test_alcobre_dispatch.test_alcobre_noncollected_present_releases_only_reservation_preserves_position_and_history',
+    'test_alcobre_dispatch.test_alcobre_noncollected_requires_explicit_classification_physical_proof_and_current_location',
+    'test_alcobre_dispatch.test_alcobre_runtime_rejects_unproved_release_and_forged_classification',
+    'test_alcobre_dispatch.test_alcobre_confirm_present_concurrent_with_other_guide_never_silently_reassigns',
+    'test_alcobre_dispatch.test_alcobre_http_whole_guide_requires_classification_and_explicit_presence',
+}
+REQUIRED_WINDOWS.add('test_alcobre_dispatch.test_alcobre_a4_full_rows_totals_and_sqlite_operational_refusal')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

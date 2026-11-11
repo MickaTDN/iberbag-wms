@@ -81,12 +81,13 @@ def upgrade():
         END IF;
       END IF;
       IF TG_TABLE_NAME='stock_adjustments' THEN
-        IF NEW.stacked AND NEW.delta>0 AND NOT EXISTS(
+        IF NEW.delta>0 AND (NEW.stacked OR EXISTS(SELECT 1 FROM stock WHERE context_id=NEW.context_id
+          AND artigo=NEW.artigo AND lote=NEW.lote AND carga=NEW.carga AND stacked)) AND NOT EXISTS(
           SELECT 1 FROM putaways p JOIN receipt_lines l ON l.id=p.line_id AND l.context_id=p.context_id
           JOIN receipts r ON r.id=l.receipt_id AND r.context_id=l.context_id
-          WHERE p.context_id=NEW.context_id AND p.stacked AND p.status='confirmed'
+          WHERE p.context_id=NEW.context_id AND p.stacked=NEW.stacked AND p.status='confirmed'
             AND l.artigo=NEW.artigo AND l.lote=NEW.lote AND r.code=NEW.carga) THEN
-          RAISE EXCEPTION 'Positive pair adjustment requires original putaway evidence' USING ERRCODE='23514';
+          RAISE EXCEPTION 'Positive adjustment requires original stock type evidence' USING ERRCODE='23514';
         END IF;
       END IF;
       RETURN NEW;
@@ -107,8 +108,20 @@ def upgrade():
       RETURN NEW;
     END $$''')
     op.execute('CREATE TRIGGER stacked_dispatch_complete BEFORE UPDATE ON dispatch_orders FOR EACH ROW EXECUTE FUNCTION ddn_stacked_dispatch_complete()')
+    op.execute('''CREATE FUNCTION ddn_no_stock_type_conversion() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF EXISTS(SELECT 1 FROM stock_adjustments a JOIN stock_adjustments b
+        ON b.context_id=a.context_id AND b.inventory_id=a.inventory_id AND b.artigo=a.artigo AND b.lote=a.lote AND b.carga=a.carga
+        WHERE a.context_id=NEW.context_id AND a.inventory_id=NEW.inventory_id
+          AND a.stacked<>b.stacked AND a.delta>0 AND b.delta<0) THEN
+        RAISE EXCEPTION 'Inventory cannot convert stock types' USING ERRCODE='23514';
+      END IF;
+      RETURN NEW;
+    END $$''')
+    op.execute('CREATE CONSTRAINT TRIGGER no_stock_type_conversion AFTER INSERT ON stock_adjustments '
+               'DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ddn_no_stock_type_conversion()')
     schema = op.get_bind().dialect.identifier_preparer.quote(op.get_bind().scalar(sa.text('SELECT current_schema()')))
-    for fn in ('ddn_stacked_guard()','ddn_stacked_dispatch_complete()'):
+    for fn in ('ddn_stacked_guard()','ddn_stacked_dispatch_complete()','ddn_no_stock_type_conversion()'):
         op.execute(f'ALTER FUNCTION {fn} SET search_path TO pg_catalog, {schema}, pg_temp')
         op.execute(f'REVOKE ALL ON FUNCTION {fn} FROM PUBLIC')
 

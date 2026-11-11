@@ -448,6 +448,9 @@ REQUIRED_POSTGRES |= {
     'test_iberbag_stacked.test_stacked_mixed_lines_and_typed_reservations_do_not_mix',
     'test_iberbag_stacked.test_stacked_new_office_review_blocks_legacy_shortage_without_losing_pendentes',
     'test_iberbag_stacked.test_stacked_inventory_cannot_invent_pair_type_from_normal_stock',
+    'test_iberbag_stacked.test_stacked_inventory_never_converts_pairs_into_normal_units',
+    'test_iberbag_stacked.test_stacked_restricted_runtime_forbids_balanced_type_conversion',
+    'test_iberbag_stacked.test_stacked_independent_positive_adjustment_missing_and_proven_pair_recovery',
 }
 REQUIRED_WINDOWS.add('test_iberbag_stacked.test_stacked_pure_flags_pdf_and_sqlite_write_guard')
 REQUIRED_POSTGRES |= {

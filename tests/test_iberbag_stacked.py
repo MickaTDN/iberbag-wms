@@ -356,6 +356,51 @@ def test_stacked_inventory_cannot_invent_pair_type_from_normal_stock(warehouse):
     with Session(engine) as db:
         stock=db.scalar(select(m.Stock));inv=i.create_inventory(db,actor,secrets.token_hex(16),'TIPO ERRADO','partial',['Chão']);scope=i.scopes(db,inv)[0]
         i.save_count(db,actor,scope.id,0,[('ART','LOT',stock.carga,'2',True)]);i.submit_inventory(db,actor,inv)
-        with pytest.raises(r.ReceivingError,match='converter'):i.approve_inventory(db,actor,inv,'Tipo sem comprovação')
+        with pytest.raises(r.ReceivingError,match='[Cc]onver'):i.approve_inventory(db,actor,inv,'Tipo sem comprovação')
         assert [(s.stacked,s.quantidade) for s in db.scalars(select(m.Stock))]==[(False,2)]
         assert db.scalar(select(func.count()).select_from(m.StockAdjustment))==0
+
+
+@pytest.mark.parametrize('mixed', [False, True])
+def test_stacked_inventory_never_converts_pairs_into_normal_units(warehouse,mixed):
+    engine,u=warehouse;actor=u['admin'][0];_,line=receive(engine,actor,4 if mixed else 2)
+    if mixed:place(engine,actor,line,2)
+    place(engine,actor,line,2,True)
+    with Session(engine) as db:
+        code=db.scalar(select(m.Stock.carga));inv=i.create_inventory(db,actor,secrets.token_hex(16),'SEM CONVERSÃO','partial',['Chão']);scope=i.scopes(db,inv)[0]
+        rows=[('ART','LOT',code,'3' if mixed else '2',False)]
+        if mixed:rows.append(('ART','LOT',code,'1',True))
+        i.save_count(db,actor,scope.id,0,rows);i.submit_inventory(db,actor,inv)
+        with pytest.raises(r.ReceivingError,match='[Tt]ipo|[Cc]onver'):
+            i.approve_inventory(db,actor,inv,'Requer reconciliação específica, sem conversão')
+        assert sorted((s.stacked,s.quantidade) for s in db.scalars(select(m.Stock)))==([(False,2),(True,2)] if mixed else [(True,2)])
+        assert db.scalar(select(func.count()).select_from(m.StockAdjustment))==0
+
+
+def test_stacked_restricted_runtime_forbids_balanced_type_conversion(restricted_web):
+    app,owner,runtime,role,u,tokens=restricted_web;actor=u['admin'][0];_,line=receive(owner,actor,4)
+    place(owner,actor,line,2);place(owner,actor,line,2,True)
+    with Session(runtime) as db:
+        inv=i.create_inventory(db,actor,secrets.token_hex(16),'GUARDA SQL','partial',['Chão'])
+        stocks=db.scalars(select(m.Stock).order_by(m.Stock.stacked)).all()
+        with pytest.raises(DBAPIError,match='cannot convert stock types'):
+            for stock,after in zip(stocks,[3,1]):
+                stock.quantidade=after
+                db.add(m.StockAdjustment(inventory_id=inv,stock_id=stock.id,artigo=stock.artigo,lote=stock.lote,carga=stock.carga,
+                    local=stock.local,stacked=stock.stacked,before=2,after=after,delta=after-2,reason='Tentativa fictícia',actor='admin'))
+            db.commit()
+        db.rollback()
+        assert [(s.stacked,s.quantidade) for s in db.scalars(select(m.Stock).order_by(m.Stock.stacked))]==[(False,2),(True,2)]
+        assert db.scalar(select(func.count()).select_from(m.StockAdjustment))==0
+
+
+def test_stacked_independent_positive_adjustment_missing_and_proven_pair_recovery(warehouse):
+    engine,u=warehouse;actor=u['admin'][0];_,line=receive(engine,actor,4);place(engine,actor,line,2);place(engine,actor,line,2,True)
+    with Session(engine) as db:
+        code=db.scalar(select(m.Stock.carga))
+        for rows,expected in [([('ART','LOT',code,'3',False),('ART','LOT',code,'2',True)],[(False,3),(True,2)]),
+                              ([],[(False,0),(True,0)]),([('ART','LOT',code,'2',True)],[(False,0),(True,2)])]:
+            inv=i.create_inventory(db,actor,secrets.token_hex(16),'PROVA INDEPENDENTE','partial',['Chão']);scope=i.scopes(db,inv)[0]
+            i.save_count(db,actor,scope.id,0,rows,note='Conferência física fictícia, por tipo original',empty=not rows)
+            i.submit_inventory(db,actor,inv);i.approve_inventory(db,actor,inv,'Quantidade comprovada no tipo original, sem conversão')
+            assert [(s.stacked,s.quantidade) for s in db.scalars(select(m.Stock).order_by(m.Stock.stacked))]==expected

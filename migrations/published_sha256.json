@@ -8,5 +8,5 @@
   "migrations/versions/0007_audit_append_only.py": "fc62ce9b1597f636751547190c81049b478c9c6653559184e64b311cc534c7a2",
   "migrations/versions/ddn_0001_client_warehouse_contexts.py": "734c2305e2dac6d732bc874c213c850cf43a7631c24b3f5bf01bcd1fd46e5f42",
   "migrations/versions/ddn_0002_exclusive_physical_codes.py": "03f36b12f1744c1ff3cccf32dde86cd90dbfc3fb18d941c6bf645d1506e614e6",
-  "migrations/versions/ddn_0019_iberbag_stacked.py": "3799798c216311302165618f29d9a57cfd2d3bc9808c3cd5bbba75788d5d20b3"
+  "migrations/versions/ddn_0019_iberbag_stacked.py": "ce9ee63205b0aabcd1a941a88fc51e5655232e75b2117a2f44e6ac331531fd02"
 }

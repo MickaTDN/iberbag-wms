@@ -51,7 +51,12 @@ No formulário de contagem cada linha é `artigo;lote;carga;unidades;tipo`, com 
 Não contado continua desconhecido, não zero. Apenas Administrador aprova ajustes;
 as reservas, versões e preparações impressas continuam a ser revalidadas. Um
 ajuste positivo sobreposto exige evidência do tipo na arrumação original: não
-serve para converter stock normal. Compensações preservam também o tipo.
+serve para converter stock normal. Aumentar um tipo e reduzir o outro no mesmo
+artigo/lote/carga é bloqueado, incluindo por trigger diferida PostgreSQL. A
+recuperação de normais numa carga com histórico sobreposto exige prova da
+arrumação normal original; não se transforma um conjunto em normal por duas
+contagens sucessivas. Diferenças independentes comprovadas no tipo original
+continuam permitidas. Compensações preservam também o tipo.
 Transferências conservam o tipo e recusam sobrepostas para estantes ou uma mudança
 semântica de Chão para outro alias do mesmo Chão. Não há conversão nem fracionamento.
 

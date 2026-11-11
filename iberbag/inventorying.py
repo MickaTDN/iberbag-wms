@@ -180,6 +180,12 @@ def approve_inventory(db,actor,inventory_id,reason,compensate_order=None):
         location=db.scalar(select(Location).where(Location.codigo==scope.local))
         if location and location.capacidade is not None and total>location.capacidade: raise InventoryError('Capacidade física excedida em '+scope.local)
     changes=[r for r in differences(db,inv.id) if r['delta']]
+    # Two balances are identities, not interchangeable quantities. Even an
+    # administrator must not compensate one type by creating the other.
+    positive={(r['artigo'],r['lote'],r['carga'],r['stacked']) for r in changes if r['delta']>0}
+    negative={(r['artigo'],r['lote'],r['carga'],r['stacked']) for r in changes if r['delta']<0}
+    if any((a,l,c,not kind) in negative for a,l,c,kind in positive):
+        raise InventoryError('Conversão entre normais e sobrepostas bloqueada. Rever a identificação física, sem compensar tipos.')
     if compensate_order is not None:
         from .dispatching import picks,lines
         order=db.get(DispatchOrder,compensate_order); doc=db.get(DispatchDocument,compensate_order)
@@ -206,8 +212,14 @@ def approve_inventory(db,actor,inventory_id,reason,compensate_order=None):
         validate(db, row['stacked'], row['scope'].local)
         protect_reservations(db,row['artigo'],row['lote'])
         if row['delta']>0:
-            if row['stacked'] and not db.scalar(select(Stock.id).where(Stock.artigo==row['artigo'],Stock.lote==row['lote'],Stock.carga==row['carga'],Stock.stacked.is_(True))):
-                raise InventoryError('Não converter stock normal em sobrepostas por ajuste. Tipo original não comprovado na arrumação.')
+            has_pairs=db.scalar(select(Stock.id).where(Stock.artigo==row['artigo'],Stock.lote==row['lote'],Stock.carga==row['carga'],Stock.stacked.is_(True)).limit(1))
+            if row['stacked'] or has_pairs:
+                from .database import Putaway, ReceiptLine, Receipt
+                evidence=db.scalar(select(Putaway.id).join(ReceiptLine).join(Receipt).where(
+                    Putaway.status=='confirmed',Putaway.stacked==row['stacked'],ReceiptLine.artigo==row['artigo'],
+                    ReceiptLine.lote==row['lote'],Receipt.code==row['carga']).limit(1))
+                if not evidence:
+                    raise InventoryError('Não converter o tipo por ajuste. Tipo original não comprovado na arrumação.')
             from .commercial import outstanding_group
             if outstanding_group(db,row['artigo'],row['lote'],row['carga']):
                 raise InventoryError('Há paletes carregadas contabilisticamente para clientes a aguardar recolha. Não repor como stock livre.')

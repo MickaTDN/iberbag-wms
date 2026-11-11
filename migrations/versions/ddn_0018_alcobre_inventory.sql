@@ -38,7 +38,11 @@ DECLARE inv record; c record; x jsonb; src jsonb; current_scope jsonb; rows json
 BEGIN
  SELECT * INTO inv FROM alcobre_inventories WHERE id=inv_id AND context_id=ctx;
  IF inv.id IS NULL THEN RAISE EXCEPTION 'Inventory outside context'; END IF;
- current_scope=alcobre_inventory_scope(inv.mode,inv.scope::jsonb->'locations',ctx);
+ BEGIN
+  current_scope=alcobre_inventory_scope(inv.mode,inv.scope::jsonb->'locations',ctx);
+ EXCEPTION WHEN raise_exception THEN
+  current_scope=inv.scope::jsonb;errors=errors||jsonb_build_array('Catálogo/âmbito deixou de ser válido; rever configuração e criar novo inventário ou conferir novamente.');
+ END;
  IF EXISTS(SELECT 1 FROM jsonb_array_elements(current_scope->'units') i WHERE NOT inv.scope::jsonb->'units' @> jsonb_build_array(i)) OR current_scope->'locations' IS DISTINCT FROM inv.scope::jsonb->'locations' OR current_scope->'pending' IS DISTINCT FROM inv.scope::jsonb->'pending' THEN errors=errors||jsonb_build_array('Âmbito alterado por entradas/catálogo/identificações; criar novo inventário.'); END IF;
  FOR x IN SELECT * FROM jsonb_array_elements(inv.scope::jsonb->'units') LOOP
   src=alcobre_inventory_unit((x #>> '{}')::integer,ctx);

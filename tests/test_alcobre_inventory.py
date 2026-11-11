@@ -372,3 +372,16 @@ def test_alcobre_inventory_empty_count_invalid_after_unknown_resolved_elsewhere(
     with pytest.raises(a.ReceivingError):confirm(engine,actor,first,rev)
     record(engine,actor,first,'empty',local='FICT-ALC-4');confirm(engine,actor,first)
     with scoped(engine,5) as db:assert a.stock(db,state='on_hand')[1]==4
+
+
+def test_alcobre_inventory_catalog_change_shows_blocking_without_unsafe_confirmation(warehouse):
+    engine,u=warehouse;actor=u['admin'][0];seed(engine,actor)
+    from test_alcobre import positions
+    from iberbag.warehouse_settings import set_location_active
+    positions(engine,actor,4)
+    inv=create(engine,actor,['FICT-ALC-4']);record(engine,actor,inv,'empty',local='FICT-ALC-4');rev=review(engine,actor,inv)
+    with scoped(engine,5) as db:set_location_active(db,'admin','FICT-ALC-4',False)
+    with scoped(engine,5) as db:assert any('Catálogo/âmbito' in item for item in s.summary(db,db.get(m.AlcobreInventory,inv))['blocking'])
+    before=snapshot(engine)
+    with pytest.raises(a.ReceivingError):confirm(engine,actor,inv,rev)
+    assert snapshot(engine)==before

@@ -27,7 +27,9 @@ def lot_options(db):
         try:
             artigo=resolve(db,lote)
             total=service.availability(db,artigo,lote)['total']
-            label=f'{artigo} · {total} palete(s)'
+            from .stacked import enabled
+            label=(f'{artigo} · Normais: {total} · Sobrepostas: {service.availability(db,artigo,lote,True)["total"]}'
+                   if enabled(db) else f'{artigo} · {total} palete(s)')
         except service.DispatchError:
             label='Reconciliação administrativa necessária'
         options.append(dict(lote=lote,label=label))

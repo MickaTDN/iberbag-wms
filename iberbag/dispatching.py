@@ -199,7 +199,7 @@ def confirm_order(db, actor, order_id):
 def save_preparation(db, actor, key, reference, lot_rows, order_id=None, version=None):
     from .lots import resolve
     from .stacked import validate
-    rows = [(resolve(db, required(r[0], 'Lote')), required(r[0], 'Lote'), r[1], validate(db, r[2]) if len(r)==3 else False) for r in lot_rows]
+    rows = [(resolve(db, required(r[0], 'Lote')), required(r[0], 'Lote'), r[1]) + ((validate(db, r[2]),) if len(r)==3 else ()) for r in lot_rows]
     # Reuse the validated draft writer inside this same transaction, without nested commit.
     if order_id:
         order = db.get(DispatchOrder, order_id); owned(order, actor)
@@ -210,7 +210,8 @@ def save_preparation(db, actor, key, reference, lot_rows, order_id=None, version
         order.reviewed_at = None
     ident = save_order.__wrapped__(db, actor, key, reference, rows, order_id, version)
     db.get(DispatchOrder, ident).office = True
-    db.get(DispatchOrder, ident).typed_selection = True
+    if db.get(DispatchOrder, ident).status == 'draft':
+        db.get(DispatchOrder, ident).typed_selection = True
     return ident
 
 

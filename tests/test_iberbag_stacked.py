@@ -77,6 +77,8 @@ def test_stacked_floor_only_and_idempotent_key_payload(warehouse):
     with Session(engine) as db:
         for local in ('A101','A102','(não indicado)'):
             with pytest.raises(r.ReceivingError):r.review_putaway(db,actor,secrets.token_hex(16),line,local,'1',True)
+        with pytest.raises(r.ReceivingError,match='inteira'):
+            r.review_putaway(db,actor,secrets.token_hex(16),line,'Chão','1.5',True)
         key=secrets.token_hex(16);ident=r.review_putaway(db,actor,key,line,'Chão','1',True)
         assert r.review_putaway(db,actor,key,line,'Chão','1',True)==ident
         with pytest.raises(r.ReceivingError):r.review_putaway(db,actor,key,line,'Chão','1',False)
@@ -216,6 +218,12 @@ def test_stacked_restricted_runtime_sql_guards_context_permissions_and_csrf(rest
         # Test server context isolation directly too; no cross-client stock exposure.
     with Session(runtime) as db:
         db.info['ddn_context']=2
+        assert db.scalar(select(func.count()).select_from(m.Stock))==0
+    with Session(owner) as db:
+        ctx=m.StorageContext(client_id=1,warehouse_id=2,area='Fictícia',active=True);db.add(ctx);db.commit();other_wh=ctx.id
+    with Session(runtime,info={'ddn_context':other_wh}) as db:
+        with pytest.raises(r.ReceivingError,match='Iberbag/Ovar'):
+            r.review_putaway(db,actor,secrets.token_hex(16),line,'Chão','1',True)
         assert db.scalar(select(func.count()).select_from(m.Stock))==0
     for sql in ("UPDATE stock SET stacked=false WHERE stacked", "UPDATE stock SET local='A101' WHERE stacked", "INSERT INTO stock(context_id,artigo,lote,carga,local,quantidade,stacked) VALUES(2,'A','L','C','Chão',1,true)"):
         with runtime.begin() as conn,pytest.raises(DBAPIError):conn.execute(text(sql))

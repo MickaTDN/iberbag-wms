@@ -87,7 +87,8 @@ def stock(request:Request,number:str='',local:str='',state:str='all',page:int=1,
     try:rows,total,pending=service.stock(db,number,local,state,page)
     except service.ReceivingError as error:return failure(request,user,sess,error)
     from .alcobre_dispatch import states
-    return render(request,'alcobre_stock.html',context(request,user,sess,rows=rows,total=total,pending=pending,number=number,local=local,state=state,page=page,states=states(db)))
+    from .alcobre_inventory import incident_locations
+    return render(request,'alcobre_stock.html',context(request,user,sess,rows=rows,total=total,pending=pending,number=number,local=local,state=state,page=page,states=states(db),inventory_incidents=incident_locations(db)))
 
 @router.get('/alcobre/settings')
 def settings(request:Request,db=Depends(database)):

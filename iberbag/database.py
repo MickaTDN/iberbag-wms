@@ -1225,11 +1225,13 @@ class AlcobreDispatchOperation(Scoped,Base):
 class AlcobreDispatchEvent(Scoped,Base):
     __tablename__='alcobre_dispatch_events'
     id: Mapped[int]=mapped_column(primary_key=True)
-    operation_id: Mapped[int]=mapped_column(ForeignKey('alcobre_dispatch_operations.id'),nullable=False)
+    operation_id: Mapped[int|None]=mapped_column(ForeignKey('alcobre_dispatch_operations.id'))
+    control_operation_id: Mapped[int|None]=mapped_column(ForeignKey('alcobre_inventory_operations.id'))
+    local: Mapped[str|None]=mapped_column(String(120))
     bobine_id: Mapped[int]=mapped_column(ForeignKey('alcobre_bobines.id'),nullable=False)
     previous_id: Mapped[int|None]=mapped_column(ForeignKey('alcobre_dispatch_events.id'))
     state: Mapped[str]=mapped_column(String(20),nullable=False)
-    __table_args__=(UniqueConstraint('operation_id','bobine_id'),CheckConstraint("state IN ('available','reserved','shipped','blocked')",name='alcobre_dispatch_event_state'))
+    __table_args__=(UniqueConstraint('operation_id','bobine_id'),UniqueConstraint('control_operation_id','bobine_id'),CheckConstraint('(operation_id IS NULL) <> (control_operation_id IS NULL)',name='alcobre_event_origin'),CheckConstraint("state IN ('available','reserved','shipped','blocked','missing')",name='alcobre_dispatch_event_state'))
 
 class AlcobreDispatchDocument(Scoped,Base):
     __tablename__='alcobre_dispatch_documents'
@@ -1241,6 +1243,72 @@ class AlcobreDispatchDocument(Scoped,Base):
     actor: Mapped[str]=mapped_column(String(60),nullable=False)
     created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
     __table_args__=(CheckConstraint('(revision_id IS NULL) <> (operation_id IS NULL)',name='alcobre_dispatch_document_origin'),)
+
+class AlcobreInventory(Scoped,Base):
+    __tablename__='alcobre_inventories'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    title: Mapped[str]=mapped_column(String(120),nullable=False)
+    mode: Mapped[str]=mapped_column(String(20),nullable=False)
+    scope: Mapped[str]=mapped_column(Text,nullable=False)
+    opening: Mapped[str]=mapped_column(Text,nullable=False)
+    version: Mapped[int]=mapped_column(Integer,default=1,nullable=False)
+    status: Mapped[str]=mapped_column(String(20),default='draft',nullable=False)
+    created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint("mode IN ('complete','partial') AND status IN ('draft','confirmed') AND version>0",name='alcobre_inventory_status'),)
+
+class AlcobreInventoryCheck(Scoped,Base):
+    __tablename__='alcobre_inventory_checks'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    inventory_id: Mapped[int]=mapped_column(ForeignKey('alcobre_inventories.id'),nullable=False)
+    bobine_id: Mapped[int|None]=mapped_column(ForeignKey('alcobre_bobines.id'))
+    entry_id: Mapped[int|None]=mapped_column(ForeignKey('alcobre_entries.id'))
+    number: Mapped[str|None]=mapped_column(String(120))
+    local: Mapped[str|None]=mapped_column(String(120))
+    result: Mapped[str]=mapped_column(String(20),nullable=False)
+    snapshot: Mapped[str]=mapped_column(Text,nullable=False)
+    evidence: Mapped[str]=mapped_column(Text,nullable=False)
+    resolves_id: Mapped[int|None]=mapped_column(ForeignKey('alcobre_inventory_checks.id'),unique=True)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint("result IN ('found','missing','elsewhere','unverified','excluded','empty','unknown','resolved')",name='alcobre_inventory_result'),)
+
+class AlcobreInventoryReview(Scoped,Base):
+    __tablename__='alcobre_inventory_reviews'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    inventory_id: Mapped[int]=mapped_column(ForeignKey('alcobre_inventories.id'),nullable=False)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    version: Mapped[int]=mapped_column(Integer,nullable=False)
+    kind: Mapped[str]=mapped_column(String(20),nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint("kind IN ('conference','approve')",name='alcobre_inventory_review_kind'),)
+
+class AlcobreInventoryOperation(Scoped,Base):
+    __tablename__='alcobre_inventory_operations'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    inventory_id: Mapped[int]=mapped_column(ForeignKey('alcobre_inventories.id'),unique=True,nullable=False)
+    review_id: Mapped[int]=mapped_column(ForeignKey('alcobre_inventory_reviews.id'),unique=True,nullable=False)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    snapshot: Mapped[str]=mapped_column(Text,nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+
+class AlcobreInventoryDocument(Scoped,Base):
+    __tablename__='alcobre_inventory_documents'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    review_id: Mapped[int|None]=mapped_column(ForeignKey('alcobre_inventory_reviews.id'),unique=True)
+    operation_id: Mapped[int|None]=mapped_column(ForeignKey('alcobre_inventory_operations.id'),unique=True)
+    pdf: Mapped[bytes]=mapped_column(LargeBinary,nullable=False)
+    digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    actor: Mapped[str]=mapped_column(String(60),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint('(review_id IS NULL) <> (operation_id IS NULL)',name='alcobre_inventory_document_origin'),)
 
 for _table in list(Base.metadata.tables.values()):
     if _table.name == 'physical_location_claims' or 'context_id' not in _table.c:

@@ -411,6 +411,25 @@ REQUIRED_POSTGRES |= {
 }
 REQUIRED_WINDOWS.add('test_alcobre_dispatch.test_alcobre_a4_full_rows_totals_and_sqlite_operational_refusal')
 
+REQUIRED_POSTGRES |= {
+    'test_alcobre_inventory.test_alcobre_inventory_missing_recovery_and_position_correction_keep_identity',
+    'test_alcobre_inventory.test_alcobre_inventory_blocked_found_and_stock_dispatch_use_corrected_location',
+    'test_alcobre_inventory.test_alcobre_inventory_complete_unverified_empty_pending_are_distinct',
+    'test_alcobre_inventory.test_alcobre_inventory_unknown_incident_does_not_create_stock_and_blocks_location',
+    'test_alcobre_inventory.test_alcobre_inventory_reserved_or_shipped_never_adjusted_and_stale_counts_block',
+    'test_alcobre_inventory.test_alcobre_inventory_pdf_sqlite_is_read_only_and_absence_not_unknown',
+    'test_alcobre_inventory.test_alcobre_inventory_concurrent_confirmations_and_conflicting_inventories',
+    'test_alcobre_inventory.test_alcobre_inventory_movements_after_count_require_new_conference',
+    'test_alcobre_inventory.test_alcobre_inventory_failure_rolls_back_event_location_document_and_audit',
+    'test_alcobre_inventory.test_alcobre_inventory_permissions_csrf_context_and_archived_pdf',
+    'test_alcobre_inventory.test_alcobre_inventory_sql_runtime_rejects_forged_corrections',
+    'test_alcobre_inventory.test_alcobre_inventory_empty_unknown_and_contradictory_counts_do_not_become_stock',
+    'test_alcobre_inventory.test_alcobre_inventory_operator_can_count_own_but_not_approve',
+    'test_alcobre_inventory.test_alcobre_inventory_ddn17_upgrade_and_encrypted_recovery_preserve_guide_books',
+}
+REQUIRED_POSTGRES |= {'test_alcobre_inventory.test_alcobre_inventory_incident_after_reservation_blocks_shipping_until_decision','test_alcobre_inventory.test_alcobre_inventory_concurrent_counts_use_versions_without_lost_history'}
+REQUIRED_WINDOWS.add('test_alcobre_inventory.test_alcobre_inventory_pdf_sqlite_is_read_only_and_absence_not_unknown')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

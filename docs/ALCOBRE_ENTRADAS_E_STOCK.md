@@ -1,5 +1,7 @@
 # Alcobre — Fase 2D.1: entradas e stock de bobines
 
+> Evolução: [Fase 2D.3 — inventários e correções](ALCOBRE_INVENTARIOS_E_CORRECOES.md) acrescenta reconciliação administrativa comprovada; exclusões de inventários seguintes descrevem a fase histórica deste documento.
+
 Base `main` após PR #29 (`4582372`), head anterior ddn_0015. Apenas Alcobre/Ovar; não altera os processos dos restantes clientes. Utilização no escritório, com comunicação de números/posições pelos operadores físicos. Sem saídas, inventários ou transferências Alcobre nesta fase.
 
 > Evolução: [Fase 2D.2 — saídas por guia](ALCOBRE_SAIDAS.md) acrescenta reservas/expedições e ocupação corrente, preservando estes livros e identidades. As exclusões de saídas seguintes referem-se à Fase 2D.1; inventários e transferências continuam pendentes.

@@ -269,7 +269,7 @@ def test_authenticated_concurrent_forms_finish_atomically(restricted_web):
 
 def test_admin_posts_refuse_operator_before_lock(restricted_web):
     app, owner, runtime, role, accounts, tokens = restricted_web
-    paths = ['/settings/clients','/settings/clients/1','/settings/warehouses','/settings/contexts',
+    paths = ['/alcobre/inventories/1/review','/alcobre/inventories/1/confirm','/settings/clients','/settings/clients/1','/settings/warehouses','/settings/contexts',
              '/alcobre/dispatches/upload','/alcobre/entries/upload','/alcobre/settings/zones','/alcobre/settings/slots','/settings/capacity','/settings/mercadona','/settings/locations/A101/active',
              '/settings/corridors','/settings/corridors/A/update','/settings/corridors/A/delete',
              '/settings/locations','/settings/locations/A101/delete','/settings/locations/A101/rename',

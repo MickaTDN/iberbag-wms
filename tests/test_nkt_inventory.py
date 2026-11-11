@@ -280,12 +280,12 @@ def test_nkt_inventory_ddn14_upgrade_native_archive_and_encrypted_recovery(pg_da
     seed(engine,actor);prep,ship_id,pdf=native14_loading(engine,actor)
     with engine.connect() as conn:
         before=transfer.inventory(transfer.read_data(conn));native=transfer.read_data(conn)
-        for name in transfer.NKT_INVENTORY_TABLES | transfer.ALCOBRE_TABLES | transfer.ALCOBRE_DISPATCH_TABLES:native.pop(name)
+        for name in transfer.NKT_INVENTORY_TABLES | transfer.ALCOBRE_TABLES | (transfer.ALCOBRE_DISPATCH_TABLES | transfer.ALCOBRE_INVENTORY_TABLES):native.pop(name)
         for row in native['nkt_operations']:row.pop('inventory_id');row.pop('inventory_review_id')
         for row in native['nkt_documents']:row.pop('inventory_review_id')
         legacy=transfer.inventory(native);assert transfer.archive_inventory(conn,legacy)==legacy
     folder=tmp_path/'prior14';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD);backup.restore(target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0017'
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0018'
     with engine.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==before and transfer.archive_inventory(conn,legacy)==legacy
     first,second=entries(engine);ident=create(engine,actor);mark(engine,actor,ident,'not_located',entry=first);original=confirm(engine,actor,ident,review(engine,actor,ident))
     with scoped(engine,4) as db:

@@ -6,7 +6,7 @@ from sqlalchemy import select, func, inspect
 from . import alcobre as a, database as m
 from .receiving import ReceivingError, request_key
 
-REASONS={'available':'Disponível','reserved_self':'Reservada nesta guia','reserved_other':'Reservada noutra guia','shipped':'Já expedida','blocked':'Bloqueada por ocorrência de recolha','unlocated':'Identificada mas sem localização comprovada','unknown':'Número inexistente no stock identificado','unknown_pending':'Sem identidade comprovada; existem receções por identificar, sem associação ao número pedido','inactive':'Localização/zona inativa ou configuração indisponível'}
+REASONS={'available':'Disponível','reserved_self':'Reservada nesta guia','reserved_other':'Reservada noutra guia','shipped':'Já expedida','blocked':'Bloqueada por ocorrência de recolha','unlocated':'Identificada mas sem localização comprovada','unknown':'Número inexistente no stock identificado','unknown_pending':'Sem identidade comprovada; existem receções por identificar, sem associação ao número pedido','missing':'Falta confirmada administrativamente','inventory_incident':'Localização com ocorrência por investigar','inactive':'Localização/zona inativa ou configuração indisponível'}
 
 def enabled_events(db):return inspect(db.connection()).has_table('alcobre_dispatch_events')
 def state_expression():
@@ -16,14 +16,15 @@ def state_expression():
 def states(db):
     if not enabled_events(db):return {}
     recent=select(func.max(m.AlcobreDispatchEvent.id).label('last')).group_by(m.AlcobreDispatchEvent.bobine_id).subquery()
-    query=select(m.AlcobreDispatchEvent,m.AlcobreDispatchOperation.dispatch_id).join(recent,m.AlcobreDispatchEvent.id==recent.c.last).join(m.AlcobreDispatchOperation,m.AlcobreDispatchOperation.id==m.AlcobreDispatchEvent.operation_id)
-    return {e.bobine_id:dict(state=e.state,event=e.id,operation=e.operation_id,dispatch=d) for e,d in db.execute(query)}
+    query=select(m.AlcobreDispatchEvent.id,m.AlcobreDispatchEvent.bobine_id,m.AlcobreDispatchEvent.state,m.AlcobreDispatchEvent.operation_id,m.AlcobreDispatchOperation.dispatch_id).join(recent,m.AlcobreDispatchEvent.id==recent.c.last).outerjoin(m.AlcobreDispatchOperation,m.AlcobreDispatchOperation.id==m.AlcobreDispatchEvent.operation_id)
+    return {uid:dict(state=state,event=ident,operation=op,dispatch=d) for ident,uid,state,op,d in db.execute(query)}
 
 def current(all_states,ident):return all_states.get(ident,dict(state='available',event=None,operation=None,dispatch=None))
 
 def live_placements(db):
-    query=select(m.AlcobrePlacement).join(m.AlcobreBobine,m.AlcobreBobine.id==m.AlcobrePlacement.bobine_id)
-    return query.where(state_expression()!='shipped') if enabled_events(db) else query
+    from .alcobre_inventory import placements
+    p=placements(db);query=select(p).join(m.AlcobreBobine,m.AlcobreBobine.id==p.bobine_id)
+    return query.where(state_expression().not_in(('shipped','missing'))) if enabled_events(db) else query
 
 def numbers_value(numbers):
     if isinstance(numbers,str):numbers=numbers.splitlines()
@@ -31,17 +32,19 @@ def numbers_value(numbers):
 
 def plan(db,numbers,ident=None,reference=None):
     requested=numbers_value(numbers);reference=a.value(reference,'Referência da guia',200,optional=True)
-    catalog={b.number_key:b for b in db.scalars(select(m.AlcobreBobine))};placements={p.bobine_id:p for p in db.scalars(select(m.AlcobrePlacement))};all_states=states(db)
+    from .alcobre_inventory import placements as current_placements,incident_locations
+    catalog={b.number_key:b for b in db.scalars(select(m.AlcobreBobine))};placements={p.bobine_id:p for p in db.scalars(select(current_placements(db)))};all_states=states(db);incidents=incident_locations(db)
     pending=any(e.quantity>a.identified(db,e.id) for e in db.scalars(select(m.AlcobreEntry).where(m.AlcobreEntry.mode=='pending',m.AlcobreEntry.status=='confirmed')))
     items=[]
     for wanted in requested:
         b=catalog.get(wanted.casefold());p=placements.get(b.id) if b else None;s=current(all_states,b.id) if b else current({},None)
-        reason=('unknown_pending' if pending else 'unknown') if not b else ('unlocated' if not p else s['state'])
+        reason=('unknown_pending' if pending else 'unknown') if not b else (s['state'] if s['state'] in ('shipped','missing','blocked') else ('unlocated' if not p else s['state']))
         if b and s['state']=='reserved':reason='reserved_self' if s['dispatch']==ident else 'reserved_other'
         if b and p and reason in ('available','reserved_self'):
             loc=db.scalar(select(m.Location).where(m.Location.codigo==p.local,m.Location.active.is_(True),m.Location.capacidade==1))
             slot=db.scalar(select(m.AlcobreSlot).join(m.AlcobreZone,m.AlcobreZone.id==m.AlcobreSlot.zone_id).where(m.AlcobreSlot.local==p.local,m.AlcobreZone.active.is_(True)))
             if not loc or not slot:reason='inactive'
+        if b and p and reason in ('available','reserved_self') and p.local in incidents:reason='inventory_incident'
         items.append(dict(requested=wanted,bobine_id=b.id if b else None,number=b.number if b else None,entry_id=b.entry_id if b else None,placement_id=p.id if p else None,local=p.local if p else None,state=s['state'] if b else None,before_event=s['event'] if b else None,reason=reason,available=reason in ('available','reserved_self')))
     return dict(reference=reference,items=items)
 
@@ -138,7 +141,7 @@ def prepared_basis(db,guide,rev,before):
         if old['available']:
             state=current(all_states,old['bobine_id'])
             match=state['operation']==op.id if old['state']=='available' else state['event']==old['before_event']
-            if state['state']!='reserved' or state['dispatch']!=guide.id or not match or any(old[k]!=now[k] for k in ('requested','number','bobine_id','placement_id','local','entry_id')):raise ReceivingError('Bobine/reserva/localização mudou; rever toda a guia antes de confirmar.')
+            if now['reason']!='reserved_self' or state['state']!='reserved' or state['dispatch']!=guide.id or not match or any(old[k]!=now[k] for k in ('requested','number','bobine_id','placement_id','local','entry_id')):raise ReceivingError('Bobine/reserva/localização mudou; rever toda a guia antes de confirmar.')
         elif old!=now:raise ReceivingError('Uma SEM STOCK mudou; criar revisão e preparação explícitas, sem atribuição automática.')
     return raw,all_states
 

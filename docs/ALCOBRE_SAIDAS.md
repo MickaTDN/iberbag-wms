@@ -1,5 +1,7 @@
 # Alcobre — Fase 2D.2: saídas por guia PDF
 
+> Evolução: [Fase 2D.3 — inventários e correções](ALCOBRE_INVENTARIOS_E_CORRECOES.md) acrescenta reconciliação administrativa comprovada; exclusões de inventários seguintes descrevem a fase histórica deste documento.
+
 Base: main após PR #30 (`7a6e49e`), revisão anterior **ddn_0016**. Complementa [entradas e stock Alcobre](ALCOBRE_ENTRADAS_E_STOCK.md). Apenas Alcobre/Ovar, escritório e documentos impressos. Não implementa FIFO, substituição de bobines, carregamentos parciais, inventários, transferências, devoluções ou compensações físicas.
 
 ## Fluxo no escritório

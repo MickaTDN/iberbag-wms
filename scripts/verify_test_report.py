@@ -402,6 +402,13 @@ REQUIRED_POSTGRES |= {
     'test_alcobre_dispatch.test_alcobre_concurrent_whole_guide_confirmations_discount_once',
     'test_alcobre_dispatch.test_alcobre_confirmation_cannot_repoint_active_revision',
 }
+REQUIRED_POSTGRES |= {
+    'test_alcobre_dispatch.test_alcobre_noncollected_present_releases_only_reservation_preserves_position_and_history',
+    'test_alcobre_dispatch.test_alcobre_noncollected_requires_explicit_classification_physical_proof_and_current_location',
+    'test_alcobre_dispatch.test_alcobre_runtime_rejects_unproved_release_and_forged_classification',
+    'test_alcobre_dispatch.test_alcobre_confirm_present_concurrent_with_other_guide_never_silently_reassigns',
+    'test_alcobre_dispatch.test_alcobre_http_whole_guide_requires_classification_and_explicit_presence',
+}
 REQUIRED_WINDOWS.add('test_alcobre_dispatch.test_alcobre_a4_full_rows_totals_and_sqlite_operational_refusal')
 
 def verify(path, backend, required=None):

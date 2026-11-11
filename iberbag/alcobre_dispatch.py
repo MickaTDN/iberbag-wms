@@ -151,7 +151,20 @@ def confirm(db,actor,ident,version,before,key,collected,exceptions,loaded_on,acc
     except (TypeError,ValueError):raise ReceivingError('Indicar data efetiva comprovada.',400)
     collected=[] if collected in (None,[]) else numbers_value(collected)
     if not isinstance(exceptions,dict):raise ReceivingError('Indicar as diferenças de recolha.',400)
-    exceptions={a.value(k,'Bobine da ocorrência'):a.value(v,'Motivo da não recolha',2000) for k,v in exceptions.items()}
+    clean={}
+    for number,resolution in exceptions.items():
+        number=a.value(number,'Bobine da ocorrência')
+        if not isinstance(resolution,dict) or set(resolution)!={'status','reason','local','physical_confirmed'} or resolution['status'] not in ('present','not_found'):
+            raise ReceivingError('Classificar cada não recolhida: presente no armazém ou não encontrada.',400)
+        reason=a.value(resolution['reason'],'Motivo da não recolha',2000)
+        if resolution['status']=='present':
+            if resolution['physical_confirmed'] is not True:raise ReceivingError('Confirmar fisicamente a presença antes de libertar a reserva.',400)
+            local=a.value(resolution['local'],'Localização física comprovada')
+        else:
+            if resolution['physical_confirmed'] is not False or resolution['local'] is not None:raise ReceivingError('Não encontrada não pode declarar presença/localização comprovada.',400)
+            local=None
+        clean[number]=dict(status=resolution['status'],reason=reason,local=local,physical_confirmed=resolution['physical_confirmed'])
+    exceptions=clean
     request=dict(version=version,before=before,collected=collected,exceptions=exceptions,loaded_on=loaded_on)
     old=replay(db,guide,key,'confirm',request)
     if old:return old
@@ -165,9 +178,15 @@ def confirm(db,actor,ident,version,before,key,collected,exceptions,loaded_on,acc
         item=dict(r)
         if r['available']:
             sent=r['requested'] in collected;s=current(all_states,r['bobine_id'])
-            changes.append(event(r['bobine_id'],s['event'],'shipped' if sent else 'blocked'))
-            item.update(outcome='shipped' if sent else 'exception',difference=None if sent else exceptions[r['requested']])
-        else:item.update(outcome='exception',difference=REASONS[r['reason']])
+            resolution=None if sent else exceptions[r['requested']]
+            if resolution and resolution['status']=='present':
+                from .warehouse_settings import occupied
+                if resolution['local']!=r['local'] or sum(q for _,q in occupied(db,[resolution['local']]))!=1:
+                    raise ReceivingError('A presença deve ser comprovada na posição atual e exclusiva; divergências de localização exigem reconciliação, sem transferência implícita.')
+            outcome='shipped' if sent else resolution['status']
+            changes.append(event(r['bobine_id'],s['event'],{'shipped':'shipped','present':'available','not_found':'blocked'}[outcome]))
+            item.update(outcome=outcome,difference=None if sent else resolution['reason'],resolution=resolution)
+        else:item.update(outcome='exception',difference=REASONS[r['reason']],resolution=None)
         items.append(item)
     snap=dict(plan=dict(raw,items=items),before=before,events=changes,loaded_on=loaded_on,collected=len(collected),exceptions=len(items)-len(collected))
     op=operation(db,actor,guide,rev,key,'confirm',request,snap);guide.status='confirmed';db.flush();document(db,actor,guide,snap['plan'],'confirm',operation=op.id,details=snap)

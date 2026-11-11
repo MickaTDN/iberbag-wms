@@ -22,11 +22,15 @@ def render_pdf(ident,version,plan,kind,actor,created,details):
     rows=plan['items'];available=sum(bool(r['available']) for r in rows)
     story=[p(f'Alcobre · Guia interna {ident} · Revisão {version}'),p(plan['reference'] or 'Referência comercial não informada'),p(labels[kind]),p(f'{actor} · {created.isoformat()}'),Spacer(1,8)]
     if kind=='confirm':story.append(p(f"Data efetiva: {details['loaded_on']} · Expedidas: {details['collected']} · Exceções SEM STOCK / não recolhidas: {details['exceptions']}"))
+    if kind=='confirm':story.append(p(f"Presentes não carregadas: {sum(r.get('outcome')=='present' for r in rows)} · Não encontradas: {sum(r.get('outcome')=='not_found' for r in rows)} · SEM STOCK: {sum(r.get('outcome')=='exception' for r in rows)}"))
     elif kind=='cancel':story.append(p(details['reason']))
     story.append(p(f'Total solicitado: {len(rows)} bobines · Disponíveis na seleção: {available} · SEM STOCK na seleção: {len(rows)-available}'))
     data=[[p(v) for v in ('Ordem','Bobine solicitada','Localização / SEM STOCK','Estado / observação')]]
     for index,row in enumerate(rows,1):
-        if kind=='confirm':label='EXPEDIDA' if row['outcome']=='shipped' else 'SEM STOCK / NÃO RECOLHIDA';note=row.get('difference') or 'Recolhida e confirmada'
+        if kind=='confirm':
+            label={'shipped':'EXPEDIDA','present':'PRESENTE NO ARMAZÉM — NÃO CARREGADA / DISPONÍVEL','not_found':'NÃO ENCONTRADA — BLOQUEADA'}.get(row['outcome'],'SEM STOCK / NÃO RECOLHIDA')
+            note=row.get('difference') or 'Recolhida e confirmada'
+            if row.get('resolution') and row['resolution']['status']=='present':note+=f" · Presença física confirmada · Localização comprovada: {row['resolution']['local']}"
         else:label=REASONS[row['reason']];note=label
         local=row['local'] if row['available'] else 'SEM STOCK'
         if not row['available'] and row['local']:note+=f" · Localização histórica: {row['local']}"

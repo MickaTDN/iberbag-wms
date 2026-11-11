@@ -60,6 +60,9 @@ def cancel(engine,actor,ident,key=None):
         g=db.get(m.AlcobreDispatch,ident)
         return s.cancel(db,actor,ident,g.version,s.last_operation(db,ident),key or secrets.token_hex(16),'Cancelamento comprovado fictício')
 
+def resolution(status='present',local='FICT-ALC-2'):
+    return dict(status=status,reason='Conferência física fictícia comunicada ao escritório',local=local if status=='present' else None,physical_confirmed=status=='present')
+
 def snapshot(engine):
     with engine.connect() as conn:return transfer.inventory(transfer.read_data(conn))
 
@@ -107,7 +110,7 @@ def test_alcobre_departure_reuses_position_keeps_original_identity_and_location(
 def test_alcobre_uncollected_bobine_is_exception_blocked_not_shipped_or_free(warehouse):
     engine,u=warehouse;actor=u['admin'][0];seed(engine,actor);ident=source(engine,actor);review(engine,actor,ident);prepare(engine,actor,ident)
     with pytest.raises(s.ReceivingError):confirm(engine,actor,ident,['000101'])
-    confirm(engine,actor,ident,['000101'],{'000102':'Bobine não encontrada na posição comunicada'})
+    confirm(engine,actor,ident,['000101'],{'000102':resolution('not_found')})
     with scoped(engine,5) as db:
         assert a.stock(db,state='shipped')[1]==1 and a.stock(db,state='blocked')[1]==1
         assert a.stock(db,'000102',state='available')[1]==0 and a.stock(db,'000102',state='on_hand')[1]==1
@@ -180,9 +183,9 @@ def test_alcobre_full_confirmation_rollback_and_retry(restricted_web,monkeypatch
             with owner.begin() as conn:assert conn.scalar(text('SELECT pg_terminate_backend(:p)'),{'p':pid})
         return original(db,*args,**kwargs)
     monkeypatch.setattr(s,'document',fail);key=secrets.token_hex(16)
-    with pytest.raises((RuntimeError,s.ReceivingError)):confirm(engine,actor,ident,['000101','000102'],key=key)
+    with pytest.raises((RuntimeError,s.ReceivingError)):confirm(engine,actor,ident,['000101'],{'000102':resolution()},key=key)
     assert snapshot(engine)==before
-    monkeypatch.setattr(s,'document',original);confirm(engine,actor,ident,['000101','000102'],key=key)
+    monkeypatch.setattr(s,'document',original);confirm(engine,actor,ident,['000101'],{'000102':resolution()},key=key)
 
 def test_alcobre_duplicate_and_ambiguous_pdf_cannot_be_prepared_silently(warehouse):
     engine,u=warehouse;actor=u['admin'][0];seed(engine,actor)
@@ -208,7 +211,7 @@ def test_alcobre_pdf_archive_navigation_permissions_csrf_and_context(restricted_
         for did,raw in docs.items():
             assert client.get(f'/alcobre/dispatch-documents/{did}.pdf').content==raw==client.get(f'/alcobre/dispatch-documents/{did}.pdf').content
         assert snapshot(engine)==original
-        body=dict(csrf=t['admin'][1],context_id=5,version=ver,before=before,key=secrets.token_hex(16),loaded_on='2027-03-03',accepted='yes',collected0='yes')
+        body=dict(csrf=t['admin'][1],context_id=5,version=ver,before=before,key=secrets.token_hex(16),loaded_on='2027-03-03',accepted='yes',result0='shipped')
         assert client.post(f'/alcobre/dispatches/{ident}/confirm',data=dict(body,csrf='bad')).status_code==403
         response=client.post(f'/alcobre/dispatches/{ident}/confirm',data=body);assert response.status_code==200,response.text
         assert client.post(f'/alcobre/dispatches/{ident}/confirm',data=body).status_code==200
@@ -245,6 +248,14 @@ def test_alcobre_a4_full_rows_totals_and_sqlite_operational_refusal():
     assert 'Total solicitado: 300' in text and 'SEM STOCK na seleção: 150' in text
     for rowdata in rows:assert rowdata['requested'] in text
     assert all(abs(float(p.mediabox.width)-595.28)<1 and abs(float(p.mediabox.height)-841.89)<1 for p in reader.pages)
+    confirmed=[dict(rows[0],outcome='shipped',difference=None,resolution=None),
+        dict(rows[1],available=True,reason='available',outcome='present',difference='Presente mas não carregada',resolution=resolution(local='POS-FICT')),
+        dict(rows[2],outcome='not_found',difference='Não encontrada',resolution=resolution('not_found')),
+        dict(rows[3],outcome='exception',difference='Número inexistente',resolution=None)]
+    result=render_pdf(1,1,dict(reference='FICT',items=confirmed),'confirm','Fictício',datetime(2027,1,1),dict(loaded_on='2027-01-01',collected=1,exceptions=3))
+    resulttext=' '.join(p.extract_text() for p in PdfReader(BytesIO(result)).pages)
+    for expected in ['PRESENTE NO ARMAZÉM','NÃO ENCONTRADA','Presença física confirmada','Presentes não carregadas: 1','Não encontradas: 1','SEM STOCK: 1']:
+        assert expected in resulttext
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
     with Session(create_engine('sqlite://')) as db:
@@ -270,7 +281,7 @@ def test_alcobre_ddn16_upgrade_encrypted_restore_and_guide_history(pg_databases,
         assert transfer.archive_inventory(conn,transfer.inventory(native))==transfer.inventory(native)
     ids=[source(engine,actor,[num]) for num in ['000101','000102','000103']]
     for ident in ids:review(engine,actor,ident);prepare(engine,actor,ident)
-    confirm(engine,actor,ids[0],['000101']);cancel(engine,actor,ids[1]);original=snapshot(engine)
+    confirm(engine,actor,ids[0],exceptions={'000101':resolution(local='FICT-ALC-1')});confirm(engine,actor,ids[1],['000102']);raw=source(engine,actor,['999001']);cancel(engine,actor,raw);original=snapshot(engine)
     target=pg_databases(restricted=True);folder=tmp_path/'after17';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
     assert backup.restore(target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)['status']=='reconciled'
     assert snapshot(target)==original
@@ -285,18 +296,19 @@ def test_alcobre_complete_sem_stock_guide_confirms_exceptions_without_events(war
         assert snapshot['events']==[] and snapshot['collected']==0 and snapshot['exceptions']==2
         assert a.stock(db,state='on_hand')[1]==4 and a.stock(db,state='shipped')[1]==0
 
-def test_alcobre_concurrent_whole_guide_confirmations_discount_once(warehouse):
+@pytest.mark.parametrize('present',[False,True])
+def test_alcobre_concurrent_whole_guide_confirmations_discount_once(warehouse,present):
     engine,u=warehouse;actor=u['admin'][0];seed(engine,actor);ident=source(engine,actor);review(engine,actor,ident);prepare(engine,actor,ident)
     with scoped(engine,5) as db:version=db.get(m.AlcobreDispatch,ident).version;before=s.last_operation(db,ident)
     key=secrets.token_hex(16);barrier=Barrier(2)
     def run(index):
         barrier.wait(timeout=10)
-        with scoped(engine,5) as db:return s.confirm(db,actor,ident,version,before,key,['000101','000102'],{},'2027-03-03',True)
+        with scoped(engine,5) as db:return s.confirm(db,actor,ident,version,before,key,['000101'] if present else ['000101','000102'],{'000102':resolution()} if present else {},'2027-03-03',True)
     with ThreadPoolExecutor(2) as pool:ops=list(pool.map(run,range(2)))
     assert ops[0]==ops[1]
     with scoped(engine,5) as db:
         assert db.scalar(select(func.count()).select_from(m.AlcobreDispatchOperation).where(m.AlcobreDispatchOperation.kind=='confirm'))==1
-        assert a.stock(db,state='shipped')[1]==2 and a.stock(db,state='on_hand')[1]==2
+        assert a.stock(db,state='shipped')[1]==(1 if present else 2) and a.stock(db,state='on_hand')[1]==(3 if present else 2)
 
 def test_alcobre_confirmation_cannot_repoint_active_revision(restricted_web,monkeypatch):
     app,owner,engine,role,u,t=restricted_web;actor=u['admin'][0];seed(engine,actor)
@@ -307,3 +319,109 @@ def test_alcobre_confirmation_cannot_repoint_active_revision(restricted_web,monk
     monkeypatch.setattr(s,'operation',tamper)
     with pytest.raises(s.ReceivingError):confirm(engine,actor,ident,['000101','000102'])
     assert snapshot(engine)==before
+
+
+def test_alcobre_noncollected_present_releases_only_reservation_preserves_position_and_history(restricted_web):
+    app,owner,engine,role,u,t=restricted_web;actor=u['admin'][0];seed(engine,actor)
+    ident=source(engine,actor,['000101','000102','000103','999001']);review(engine,actor,ident);prepare(engine,actor,ident)
+    choices={'000102':resolution(),'000103':resolution('not_found')}
+    with scoped(engine,5) as db:g=db.get(m.AlcobreDispatch,ident);version=g.version;before=s.last_operation(db,ident)
+    key=secrets.token_hex(16);op=confirm(engine,actor,ident,['000101'],choices,key=key)
+    with scoped(engine,5) as db:
+        assert a.stock(db,state='shipped')[1]==1 and a.stock(db,state='available')[1]==1 and a.stock(db,state='blocked')[1]==1 and a.stock(db,state='reserved')[1]==0
+        assert a.stock(db,state='on_hand')[1]==3
+        from iberbag.warehouse_settings import occupied
+        assert not occupied(db,['FICT-ALC-1'])
+        assert sum(q for _,q in occupied(db,['FICT-ALC-2']))==sum(q for _,q in occupied(db,['FICT-ALC-3']))==1
+        snap=json.loads(db.get(m.AlcobreDispatchOperation,op).snapshot)
+        assert [x['outcome'] for x in snap['plan']['items']]==['shipped','present','not_found','exception']
+        assert snap['plan']['items'][1]['resolution']==choices['000102'] and snap['collected']==1 and snap['exceptions']==3
+        assert [e['state'] for e in snap['events']]==['shipped','available','blocked']
+        assert db.scalar(select(func.count()).select_from(m.AlcobreBobine))==4
+        audit=db.scalar(select(m.Audit).where(m.Audit.action=='ALCOBRE_SAIDA_CONFIRMAR'))
+        assert json.loads(audit.details)['plan']['items'][1]['resolution']==choices['000102']
+        doc=db.scalar(select(m.AlcobreDispatchDocument).where(m.AlcobreDispatchDocument.operation_id==op));data=bytes(doc.pdf)
+        textpdf=' '.join(p.extract_text() for p in PdfReader(BytesIO(data)).pages)
+        assert 'PRESENTE NO ARMAZÉM' in textpdf and 'NÃO ENCONTRADA' in textpdf and 'FICT-ALC-2' in textpdf and '000103' in textpdf
+    for local in ['FICT-ALC-2','FICT-ALC-3']:
+        with pytest.raises(a.ReceivingError):incoming_review(engine,actor,incoming(engine,actor),[row('INVALID-'+local,local)])
+    with scoped(engine,5) as db:assert s.confirm(db,actor,ident,version,before,key,['000101'],choices,'2027-03-03',True)==op
+    other=source(engine,actor,['000102']);review(engine,actor,other);prepare(engine,actor,other);confirm(engine,actor,other,['000102'])
+    after=snapshot(engine)
+    with scoped(engine,5) as db:assert s.confirm(db,actor,ident,version,before,key,['000101'],choices,'2027-03-03',True)==op
+    assert snapshot(engine)==after
+    with scoped(engine,5) as db:assert db.get(m.AlcobreDispatchDocument,doc.id).pdf==data
+
+
+@pytest.mark.parametrize('bad',[
+    'Motivo isolado não classifica a bobine',
+    dict(status='present',reason='Prova',local='FICT-ALC-2',physical_confirmed=False),
+    dict(status='present',reason='Prova',local='FICT-ALC-2',physical_confirmed='true'),
+    dict(status='present',reason='Prova',local=None,physical_confirmed=True),
+    dict(status='present',reason='Prova',local='FICT-ALC-1',physical_confirmed=True),
+    dict(status='present',reason='',local='FICT-ALC-2',physical_confirmed=True),
+    dict(status='not_found',reason='Prova',local='FICT-ALC-2',physical_confirmed=False),
+    dict(status='not_found',reason='Prova',local=None,physical_confirmed=True),
+    dict(status='unknown',reason='Prova',local=None,physical_confirmed=False),
+])
+def test_alcobre_noncollected_requires_explicit_classification_physical_proof_and_current_location(warehouse,bad):
+    engine,u=warehouse;actor=u['admin'][0];seed(engine,actor);ident=source(engine,actor);review(engine,actor,ident);prepare(engine,actor,ident)
+    before=snapshot(engine)
+    with pytest.raises(s.ReceivingError):confirm(engine,actor,ident,['000101'],{'000102':bad})
+    assert snapshot(engine)==before
+    with pytest.raises(s.ReceivingError):confirm(engine,actor,ident,['000101'],{})
+    assert snapshot(engine)==before
+
+
+@pytest.mark.parametrize('tamper',['proof','location','event','outcome','missing_release'])
+def test_alcobre_runtime_rejects_unproved_release_and_forged_classification(restricted_web,monkeypatch,tamper):
+    app,owner,engine,role,u,t=restricted_web;actor=u['admin'][0];seed(engine,actor)
+    ident=source(engine,actor);review(engine,actor,ident);prepare(engine,actor,ident);before=snapshot(engine);original=s.operation
+    def forge(db,actor,g,rev,key,kind,payload,snap):
+        if tamper=='proof':payload['exceptions']['000102']['physical_confirmed']=False;snap['plan']['items'][1]['resolution']['physical_confirmed']=False
+        elif tamper=='location':payload['exceptions']['000102']['local']='FICT-ALC-1';snap['plan']['items'][1]['resolution']['local']='FICT-ALC-1'
+        elif tamper=='event':snap['events'][1]['state']='blocked'
+        elif tamper=='missing_release':snap['events'][1]['state']='available'
+        else:snap['plan']['items'][1]['outcome']='not_found'
+        return original(db,actor,g,rev,key,kind,payload,snap)
+    monkeypatch.setattr(s,'operation',forge)
+    with pytest.raises(s.ReceivingError):confirm(engine,actor,ident,['000101'],{'000102':resolution('not_found') if tamper=='missing_release' else resolution()})
+    assert snapshot(engine)==before
+
+
+def test_alcobre_confirm_present_concurrent_with_other_guide_never_silently_reassigns(warehouse):
+    engine,u=warehouse;actor=u['admin'][0];seed(engine,actor)
+    first=source(engine,actor,['000101']);review(engine,actor,first);prepare(engine,actor,first)
+    second=source(engine,actor,['000101']);review(engine,actor,second)
+    barrier=Barrier(2)
+    def run(which):
+        barrier.wait(timeout=10)
+        if which==0:return confirm(engine,actor,first,exceptions={'000101':resolution(local='FICT-ALC-1')})
+        try:return prepare(engine,actor,second)
+        except s.ReceivingError:return None
+    with ThreadPoolExecutor(2) as pool:list(pool.map(run,range(2)))
+    with scoped(engine,5) as db:assert a.stock(db,state='reserved')[1]==0 and a.stock(db,state='shipped')[1]==0 and a.stock(db,state='available')[1]==3
+    with pytest.raises(s.ReceivingError):confirm(engine,actor,second,['000101'])
+    review(engine,actor,second);prepare(engine,actor,second);confirm(engine,actor,second,['000101'])
+    with scoped(engine,5) as db:assert a.stock(db,state='shipped')[1]==1 and a.stock(db,state='available')[1]==2
+
+
+def test_alcobre_http_whole_guide_requires_classification_and_explicit_presence(restricted_web):
+    app,owner,engine,role,u,t=restricted_web;actor=u['admin'][0];seed(engine,actor)
+    ident=source(engine,actor,['000101','000102','000103']);review(engine,actor,ident);prepare(engine,actor,ident)
+    with scoped(engine,5) as db:version=db.get(m.AlcobreDispatch,ident).version;before=s.last_operation(db,ident)
+    body=dict(csrf=t['admin'][1],context_id=5,version=version,before=before,key=secrets.token_hex(16),loaded_on='2027-03-03',accepted='yes',result0='shipped',result1='present',reason1='Permanece fisicamente no armazém',local1='FICT-ALC-2',result2='not_found',reason2='Não encontrada na conferência')
+    with TestClient(app) as client:
+        client.cookies.set('wms_session',t['admin'][0]);client.cookies.set('ddn_context','5')
+        page=client.get(f'/alcobre/dispatches/{ident}');assert 'Presente no armazém, não carregada' in page.text and 'Não encontrada' in page.text
+        unchanged=snapshot(engine)
+        assert client.post(f'/alcobre/dispatches/{ident}/confirm',data=dict(body,physical1='yes',result2='')).status_code==400
+        assert snapshot(engine)==unchanged
+        assert client.post(f'/alcobre/dispatches/{ident}/confirm',data=body).status_code==400
+        assert snapshot(engine)==unchanged
+        response=client.post(f'/alcobre/dispatches/{ident}/confirm',data=dict(body,physical1='yes'));assert response.status_code==200,response.text
+        assert 'PRESENTE NO ARMAZÉM' in response.text and 'NÃO ENCONTRADA' in response.text
+        after=snapshot(engine)
+        with scoped(engine,5) as db:docs={d.id:bytes(d.pdf) for d in db.scalars(select(m.AlcobreDispatchDocument))}
+        for did,raw in docs.items():assert client.get(f'/alcobre/dispatch-documents/{did}.pdf').content==raw==client.get(f'/alcobre/dispatch-documents/{did}.pdf').content
+        assert snapshot(engine)==after

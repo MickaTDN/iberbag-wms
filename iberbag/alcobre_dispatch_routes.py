@@ -62,8 +62,11 @@ def confirm(ident:int,request:Request,data:dict=Depends(receiving_form),db=Depen
         if not rev:raise service.ReceivingError('Rever e preparar a guia primeiro.')
         rows=json.loads(rev.payload)['items'];selected=[];exceptions={}
         for i,row in enumerate(rows):
-            if data.get(f'collected{i}')=='yes':selected.append(row['requested'])
-            if data.get(f'exception{i}'):exceptions[row['requested']]=data[f'exception{i}']
+            if not row['available']:continue
+            if data.get(f'result{i}')=='shipped':
+                selected.append(row['requested'])
+                if data.get(f'reason{i}') or data.get(f'local{i}') or data.get(f'physical{i}'):raise service.ReceivingError('Bobine carregada não pode ter uma declaração contraditória de não recolha.',400)
+            else:exceptions[row['requested']]=dict(status=data.get(f'result{i}'),reason=data.get(f'reason{i}'),local=data.get(f'local{i}') or None,physical_confirmed=data.get(f'physical{i}')=='yes')
         service.confirm(db,user.id,ident,integer(data.get('version')),integer(data.get('before')),data.get('key'),selected,exceptions,data.get('loaded_on'),data.get('accepted')=='yes')
         return redirect(f'/alcobre/dispatches/{ident}')
     except service.ReceivingError as error:return failure(request,user,sess,error)

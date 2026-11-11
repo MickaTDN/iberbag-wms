@@ -21,7 +21,7 @@ BEGIN
 END $$;
 
 CREATE FUNCTION alcobre_dispatch_guard() RETURNS trigger LANGUAGE plpgsql SET search_path=__WMS_SCHEMA__,pg_catalog,pg_temp AS $$
-DECLARE g record; r record; op_row record; who record; ev_row record; raw jsonb; body jsonb; snap jsonb; item jsonb; now_item jsonb; event_item jsonb; fresh jsonb; requested jsonb; n integer; expected integer=0; before_op integer; previous_prep integer; allowed boolean; unit_id integer; st text; target text; uid integer; collected jsonb; differences jsonb; outcome text; detail text; matched integer;
+DECLARE g record; r record; op_row record; who record; ev_row record; raw jsonb; body jsonb; snap jsonb; item jsonb; now_item jsonb; event_item jsonb; fresh jsonb; requested jsonb; n integer; expected integer=0; before_op integer; previous_prep integer; allowed boolean; unit_id integer; st text; target text; uid integer; collected jsonb; differences jsonb; outcome text; detail text; resolution jsonb; matched integer;
 BEGIN
  PERFORM pg_advisory_xact_lock(72834001);
  IF NOT EXISTS(SELECT 1 FROM storage_contexts c JOIN alcobre_owners a ON a.client_id=c.client_id AND a.warehouse_id=c.warehouse_id JOIN clients cl ON cl.id=c.client_id JOIN warehouses w ON w.id=c.warehouse_id WHERE c.id=NEW.context_id AND c.active AND cl.active AND w.active) THEN RAISE EXCEPTION 'Alcobre context required'; END IF;
@@ -41,7 +41,7 @@ BEGIN
   IF op_row.id IS NULL OR NEW.previous_id IS DISTINCT FROM alcobre_current_event(NEW.bobine_id) OR NOT EXISTS(SELECT 1 FROM alcobre_bobines WHERE id=NEW.bobine_id AND context_id=NEW.context_id) THEN RAISE EXCEPTION 'Current original identity/event required'; END IF;
   IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(op_row.snapshot::jsonb->'events') e WHERE (e->>'bobine_id')::integer=NEW.bobine_id AND (e->>'previous_id')::integer IS NOT DISTINCT FROM NEW.previous_id AND e->>'state'=NEW.state) THEN RAISE EXCEPTION 'Event outside reviewed operation'; END IF;
   st=alcobre_current_state(NEW.bobine_id);
-  IF NOT ((op_row.kind='prepare' AND NEW.state='reserved' AND st='available') OR (op_row.kind IN ('prepare','cancel') AND NEW.state='available' AND st='reserved' AND alcobre_reserved_guide(NEW.bobine_id)=op_row.dispatch_id) OR (op_row.kind='confirm' AND NEW.state IN ('shipped','blocked') AND st='reserved' AND alcobre_reserved_guide(NEW.bobine_id)=op_row.dispatch_id)) THEN RAISE EXCEPTION 'Illegal reservation/expedition transition'; END IF;
+  IF NOT ((op_row.kind='prepare' AND NEW.state='reserved' AND st='available') OR (op_row.kind IN ('prepare','cancel') AND NEW.state='available' AND st='reserved' AND alcobre_reserved_guide(NEW.bobine_id)=op_row.dispatch_id) OR (op_row.kind='confirm' AND NEW.state IN ('shipped','blocked','available') AND st='reserved' AND alcobre_reserved_guide(NEW.bobine_id)=op_row.dispatch_id)) THEN RAISE EXCEPTION 'Illegal reservation/expedition transition'; END IF;
   RETURN NEW;
  END IF;
  IF TG_TABLE_NAME='alcobre_dispatch_documents' THEN
@@ -92,17 +92,20 @@ BEGIN
     IF item->>'state'='available' THEN
      IF NOT EXISTS(SELECT 1 FROM alcobre_dispatch_events WHERE id=alcobre_current_event(uid) AND operation_id=previous_prep) THEN RAISE EXCEPTION 'Reservation changed after preparation'; END IF;
     ELSIF alcobre_current_event(uid) IS DISTINCT FROM (item->>'before_event')::integer THEN RAISE EXCEPTION 'Old reservation changed'; END IF;
-    IF collected ? (item->>'requested') THEN outcome='shipped';detail=NULL;
+    IF collected ? (item->>'requested') THEN outcome='shipped';detail=NULL;resolution='null'::jsonb;
     ELSE
-     outcome='exception';detail=differences->>(item->>'requested');
-     IF coalesce(jsonb_typeof(differences->(item->>'requested')),'null')<>'string' OR btrim(coalesce(detail,''))='' OR length(detail)>2000 THEN RAISE EXCEPTION 'Each uncollected bobine needs evidence'; END IF;
+     resolution=differences->(item->>'requested');outcome=resolution->>'status';detail=resolution->>'reason';
+     IF coalesce(jsonb_typeof(resolution),'null')<>'object' OR resolution-ARRAY['status','reason','local','physical_confirmed']<>'{}'::jsonb OR (SELECT count(*) FROM jsonb_object_keys(resolution))<>4 OR outcome IS NULL OR outcome NOT IN ('present','not_found') OR coalesce(jsonb_typeof(resolution->'reason'),'null')<>'string' OR coalesce(detail,'')='' OR btrim(detail)<>detail OR detail ~ '[[:cntrl:]]' OR length(detail)>2000 THEN RAISE EXCEPTION 'Explicit classification and evidence for every uncollected bobine'; END IF;
+     IF outcome='present' THEN
+      IF resolution->'physical_confirmed' IS DISTINCT FROM 'true'::jsonb OR coalesce(jsonb_typeof(resolution->'local'),'null')<>'string' OR resolution->>'local' IS DISTINCT FROM item->>'local' OR length(resolution->>'local') NOT BETWEEN 1 AND 120 OR (SELECT count(*) FROM alcobre_placements p WHERE p.context_id=g.context_id AND p.local=resolution->>'local' AND alcobre_current_state(p.bobine_id)<>'shipped')<>1 THEN RAISE EXCEPTION 'Physical presence and current exclusive location required before release'; END IF;
+     ELSIF resolution->'physical_confirmed' IS DISTINCT FROM 'false'::jsonb OR resolution->'local' IS DISTINCT FROM 'null'::jsonb THEN RAISE EXCEPTION 'Not found cannot declare physical presence'; END IF;
     END IF;
     expected=expected+1;
    ELSE
     IF item IS DISTINCT FROM now_item THEN RAISE EXCEPTION 'SEM STOCK changed; revise explicitly'; END IF;
-    outcome='exception';detail=NULL;
+    outcome='exception';detail=NULL;resolution='null'::jsonb;
    END IF;
-   IF (snap->'plan'->'items'->n)-ARRAY['outcome','difference'] IS DISTINCT FROM item OR snap->'plan'->'items'->n->>'outcome' IS DISTINCT FROM outcome OR ((item->>'available')::boolean AND snap->'plan'->'items'->n->>'difference' IS DISTINCT FROM detail) THEN RAISE EXCEPTION 'Archived outcome must preserve exact selection'; END IF;
+   IF snap->'plan'->'items'->n->'resolution' IS DISTINCT FROM resolution OR (snap->'plan'->'items'->n)-ARRAY['outcome','difference','resolution'] IS DISTINCT FROM item OR snap->'plan'->'items'->n->>'outcome' IS DISTINCT FROM outcome OR ((item->>'available')::boolean AND snap->'plan'->'items'->n->>'difference' IS DISTINCT FROM detail) THEN RAISE EXCEPTION 'Archived outcome must preserve exact selection'; END IF;
    n=n+1;
   END LOOP;
   IF (SELECT count(*) FROM jsonb_object_keys(differences))<>expected-jsonb_array_length(collected) OR EXISTS(SELECT 1 FROM jsonb_object_keys(differences) k WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(raw->'items') x WHERE (x->>'available')::boolean AND x->>'requested'=k AND NOT collected ? k)) OR (snap->>'collected')::integer IS DISTINCT FROM jsonb_array_length(collected) OR (snap->>'exceptions')::integer IS DISTINCT FROM jsonb_array_length(raw->'items')-jsonb_array_length(collected) THEN RAISE EXCEPTION 'Whole guide totals/exception partition required'; END IF;
@@ -116,7 +119,7 @@ BEGIN
   allowed=false;
   IF NEW.kind='prepare' THEN allowed=(target='reserved' AND st='available' AND coalesce((item->>'available')::boolean,false)) OR (target='available' AND st='reserved' AND alcobre_reserved_guide(uid)=g.id AND NOT coalesce((item->>'available')::boolean,false));
   ELSIF NEW.kind='cancel' THEN allowed=target='available' AND st='reserved' AND alcobre_reserved_guide(uid)=g.id;
-  ELSE allowed=coalesce((item->>'available')::boolean,false) AND st='reserved' AND alcobre_reserved_guide(uid)=g.id AND target=CASE WHEN collected ? (item->>'requested') THEN 'shipped' ELSE 'blocked' END; END IF;
+  ELSE allowed=coalesce((item->>'available')::boolean,false) AND st='reserved' AND alcobre_reserved_guide(uid)=g.id AND target=CASE WHEN collected ? (item->>'requested') THEN 'shipped' WHEN differences->(item->>'requested')->>'status'='present' THEN 'available' ELSE 'blocked' END; END IF;
   IF allowed IS DISTINCT FROM true THEN RAISE EXCEPTION 'Event not authorized by exact guide'; END IF;
  END LOOP;
  RETURN NEW;

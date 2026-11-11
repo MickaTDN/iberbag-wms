@@ -432,6 +432,15 @@ REQUIRED_POSTGRES |= {'test_alcobre_inventory.test_alcobre_inventory_empty_count
 REQUIRED_POSTGRES.add('test_alcobre_inventory.test_alcobre_inventory_unlabelled_found_material_never_gets_invented_identity')
 REQUIRED_WINDOWS.add('test_alcobre_inventory.test_alcobre_inventory_pdf_sqlite_is_read_only_and_absence_not_unknown')
 
+REQUIRED_POSTGRES |= {
+    'test_alcobre_integrated.test_integrated_alcobre_receipts_dispatch_inventory_and_full_encrypted_recovery',
+    'test_alcobre_integrated.test_integrated_alcobre_review_stale_after_location_correction_or_receipt_putaway',
+    'test_alcobre_integrated.test_integrated_alcobre_failures_between_ledger_document_and_audit_are_atomic',
+    'test_alcobre_integrated.test_integrated_alcobre_a4_inventory_keeps_every_long_number_and_unknown_quantity',
+    'test_alcobre_integrated.test_integrated_alcobre_two_authenticated_users_cannot_adjust_a_reserved_bobine',
+}
+REQUIRED_WINDOWS.add('test_alcobre_integrated.test_integrated_alcobre_a4_inventory_keeps_every_long_number_and_unknown_quantity')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

@@ -126,7 +126,7 @@ def test_nkt_backup_restore_and_prior_head_upgrade(pg_databases,warehouse,tmp_pa
         seed_legacy_catalogue(db);u=m.User(username='admin',display_name='Fictício',role='admin',active=True);set_password(u,secrets.token_urlsafe(24));db.add(u);db.commit();actor=u.id
     with engine.connect() as conn:before=transfer.inventory(transfer.read_data(conn))
     folder=tmp_path/'before';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD);backup.restore(target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0015'
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0016'
     with engine.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==before
     setup(engine);ident=save(engine,actor,['000Restore']);confirm(engine,actor,ident)
     with engine.connect() as conn:before=transfer.inventory(transfer.read_data(conn))

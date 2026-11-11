@@ -64,6 +64,9 @@ def occupied(db, codes):
         from .nkt_loading import on_hand_query
         selected=on_hand_query(db).where(NktPallet.local.in_(sorted(codes))).subquery()
         rows+=db.execute(select(selected.c.local,func.count()).group_by(selected.c.local)).all()
+    if inspect(db.connection()).has_table('alcobre_placements'):
+        from .database import AlcobrePlacement
+        rows+=db.execute(select(AlcobrePlacement.local,func.count()).where(AlcobrePlacement.local.in_(sorted(codes))).group_by(AlcobrePlacement.local)).all()
     return rows+db.execute(select(model.local,func.sum(model.physical_quantity)).where(
         model.local.in_(sorted(codes)),model.physical_quantity>0).group_by(model.local)).all()
 
@@ -235,6 +238,9 @@ def set_capacity(db, username, code, value):
         raise WarehouseError('Capacidade: indicar inteiro positivo; vazio significa ilimitado.')
     else:
         capacity = int(value)
+    from .alcobre import enabled_if_present
+    from .contexts import require_context
+    if enabled_if_present(db,require_context(db)[1].id) and capacity != 1:raise WarehouseError('Posições Alcobre exigem capacidade de uma bobine.')
     used = sum(row[1] for row in occupied(db,[code]))
     if capacity is not None and used > capacity:
         raise WarehouseError('A capacidade não pode ser inferior ao stock atual.')

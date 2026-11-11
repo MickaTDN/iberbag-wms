@@ -3,9 +3,9 @@ from email import policy
 from email.parser import BytesParser
 from fastapi import Request,HTTPException
 
-async def parse_upload(request:Request,*,filename=False):
+async def parse_upload(request:Request,*,filename=False,file_field='excel',label='Excel'):
     content_type=request.headers.get('content-type','')
-    if not content_type.startswith('multipart/form-data;') or len(content_type)>200 or '\r' in content_type or '\n' in content_type:raise HTTPException(400,'Selecionar um ficheiro Excel.')
+    if not content_type.startswith('multipart/form-data;') or len(content_type)>200 or '\r' in content_type or '\n' in content_type:raise HTTPException(400,'Selecionar um ficheiro '+label+'.')
     body=getattr(request.state,'wms_body',b'')
     if not body:raise HTTPException(400,'Ficheiro ausente.')
     try:
@@ -21,19 +21,21 @@ async def parse_upload(request:Request,*,filename=False):
             if not sep or len(header)>4096:raise ValueError()
             part=BytesParser(policy=policy.default).parsebytes(header+b'\r\n\r\n')
             name=part.get_param('name',header='content-disposition')
-            if part.defects or part.get_content_maintype()=='multipart' or part.get_content_disposition()!='form-data' or name not in ('excel','csrf','context_id','request_key') or name in data or part.get('Content-Transfer-Encoding'):raise ValueError()
-            if name=='excel':
+            if part.defects or part.get_content_maintype()=='multipart' or part.get_content_disposition()!='form-data' or name not in (file_field,'csrf','context_id','request_key') or name in data or part.get('Content-Transfer-Encoding'):raise ValueError()
+            if name==file_field:
                 data[name]=payload
-                original_name=part.get_filename() or 'listagem.xlsx'
+                original_name=part.get_filename() or ('guia.pdf' if file_field=='pdf' else 'listagem.xlsx')
                 if filename and (not 1<=len(original_name)<=240 or any(ord(c)<32 for c in original_name) or '/' in original_name or chr(92) in original_name):raise ValueError()
             else:
                 if len(payload)>200:raise ValueError()
                 data[name]=payload.decode('utf-8','strict')
-        if set(data)!= {'excel','csrf','context_id','request_key'}:raise ValueError()
+        if set(data)!= {file_field,'csrf','context_id','request_key'}:raise ValueError()
         if filename:data['source_name']=original_name
         return data
-    except (ValueError,UnicodeError,TypeError):raise HTTPException(400,'Upload inválido; selecionar novamente o Excel.')
+    except (ValueError,UnicodeError,TypeError):raise HTTPException(400,'Upload inválido; selecionar novamente o '+label+'.')
 
 
 async def upload_form(request:Request):return await parse_upload(request)
 async def named_upload_form(request:Request):return await parse_upload(request,filename=True)
+
+async def alcobre_upload_form(request:Request):return await parse_upload(request,filename=True,file_field="pdf",label="PDF")

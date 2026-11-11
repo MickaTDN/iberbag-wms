@@ -198,6 +198,8 @@ def test_every_post_rejects_bad_csrf_without_waiting_for_lock(restricted_web):
         with TestClient(app) as client:
             client.cookies.set('wms_session', tokens['admin'][0])
             data={'csrf':secrets.token_hex(16),'context_id':1}
+            if path=='/alcobre/entries/upload':
+                return client.post(path,data=dict(data,request_key=secrets.token_hex(16)),files={'pdf':('fiction.pdf',b'FICTITIOUS; must not reach PDF parser')},follow_redirects=False)
             if path in ('/valmet/imports/upload','/nkt/receivings/upload'):
                 return client.post(path,data=dict(data,request_key=secrets.token_hex(16)),files={'excel':('fiction.xlsx',b'FICTITIOUS; must not reach Excel parser')},follow_redirects=False)
             return client.post(path,data=data,follow_redirects=False)
@@ -268,7 +270,7 @@ def test_authenticated_concurrent_forms_finish_atomically(restricted_web):
 def test_admin_posts_refuse_operator_before_lock(restricted_web):
     app, owner, runtime, role, accounts, tokens = restricted_web
     paths = ['/settings/clients','/settings/clients/1','/settings/warehouses','/settings/contexts',
-             '/settings/capacity','/settings/mercadona','/settings/locations/A101/active',
+             '/alcobre/entries/upload','/alcobre/settings/zones','/alcobre/settings/slots','/settings/capacity','/settings/mercadona','/settings/locations/A101/active',
              '/settings/corridors','/settings/corridors/A/update','/settings/corridors/A/delete',
              '/settings/locations','/settings/locations/A101/delete','/settings/locations/A101/rename',
              '/users','/users/1/toggle','/users/1/reset-password','/inventory/incidents/1/resolve',
@@ -279,6 +281,8 @@ def test_admin_posts_refuse_operator_before_lock(restricted_web):
         with TestClient(app) as client:
             client.cookies.set('wms_session',tokens['operador'][0])
             data={'csrf':tokens['operador'][1],'context_id':1}
+            if path=='/alcobre/entries/upload':
+                return client.post(path,data=dict(data,request_key=secrets.token_hex(16)),files={'pdf':('fiction.pdf',b'FICTITIOUS; must not reach PDF parser')},follow_redirects=False)
             if path in ('/valmet/imports/upload','/nkt/receivings/upload'):
                 return client.post(path,data=dict(data,request_key=secrets.token_hex(16)),files={'excel':('fiction.xlsx',b'FICTITIOUS; must not reach Excel parser')},follow_redirects=False)
             return client.post(path,data=data,follow_redirects=False)

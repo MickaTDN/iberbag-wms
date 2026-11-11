@@ -2,6 +2,8 @@
 
 Base `main` após PR #29 (`4582372`), head anterior ddn_0015. Apenas Alcobre/Ovar; não altera os processos dos restantes clientes. Utilização no escritório, com comunicação de números/posições pelos operadores físicos. Sem saídas, inventários ou transferências Alcobre nesta fase.
 
+> Evolução: [Fase 2D.2 — saídas por guia](ALCOBRE_SAIDAS.md) acrescenta reservas/expedições e ocupação corrente, preservando estes livros e identidades. As exclusões de saídas seguintes referem-se à Fase 2D.1; inventários e transferências continuam pendentes.
+
 ## Identidade e consulta
 
 Uma bobine identificada é uma unidade física, controlada pelo seu **número textual original e localização**. Não existem campos obrigatórios de artigo, lote, descrição, metros ou peso. Zeros e grafia são preservados. Nesta fase, um número já registado no proprietário não pode ser duplicado, incluindo variantes de maiúsculas/minúsculas; não há eliminação/reutilização de identidades confirmadas. O índice por proprietário e chave normalizada, um índice adicional por `lower(number)` e a validação casefold sob lock protegem as novas identidades. Não se infere uma política comercial futura de devoluções/renumeração a partir desta fase.

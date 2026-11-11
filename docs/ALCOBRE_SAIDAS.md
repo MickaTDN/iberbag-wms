@@ -1,0 +1,53 @@
+# Alcobre — Fase 2D.2: saídas por guia PDF
+
+Base: main após PR #30 (`7a6e49e`), revisão anterior **ddn_0016**. Complementa [entradas e stock Alcobre](ALCOBRE_ENTRADAS_E_STOCK.md). Apenas Alcobre/Ovar, escritório e documentos impressos. Não implementa FIFO, substituição de bobines, carregamentos parciais, inventários, transferências, devoluções ou compensações físicas.
+
+## Fluxo no escritório
+
+1. Alcobre → **Saídas Alcobre** → selecionar a guia PDF (Administrador). O mesmo analisador das entradas lê exclusivamente BOBINA, conservando texto, zeros, ordem, página/coordenadas e avisos. Metros, madeira e restantes colunas não são selecionados como bobines. Original, nome, SHA-256 e relatório ficam permanentemente ligados à guia interna.
+2. Conferir os números. Layout ambíguo/corrigido exige **transcrição manual comprovada**, com motivo/evidência e nova revisão explícita. Duplicados, incluindo diferenças apenas de maiúsculas/minúsculas, são recusados; não se eliminam linhas, inferem intervalos, criam identidades ou substituem bobines automaticamente. A referência comercial é opcional e só existe quando introduzida comprovadamente; o ID interno não é GT/CMR nem número comercial inventado.
+3. Guardar revisão. Mostra todas as linhas pedidas, na ordem original, com a identidade existente e localização quando disponível. **SEM STOCK** distingue: número inexistente, sem identidade comprovada quando existem receções pendentes, bobine identificada por arrumar, reserva de outra guia, expedição anterior, bloqueio por ocorrência e configuração indisponível. A existência de material por identificar não prova que um determinado número pertença a essa receção: não há associação presumida.
+4. Aceitar toda a seleção, incluindo SEM STOCK, e **Preparar e reservar disponíveis**. Só as identidades disponíveis da revisão recebem reserva exclusiva. Preparar/guardar/imprimir não desconta stock. Uma guia com apenas SEM STOCK também pode ser preparada, sem reservas fictícias.
+5. Abrir e imprimir a **folha A4 de recolha** arquivada da preparação. Inclui todas as bobines, localizações, SEM STOCK/motivos e totais. Pode ter várias páginas, repetindo cabeçalhos; não trunca números ou elimina linhas para caber numa folha. Documentos de revisão dizem expressamente que não autorizam recolha.
+6. Após a comunicação física ao escritório, assinalar as bobines efetivamente recolhidas, justificar cada reservada que não foi recolhida e indicar a data efetiva. Aceitar e **confirmar a guia inteira uma única vez**. Desconta apenas as recolhidas e reservadas nessa guia; as restantes são exceções, sem expedição falsa. Não existe confirmação parcial nem segunda confirmação dos remanescentes.
+7. Consultar resultado, utilizador/data, diferenças, original e documentos de todas as revisões. Reimprimir devolve os bytes arquivados após verificar SHA-256, sem refazer a seleção nem movimentar stock.
+
+O Operador pode trabalhar nas próprias guias já importadas; o Administrador pode tratar as restantes. Importar novos PDFs exige o perfil atual de Administrador. A confirmação é do escritório, não um passo de utilização obrigatória da aplicação pelos operadores físicos.
+
+## Exceções de recolha e estados
+
+Uma bobine reservada mas não recolhida **não é expedida**, não desaparece e não liberta automaticamente a posição. Regista motivo e fica **bloqueada por ocorrência de recolha**, fora do disponível, mantendo físico registado e localização. Não se presume que permaneça comprovadamente disponível só por não ter sido carregada. A futura reconciliação administrativa comprovada pertence às fases de inventário/ajustes; não existe nesta fase um botão para apagar a ocorrência, repor stock, devolver ou compensar fisicamente uma saída.
+
+Bobines SEM STOCK que nunca chegaram a ser reservadas ficam apenas nas exceções da guia; não recebem eventos de expedição ou identidades novas. Uma guia integralmente SEM STOCK pode confirmar zero bobines, arquivando todas as exceções e a decisão do escritório. A data confirmada corresponde à operação efetiva declarada, não a uma chegada/GT presumida.
+
+Stock permite filtros **disponível, reservado, expedido (histórico), bloqueado, por localizar, por identificar e físico registado**. Identidades expedidas permanecem permanentemente no histórico e continuam a impedir reutilização do número. A localização da bobine expedida é histórica. A ocupação corrente exclui expedidas, pelo que outra bobine real pode ocupar a mesma posição configurada; não se alteram/apagam as arrumações anteriores. Reservadas e bloqueadas continuam a ocupar posição. Corrigir/remover códigos físicos com histórico continua protegido; libertar ocupação não autoriza reescrever localizações históricas.
+
+## Revisões, cancelamento e concorrência
+
+- Alterar a lista exige ação explícita e nova revisão. Reservas antigas mantêm-se até preparar a revisão nova; nessa confirmação libertam-se apenas as retiradas e reservam-se apenas as novas disponíveis, atomicamente. Enquanto existir revisão por preparar, não pode expedir usando a seleção antiga.
+- Uma reserva concorrente, mudança de identidade/localização, arrumação de uma SEM STOCK ou alteração relevante desde a revisão bloqueia a preparação/confirmação afetada. Exige nova revisão e preparação; não procura outra bobine nem inclui mercadoria chegada entretanto automaticamente.
+- **Cancelar antes de expedir** exige motivo e estado atual. Liberta apenas reservas ainda pertencentes à guia, sem descontar físico ou apagar movimentos. Pode cancelar um rascunho bruto ainda sem revisão. Guia confirmada não pode ser cancelada como rascunho.
+- O mesmo PDF, ainda que renomeado, remete para a guia original do contexto, incluindo se já foi confirmada/cancelada. Não se reativa automaticamente uma guia cancelada nem se cria nova expedição ao repetir o upload. Uma nova guia comercial/correção deve ter origem comprovada; reabertura administrativa de um original cancelado não faz parte desta fase.
+- PostgreSQL 17 READ COMMITTED e o lock transacional comum revalidam estados/versões/autorizações após espera. Não há locks durante receção do corpo, análise PDF ou introdução prolongada. Chaves idempotentes e confirmação única por guia impedem desconto repetido; falhas/cancelamentos de transação revertem guia, eventos, auditoria e documentos juntos.
+
+## Modelo, migração e segurança
+
+Head aditiva **ddn_0017**, filha de ddn_0016. Novas tabelas: `alcobre_dispatches`, `alcobre_dispatch_revisions`, `alcobre_dispatch_operations`, `alcobre_dispatch_events`, `alcobre_dispatch_documents`. O stock continua derivado de livros imutáveis, sem projeção editável pelo runtime. Eventos encadeados por identidade representam reserva, libertação, expedição e bloqueio. Só a operação `confirm` pode expedir identidades efetivamente reservadas na guia; expedidas/bloqueadas não voltam automaticamente a disponíveis.
+
+As revisões publicadas são preservadas. A migração deixa todos os registos/IDs/bytes existentes intactos. Retira apenas a unicidade histórica da localização nas arrumações (mantém uma única arrumação por identidade) e acrescenta validação transacional de **ocupação corrente**. A guarda das entradas passa a contar só arrumações de bobines ainda não expedidas. Não há dados de stock, reservas ou expedições fabricados na migração.
+
+Triggers SQL validam ator/contexto, plano exato, digests, revisão ativa, reservas, eventos anteriores, partição completa de recolhidas/exceções, totais, transições e confirmação única; guardas diferidas exigem eventos e PDF completos no mesmo commit. Guias encerradas, originais, revisões, operações, eventos e PDFs são imutáveis. Runtime permanece sem privilégios administrativos, escrita direta de saldos ou alteração/apagamento dos livros. Mantém autenticação, CSRF, contexto original, permissões e auditoria existentes.
+
+Reutiliza os limites e isolamento PDF da Fase 2D.1: 5 MiB/10 páginas, 300 números, expansão/fragmentos limitados, processo separado com memória/tempo limitados e admissão limitada. Formulários 64 KiB/10 s; PDFs gerados até 4 MiB. Texto sem representação segura na fonte PDF é recusado, não substituído/truncado. Não utiliza OCR, serviços externos ou dados empresariais nos testes. Os layouts PDF reais continuam **não homologados**; formatos desalinhados ou não delimitados exigem transcrição manual comprovada.
+
+## Atualização, backup e recuperação
+
+Backups cifrados/autenticados incluem originais, SHA-256, revisões, reservas, exceções, expedições, documentos A4 e auditoria. Um arquivo anterior só pode omitir as tabelas novas se estiverem efetivamente vazias; não se ocultam guias em rascunho ou movimentos. A leitura de bases ddn_0016 conserva todas as colunas/valores e representa o novo grupo vazio para reconciliação da migração.
+
+Atualização real: aplicação parada, backup, ensaio de restauro numa base separada/vazia, prévia e aplicação explícitas e atualização dos grants runtime. Não há migração no arranque, deploy ou atualização de produção nesta entrega. Em falha, recuperar arquivo verificado numa base separada e versão correspondente; não reimportar PDFs nem apagar/recriar livros para reconstruir stock.
+
+## Testes e homologação pendente
+
+`tests/test_alcobre_dispatch.py` gera guias fictícias com várias bobines e números irrelevantes noutras colunas; cobre preparação/misturas SEM STOCK, identidade/ordem/zeros, duplicados, ambiguidade manual, reservas/confirmacões concorrentes, revisões, cancelamentos brutos/preparados, saída completa/zero saídas/exceções bloqueadas, reutilização de posição, alterações posteriores, rollback com exceção/perda de ligação, SQL runtime negativo, permissões/CSRF/contextos, A4 sem truncagem/reimpressão, migração ddn_0016 e backup/restauro com reservas, expedições e arquivos existentes. Reutiliza as suites de entradas, parser, segurança e restantes clientes.
+
+Pendente antes de produção: homologação de PDFs empresariais **autorizados**, códigos físicos conferidos, Windows 11/PostgreSQL 17 nativo, dois PCs, impressora A4 e restauro reconciliado. Ensaiar primeiro com dados fictícios: guia mista, disputa da mesma bobine, alteração entre revisão/confirmação, falta comunicada, saída/reutilização da posição, reimpressão idêntica e recuperação de guia confirmada/reservada/cancelada. CI Windows/SQLite não equivale a homologação física. Sem inventários, transferências, devoluções, compensações físicas, importação de dados reais ou merge.

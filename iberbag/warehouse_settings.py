@@ -66,7 +66,9 @@ def occupied(db, codes):
         rows+=db.execute(select(selected.c.local,func.count()).group_by(selected.c.local)).all()
     if inspect(db.connection()).has_table('alcobre_placements'):
         from .database import AlcobrePlacement
-        rows+=db.execute(select(AlcobrePlacement.local,func.count()).where(AlcobrePlacement.local.in_(sorted(codes))).group_by(AlcobrePlacement.local)).all()
+        from .alcobre_dispatch import live_placements
+        live=live_placements(db).where(AlcobrePlacement.local.in_(sorted(codes))).subquery()
+        rows+=db.execute(select(live.c.local,func.count()).group_by(live.c.local)).all()
     return rows+db.execute(select(model.local,func.sum(model.physical_quantity)).where(
         model.local.in_(sorted(codes)),model.physical_quantity>0).group_by(model.local)).all()
 

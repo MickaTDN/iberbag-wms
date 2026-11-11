@@ -245,12 +245,12 @@ def test_alcobre_ddn15_upgrade_encrypted_restore_and_original_histories(pg_datab
     seed(engine,actor);p=prepare(engine,actor);reserve(engine,actor,p);ship(engine,actor,p,['001'])
     with engine.connect() as conn:
         native=transfer.read_data(conn)
-        for name in transfer.ALCOBRE_TABLES:native.pop(name)
+        for name in transfer.ALCOBRE_TABLES | transfer.ALCOBRE_DISPATCH_TABLES:native.pop(name)
         native15=transfer.inventory(native);assert transfer.archive_inventory(conn,native15)==native15
     before=inventory(engine);folder=tmp_path/'before16'
     backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
     assert backup.restore(previous,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)['status']=='reconciled'
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0016'
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0017'
     assert inventory(engine)==before
     with engine.connect() as conn:assert transfer.archive_inventory(conn,native15)==native15
     positions(engine,actor,2);ident=draft(engine,actor,'pending');confirm(engine,actor,review(engine,actor,ident,quantity=2))

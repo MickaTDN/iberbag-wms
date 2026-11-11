@@ -606,3 +606,6 @@ app.include_router(nkt_inventory_router)
 
 from .alcobre_routes import router as alcobre_router
 app.include_router(alcobre_router)
+
+from .alcobre_dispatch_routes import router as alcobre_dispatch_router
+app.include_router(alcobre_dispatch_router)

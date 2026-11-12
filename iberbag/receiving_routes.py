@@ -162,12 +162,14 @@ def putaway_detail(operation_id: int, request: Request, db: Session = Depends(da
     if not user:
         return redirect('/login')
     operation = db.get(Putaway, operation_id)
-    if not operation or (operation.status == 'draft' and operation.created_by != user.id):
+    from .physical_locations import shared_location
+    shared=bool(operation and shared_location(db,operation.local))
+    if not operation or (operation.status == 'draft' and operation.created_by != user.id and not (user.role=='admin' and shared)):
         raise HTTPException(404, 'Arrumação não encontrada.')
     line = db.get(ReceiptLine, operation.line_id)
     receipt = db.get(Receipt, line.receipt_id)
     return render(request, 'putaway_detail.html', context(request, user, sess, operation=operation,
-        line=line, receipt=receipt))
+        line=line, receipt=receipt,shared_position=shared))
 
 
 @router.post('/putaway/{operation_id}/confirm')

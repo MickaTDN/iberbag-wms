@@ -343,12 +343,14 @@ def warehouse_map(request: Request, corredor: str='', andar: int=1,
     if getattr(request.state,'office_alcobre',False):return redirect('/alcobre/stock')
     if getattr(request.state,'office_nkt',False) and request.url.path=='/map':return redirect('/nkt/stock')
     if getattr(request.state,'office_valmet',False) and request.url.path=='/map':return redirect('/valmet/stock')
+    from .physical_locations import physical_statuses
+    shared_positions=physical_statuses(db)
     corridors = db.scalars(select(Corridor).order_by(Corridor.codigo)).all()
     if not corridors:
         totals = db.execute(select(Stock.local, func.sum(Stock.quantidade)).where(
             Stock.quantidade > 0).group_by(Stock.local)).all()
         return render(request, 'warehouse_map.html', context(request, user, sess,
-                      corridors=[], current=None, selected_floor=None,
+                      corridors=[], current=None, selected_floor=None, shared_positions=shared_positions,
                       slots=[], free=0, used=0, anomalies=0, removed=0,
                       floor_pallets=sum(q for code,q in totals if is_floor(code)),
                       unassigned=sum(q for code,q in totals if is_unassigned(code))))
@@ -368,6 +370,7 @@ def warehouse_map(request: Request, corredor: str='', andar: int=1,
     free = used = anomalies = removed = 0
     for code in codes:
         qty = int(quantities.get(code, 0))
+        if code in shared_positions:qty=0 if shared_positions[code]['state']=='free' else 1
         exists = code in configured
         if not exists:
             status = 'anomaly' if qty else 'removed'
@@ -386,14 +389,14 @@ def warehouse_map(request: Request, corredor: str='', andar: int=1,
             status = 'free'
             free += 1
         slots.append({'code': code, 'qty': qty, 'status': status,
-                      'configured': exists})
+                      'configured': exists,'physical':shared_positions.get(code)})
     # Floor and missing locations are not silently treated as rack positions.
     all_stock = db.execute(select(Stock.local, func.sum(Stock.quantidade)).where(Stock.quantidade > 0).group_by(Stock.local)).all()
     floor_pallets = sum(int(qty) for code,qty in all_stock if is_floor(code))
     unassigned = sum(int(qty) for code,qty in all_stock if is_unassigned(code))
     return render(request, 'warehouse_map.html', context(request, user, sess,
                   corridors=corridors, current=current, selected_floor=selected_floor,
-                  slots=slots, free=free, used=used, anomalies=anomalies,
+                  slots=slots, free=free, used=used, anomalies=anomalies,shared_positions=shared_positions,
                   removed=removed, floor_pallets=floor_pallets,
                   unassigned=unassigned))
 
@@ -409,13 +412,17 @@ def corridor_page(code: str, request: Request, db: Session=Depends(database)):
     count = {loc: qty for loc, qty in db.execute(select(Stock.local, func.sum(Stock.quantidade))
                      .where(Stock.local.in_(list(locations) or ['!']))
                      .group_by(Stock.local)).all()}
-    entries = [dict(code=f'{code}{floor}{pos:02d}', floor=floor, pos=pos,
+    from .physical_locations import physical_statuses
+    common=physical_statuses(db)
+    for local,h in common.items():
+        if local in locations:count[local]=0 if h['state']=='free' else 1
+    entries = [dict(code=f'{code}{floor}{pos:02d}', floor=floor, pos=pos,shared=f'{code}{floor}{pos:02d}' in common,
                     present=f'{code}{floor}{pos:02d}' in locations,
                     active=locations[f'{code}{floor}{pos:02d}'].active if f'{code}{floor}{pos:02d}' in locations else False,
                     occupied=count.get(f'{code}{floor}{pos:02d}', 0))
                for floor in range(1, corridor.andares+1) for pos in range(1, corridor.posicoes+1)]
     return render(request, 'corridor.html', context(request, user, sess, corridor=corridor,
-                   entries=entries, count=count, floor_range=range(1,corridor.andares+1)))
+                   entries=entries, count=count, has_shared=any(e['shared'] for e in entries),floor_range=range(1,corridor.andares+1)))
 
 async def admin_form(request, db):
     user, sess = identity(request, db, require_admin=True)
@@ -613,3 +620,6 @@ app.include_router(alcobre_dispatch_router)
 
 from .alcobre_inventory_routes import router as alcobre_inventory_router
 app.include_router(alcobre_inventory_router)
+
+from .physical_routes import router as physical_router
+app.include_router(physical_router)

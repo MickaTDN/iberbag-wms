@@ -192,3 +192,12 @@ tenha a CI concluída e as provas de execução válidas. Depois do merge isolad
 a partilha física continua indisponível. A decisão de quando suportá-la e a
 conferência dos códigos no armazém podem ser adiadas sem duplicar capacidade,
 desde que não se contornem os bloqueios. Não há autorização de deploy implícita.
+
+
+## Evolução posterior — PR #35
+
+Este relatório conserva a conclusão histórica do PR #10. A revisão `ddn_0020`
+implementa a evolução prevista apenas para posições Iberbag/Cosmopak em Ovar,
+com ativação administrativa reconciliada, capacidade comum 1 e ocupação física
+independente do desconto contabilístico. Não existe partilha automática de todo
+o catálogo. Ver [Localizações físicas partilhadas](LOCALIZACOES_FISICAS_PARTILHADAS.md).

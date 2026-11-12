@@ -56,6 +56,10 @@ def occupied(db, codes):
     rows=db.execute(select(Stock.local, func.sum(Stock.quantidade))
                       .where(Stock.local.in_(sorted(codes)), Stock.quantidade > 0)
                       .group_by(Stock.local)).all()
+    from .physical_locations import physical_statuses
+    shared=physical_statuses(db)
+    # Replace each shared position's accounting quantity with common physical use.
+    rows=[r for r in rows if r[0] not in shared]+[(code,1) for code,h in shared.items() if code in codes and h['state']!='free']
     from sqlalchemy import inspect
     from .database import ValmetPosition,ValmetUnit
     model=ValmetPosition if inspect(db.connection()).has_table('valmet_positions') else ValmetUnit
@@ -87,6 +91,11 @@ def validate_location(db, code):
     if enabled(db) and re.fullmatch(r'[A-Z][1-9][0-9]{0,2}',code):
         exclusive_codes(db,[code])
         return code
+    from .physical_locations import shared_location
+    shared=shared_location(db,code)
+    if shared:
+        exclusive_codes(db,[code])
+        return shared['label']
     match = CODE.fullmatch(code)
     if not match:
         raise WarehouseError('Código inválido. Exemplo: C214 (letra + andar + posição de dois dígitos).')

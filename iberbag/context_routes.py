@@ -25,7 +25,8 @@ async def select_context(request: Request, db: Session=Depends(database)):
 def clients_page(request: Request, db: Session=Depends(database)):
     user,sess = identity(request,db)
     if unauthorized(user,True): return forbidden(request,user,sess)
-    return render(request,'clients.html',context(request,user,sess,
+    from .physical_locations import physical_statuses
+    return render(request,'clients.html',context(request,user,sess,shared_codes=physical_statuses(db),
         owners=db.scalars(select(Client).order_by(Client.name)).all(),
         warehouses=db.scalars(select(Warehouse).order_by(Warehouse.name)).all(),
         locations=db.scalars(select(Location).order_by(Location.codigo)).all()))

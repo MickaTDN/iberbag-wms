@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block crumb %}Arrumação{% endblock %}
 {% block content %}
-<h1>Paletes que aguardam arrumação</h1><p>A posição será novamente validada na confirmação. Uma posição normal admite uma palete; Chão não tem limite.</p>
+<h1>Paletes que aguardam arrumação</h1><p><a href="/physical-occupancy">Retomar atribuições físicas pendentes</a></p><p>A posição será novamente validada na confirmação. Uma posição normal admite uma palete; Chão não tem limite.</p>
 {% for line, receipt, pending in rows %}<section class="panel"><h2>{{ line.artigo }} · {{ line.lote }}</h2>
 <p>Carga <a href="/receipts/{{ receipt.id }}">{{ receipt.code }}</a> · {{ pending }} paletes por arrumar · recebida {{ receipt.received_on.strftime('%d/%m/%Y') }}</p>
 <form method="post" action="/putaway/review"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="context_id" value="{{ active_context_id }}"><input type="hidden" name="request_key" value="{{ request_keys[line.id] }}"><input type="hidden" name="line_id" value="{{ line.id }}">

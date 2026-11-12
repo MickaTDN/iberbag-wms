@@ -39,7 +39,7 @@
       {% if request.url.path.startswith('/settings') or request.url.path in ['/users','/audit'] %}
       <div class="side-subnav" aria-label="Submenus de Definições">
         <a href="/settings/locations" class="{% if request.url.path.startswith('/settings/locations') or request.url.path.startswith('/settings/corridors') %}active{% endif %}">Localizações</a>
-        <a href="/settings/clients">Clientes e armazéns</a>{% if office_operations %}<a href="/settings/mercadona">Destinos Mercadona</a>{% endif %}
+        <a href="/settings/shared-locations">Partilha física Iberbag/Cosmopak</a><a href="/settings/clients">Clientes e armazéns</a>{% if office_operations %}<a href="/settings/mercadona">Destinos Mercadona</a>{% endif %}
         <a href="/users" class="{% if request.url.path == '/users' %}active{% endif %}">Utilizadores</a>
         <a href="/audit" class="{% if request.url.path == '/audit' %}active{% endif %}">Registo de atividade</a>
       </div>

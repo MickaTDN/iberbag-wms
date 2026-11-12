@@ -11,9 +11,9 @@ concurrency:
 permissions:
   contents: read
 jobs:
-  test:
+  sqlite:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45 # Full PostgreSQL migration/restore regression; no tests omitted.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -24,20 +24,83 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - name: SQLite consultation regression
         run: python -m pytest -q --junitxml=.test-results/sqlite.xml
-      - name: PostgreSQL operational regression
-        run: python scripts/test_postgres.py --junitxml=.test-results/postgres.xml
-      - name: Require executed PostgreSQL coverage and sanitized evidence
+      - name: Require SQLite evidence
         if: always()
-        run: |
-          python scripts/verify_test_report.py .test-results/sqlite.xml --backend sqlite --output .test-results/sqlite-proof.json
-          python scripts/verify_test_report.py .test-results/postgres.xml --backend postgres --output .test-results/postgres-proof.json
-      - name: Archive test evidence without traces or fixture secrets
+        run: python scripts/verify_test_report.py .test-results/sqlite.xml --backend sqlite --output .test-results/sqlite-proof.json
+      - name: Archive sanitized SQLite evidence
         if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: security-integration-proof-sqlite-linux-${{ github.run_attempt }}
+          path: .test-results/*-proof.json
+          include-hidden-files: true
+          if-no-files-found: error
+
+  postgres:
+    name: PostgreSQL 17 (${{ matrix.shard }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false # Run every partition even if another fails.
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-dev.txt
+      - name: PostgreSQL operational regression partition
+        run: python scripts/test_postgres.py -p scripts.pytest_shard --ddn-shard=${{ matrix.shard }}/4 --ddn-shard-report=.test-results/selection.json --junitxml=.test-results/postgres.xml --durations=20
+      - name: Require complete execution of this partition
+        if: always()
+        run: python -m scripts.verify_test_report .test-results/postgres.xml --backend postgres --selection .test-results/selection.json --output .test-results/postgres-shard-proof.json
+      - name: Archive sanitized partition evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: security-integration-proof-postgres-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: .test-results/*-proof.json
+          include-hidden-files: true
+          if-no-files-found: error
+
+  # Preserve the existing required 'test' check: it approves the complete suite,
+  # never a subset. Missing, duplicate, failed or skipped partitions fail closed.
+  test:
+    needs: [sqlite, postgres]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Require every Linux job to succeed
+        env:
+          SQLITE_RESULT: ${{ needs.sqlite.result }}
+          POSTGRES_RESULT: ${{ needs.postgres.result }}
+        run: python -c "import os; assert os.environ['SQLITE_RESULT']==os.environ['POSTGRES_RESULT']=='success', 'Incomplete Linux regression'"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: security-integration-proof-postgres-*-${{ github.run_attempt }}
+          path: .test-results/partitions
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: security-integration-proof-sqlite-linux-${{ github.run_attempt }}
+          path: .test-results
+      - name: Prove all collected PostgreSQL tests and all critical checks ran
+        run: python -m scripts.verify_postgres_shards .test-results/partitions --shards 4 --output .test-results/postgres-proof.json
+      - name: Archive full sanitized evidence without traces or fixture secrets
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-integration-proof-linux-${{ github.run_attempt }}
           path: .test-results/*-proof.json
-          include-hidden-files: true # only the explicit sanitized proof glob above
+          include-hidden-files: true
           if-no-files-found: error
 
   windows-sqlite:

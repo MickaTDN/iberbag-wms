@@ -20,7 +20,9 @@ class ReceivingError(ValueError):
         self.status = status
 
 
-def operation(fn):
+def operation(fn=None, *, operational=True):
+    if fn is None:
+        return lambda command: operation(command, operational=operational)
     @wraps(fn)
     def wrapped(db, actor_id, *args, **kwargs):
         try:
@@ -38,7 +40,7 @@ def operation(fn):
                 raise ReceivingError('Operação não autorizada.', 403)
             from .contexts import require_context
             try:
-                require_context(db, operational=True)
+                require_context(db, operational=operational)
             except ValueError as error:
                 raise ReceivingError(str(error)) from error
             result = fn(db, actor, *args, **kwargs)
@@ -184,7 +186,7 @@ def canonical_location(db, value):
     return value.upper()
 
 
-def destination(db, value, qty):
+def destination(db, value, qty, pending=None):
     value = canonical_location(db, value)
     if not is_floor(value):
         value = value.upper()
@@ -192,6 +194,8 @@ def destination(db, value, qty):
             validate_location(db, value)
         except WarehouseError as error:
             raise ReceivingError(str(error), 400) from error
+    from .physical_locations import require_free
+    require_free(db,value,qty,pending)
     location = db.scalar(select(Location).where(Location.codigo == value).with_for_update())
     if location is None or not location.active:
         raise ReceivingError('A posição não existe ou está inativa no catálogo de localizações.')
@@ -222,17 +226,21 @@ def review_putaway(db, actor, key, line_id, local, quantidade, stacked=False):
     previous = db.scalar(select(Putaway).where(Putaway.request_key == key))
     if previous:
         owned(previous, actor)
+        if previous.status=='cancelled':raise ReceivingError('Atribuição cancelada; abrir novo pedido.')
         canonical = canonical_location(db, local)
         if (previous.line_id, previous.local, previous.quantidade, previous.stacked) != (line_id, canonical, qty, stacked):
             raise ReceivingError('Pedido já utilizado com outros dados.')
         return previous.id
     line, receipt = confirmed_line(db, line_id)
-    if qty > remaining(db, line):
+    from .physical_locations import pending_line_quantity
+    if qty > remaining(db, line)-pending_line_quantity(db,line.id):
         raise ReceivingError('Quantidade superior às paletes que aguardam arrumação.')
     local = destination(db, local, qty)
     record = Putaway(request_key=key, line_id=line.id, local=local, quantidade=qty, created_by=actor.id, stacked=stacked)
     db.add(record)
     db.flush()
+    from .physical_locations import putaway_hold
+    putaway_hold(db,actor,record)
     return record.id
 
 
@@ -242,12 +250,14 @@ def confirm_putaway(db, actor, putaway_id):
     owned(record, actor)
     if record.status == 'confirmed':
         return record.id
+    if record.status=='cancelled':raise ReceivingError('Atribuição cancelada. Não foi arrumado stock.')
     line, receipt = confirmed_line(db, record.line_id)
-    if record.quantidade > remaining(db, line):
+    from .physical_locations import pending_line_quantity,putaway_commit
+    if record.quantidade > remaining(db, line)-pending_line_quantity(db,line.id,record.id):
         raise ReceivingError('As paletes já foram arrumadas por outra operação. Atualiza a lista.')
     from .stacked import validate
     validate(db, record.stacked, record.local)
-    destination(db, record.local, record.quantidade)
+    destination(db, record.local, record.quantidade, pending=('putaway',record.id))
     stock = db.scalar(select(Stock).where(Stock.artigo == line.artigo, Stock.lote == line.lote,
         Stock.carga == receipt.code, Stock.local == record.local, Stock.stacked == record.stacked).with_for_update())
     if stock:
@@ -266,6 +276,8 @@ def confirm_putaway(db, actor, putaway_id):
     from .putaway_pdf import render_pdf
     record.document_pdf = render_pdf(record, line, receipt)
     record.document_sha256 = hashlib.sha256(record.document_pdf).hexdigest()
+    db.flush()
+    putaway_commit(db,actor,record)
     db.add(Audit(username=actor.username, action='CONFIRMAR_ARRUMACAO',
         details=f'Arrumação {record.id}; entrada {receipt.id}; linha {line.id}; {record.quantidade} paletes em {record.local}; stock {stock.id}; sobrepostas={record.stacked}.'))
     return record.id

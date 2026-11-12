@@ -156,3 +156,39 @@ Pendente: homologação Windows 11/PostgreSQL nativo, dois PCs, etiquetas físic
 procedimentos de recolha no armazém. Despartilha, desativação/renomeação do cadastro
 comum e extensão a outros clientes/capacidades exigem procedimento futuro próprio,
 com reconciliação; não são permitidas por edições individuais das ligações.
+
+## Revisão da regressão e CI da PR #35
+
+A regressão de exclusividade histórica foi reproduzida: a FK do cadastro físico
+recusa `TRUNCATE physical_location_claims` com SQLSTATE `0A000` antes do trigger
+histórico (`23514`). O teste exige agora esse erro específico, verifica também
+que `TRUNCATE ... CASCADE` continua recusado pelo trigger e confirma que o claim
+original e a exclusividade sobrevivem. Não se retiraram FKs, triggers ou grants.
+
+As referências a armazém 1 e proprietários 1/3 são **identidades permanentes
+estabelecidas pela migração publicada ddn_0001**, não índices de uma lista ou IDs
+de contexto. Estão centralizadas no serviço; consultas SQL parametrizam o armazém.
+Os contextos são resolvidos pelo proprietário/armazém efetivo. Nomes são rótulos,
+não critérios de autorização: outro cliente com nome semelhante nunca recebe
+acesso. Testes verificam referências FK, a proibição de reatribuir contexto,
+contexto Cosmopak com PK diferente do proprietário, nomes alterados e recusa de
+contextos impostores ou noutro armazém. Não há renumeração ou migração de IDs.
+
+A execução anterior juntava SQLite e toda a regressão PostgreSQL num job de
+45 minutos; foi interrompida antes do final. As bases descartáveis, migrações,
+ensaios de recuperação e criptografia por teste são preservados. Agora SQLite é
+independente e **todos** os testes PostgreSQL são repartidos deterministicamente
+por quatro runners/containers isolados, com `fail-fast: false` e durações dos
+20 casos mais lentos. `python scripts/test_postgres.py` sem opções continua a
+executar a suite integral, como antes. Não há cache de estado/credenciais ou
+redução de iterações, timeouts internos, cenários ou verificações.
+
+Cada partição prova a coleção integral e os casos selecionados/concluídos através
+de hashes, sem expor valores parametrizados. Só são arquivadas provas saneadas.
+O check final **test**, conservando o nome anterior, exige sucesso de SQLite e
+das quatro partições, mesmo commit/coleção, cada caso exatamente uma vez, zero
+falhas/omissões PostgreSQL e todas as verificações críticas (incluindo as 26
+originais). Partição ausente, repetida, cancelada, incompleta ou divergente
+bloqueia a integração. Testes negativos cobrem a própria divisão e agregação.
+Resultados/durações da execução final ficam nas provas e no relatório do PR;
+não se considera o PostgreSQL aprovado até à conclusão desse check.

@@ -330,3 +330,32 @@ def test_shared_snapshot_rejects_divergent_projection_or_double_physical_stock(w
             row=dict(changed['stock'][0]);row.update(id=row['id']+1000,context_id=3);changed['stock'].append(row)
         with pytest.raises(ValueError):p.validate_shared_snapshot(changed)
     assert fingerprint(data)==before
+
+
+def test_shared_seed_identities_use_resolved_contexts_and_reject_name_impostors(warehouse):
+    """Seed PKs identify owners; names and context sequence numbers do not."""
+    from sqlalchemy.exc import IntegrityError
+    engine,u=warehouse;actor=u['admin'][0]
+    for statement,state in (("UPDATE clients SET id=300 WHERE id=3",'23503'),
+                            ("UPDATE warehouses SET id=100 WHERE id=1",'23503'),
+                            ("UPDATE storage_contexts SET client_id=2 WHERE id=3",'23514')):
+        with engine.begin() as conn,pytest.raises(IntegrityError) as blocked:
+            conn.execute(text(statement))
+        assert blocked.value.orig.sqlstate==state
+    with engine.begin() as conn:
+        # Only unused synthetic context metadata is changed by this test, never
+        # stock/history. A context PK must not be confused with its owner PK.
+        conn.execute(text('UPDATE storage_contexts SET id=30 WHERE id=3'))
+        conn.execute(text("UPDATE clients SET name='Proprietário fictício C' WHERE id=3"))
+        conn.execute(text("UPDATE warehouses SET name='Armazém fictício O' WHERE id=1"))
+        conn.execute(text("INSERT INTO clients(id,name,active,pallet_operations) VALUES(60,'Cosmopak',true,false)"))
+        conn.execute(text("INSERT INTO storage_contexts(id,client_id,warehouse_id,area,active) VALUES(60,60,1,'Imitação fictícia',true),(61,3,2,'Outro armazém',true)"))
+    activate(engine,actor)
+    with engine.connect() as conn:
+        assert set(conn.scalars(text('SELECT context_id FROM physical_location_access')))=={1,30}
+        assert conn.scalar(text("SELECT count(*) FROM locations WHERE codigo='A101' AND context_id=30"))==1
+    for ctx in (60,61):
+        with scoped(engine,ctx) as db:
+            assert p.physical_statuses(db)=={}
+        with engine.begin() as conn,pytest.raises(IntegrityError):
+            conn.execute(text('INSERT INTO physical_location_access(physical_id,context_id) SELECT id,:ctx FROM physical_locations'),{'ctx':ctx})

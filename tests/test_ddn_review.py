@@ -6,7 +6,7 @@ from threading import Barrier
 import pytest
 from alembic import command
 from sqlalchemy import select, text, func, inspect
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, NotSupportedError
 from iberbag import dispatching, receiving, transferring, backup, transfer
 from iberbag.database import (Location, Stock, Corridor, PhysicalLocationClaim, DispatchOrder, ReceiptDocument,
                                Audit, StorageContext)
@@ -42,8 +42,18 @@ def test_deleting_location_does_not_release_physical_claim(warehouse):
         conn.execute(text("INSERT INTO locations(context_id,codigo,capacidade,active) VALUES (3,'A102',1,true)"))
     with engine.begin() as conn,pytest.raises(IntegrityError):
         conn.execute(text("DELETE FROM physical_location_claims WHERE code='a102'"))
-    with engine.begin() as conn,pytest.raises(IntegrityError):
+    # The new physical master FK refuses plain TRUNCATE before the original
+    # immutability trigger runs (SQLSTATE 0A000). CASCADE must still be refused
+    # by that trigger, without deleting the historical claim or its catalogue.
+    with engine.begin() as conn,pytest.raises(NotSupportedError) as blocked:
         conn.execute(text('TRUNCATE physical_location_claims'))
+    assert blocked.value.orig.sqlstate=='0A000'
+    with engine.begin() as conn,pytest.raises(IntegrityError) as blocked:
+        conn.execute(text('TRUNCATE physical_location_claims CASCADE'))
+    assert blocked.value.orig.sqlstate=='23514'
+    with engine.connect() as conn:
+        assert conn.scalar(text("SELECT context_id FROM physical_location_claims WHERE warehouse_id=1 AND code='a102'"))==1
+        assert conn.scalar(text("SELECT count(*) FROM locations WHERE context_id=3 AND codigo='A102'"))==0
     with engine.begin() as conn,pytest.raises(IntegrityError):
         conn.execute(text("INSERT INTO physical_location_claims(warehouse_id,code,context_id) VALUES (2,'z101',1)"))
 

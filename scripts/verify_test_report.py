@@ -464,6 +464,7 @@ REQUIRED_WINDOWS.add('test_alcobre_integrated.test_integrated_alcobre_a4_invento
 
 REQUIRED_POSTGRES |= {
     'test_shared_locations.test_shared_activation_is_opt_in_one_identity_and_preserves_claim_ids',
+    'test_shared_locations.test_shared_seed_identities_use_resolved_contexts_and_reject_name_impostors',
     'test_shared_locations.test_shared_pending_putaway_cannot_be_double_assigned_and_admin_cancel_requires_proof',
     'test_shared_locations.test_shared_accounting_dispatch_does_not_release_then_physical_completion_allows_cosmopak',
     'test_shared_locations.test_shared_concurrent_owners_exactly_one_pending_assignment',
@@ -514,9 +515,17 @@ def main():
     parser.add_argument('report',type=Path)
     parser.add_argument('--backend',choices=('sqlite','postgres'),required=True)
     parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--selection',type=Path,help='Explicit partial PostgreSQL proof; requires final aggregate gate.')
     args=parser.parse_args()
-    try:result=verify(args.report,args.backend)
-    except (OSError,ValueError,ET.ParseError):
+    try:
+        if args.selection and args.backend!='postgres':raise ValueError('Partição apenas PostgreSQL.')
+        result=verify(args.report,args.backend,required=set() if args.selection else None)
+        if args.selection:
+            from scripts.verify_postgres_shards import validate_selection
+            selection=json.loads(args.selection.read_text(encoding='utf-8'))
+            validate_selection(selection,result['counts'].get('passed',0))
+            result.update(report_scope='shard',selection=selection)
+    except (OSError,ValueError,TypeError,ET.ParseError):
         raise SystemExit('Relatório ausente ou inválido; execução não comprovada.')
     args.output.parent.mkdir(parents=True,exist_ok=True)
     args.output.write_text(json.dumps(result,indent=2,ensure_ascii=False),encoding='utf-8')
@@ -524,7 +533,8 @@ def main():
     if os.getenv('GITHUB_ACTIONS')=='true':
         for name in result['missing_required']:
             print(f'::error title=DDN required test not proved::{name}')
-        print(f"::notice title=DDN {args.backend} evidence::passed={result['counts'].get('passed',0)}; skipped={result['counts'].get('skipped',0)}; required={len(result['required_passed'])}; original={len(result['original_critical_passed'])}; valid={result['valid']}")
+        scope=' shard' if args.selection else ''
+        print(f"::notice title=DDN {args.backend}{scope} evidence::passed={result['counts'].get('passed',0)}; skipped={result['counts'].get('skipped',0)}; required={len(result['required_passed'])}; original={len(result['original_critical_passed'])}; valid={result['valid']}")
     if not result['valid']:raise SystemExit('Testes obrigatórios não comprovados; revisão recusada.')
 
 

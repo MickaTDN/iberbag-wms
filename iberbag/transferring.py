@@ -75,6 +75,8 @@ def confirm_transfer(db, actor, transfer_id):
     local = target_location(db, stock, record.destination_local, record.quantidade)
     if local != record.destination_local:
         raise TransferError('O catálogo de destino mudou. Revê a transferência.')
+    from .physical_locations import transfer_hold,transfer_commit
+    transfer_hold(db,actor,record)
     target = db.scalar(select(Stock).where(Stock.artigo == stock.artigo, Stock.lote == stock.lote,
         Stock.carga == stock.carga, Stock.local == local, Stock.stacked == stock.stacked).with_for_update())
     if target is None:
@@ -88,6 +90,7 @@ def confirm_transfer(db, actor, transfer_id):
     db.flush()
     record.destination_stock_id, record.confirmed_by = target.id, actor.username
     record.status, record.confirmed_at = 'confirmed', now_utc()
+    db.flush();transfer_commit(db,actor,record)
     db.add(Audit(username=actor.username, action='CONFIRMAR_TRANSFERENCIA',
         details=f'Transferência {record.id}; {stock.id} → {target.id}; {record.quantidade} paletes; {record.source_local} → {local}.'))
     return record.id

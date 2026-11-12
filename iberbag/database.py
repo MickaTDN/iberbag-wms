@@ -275,8 +275,8 @@ class Putaway(Scoped, Base):
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime)
     __table_args__ = (
         CheckConstraint('quantidade > 0', name='putaway_positive'),
-        CheckConstraint("status IN ('draft','confirmed')", name='putaway_status_valid'),
-        CheckConstraint("(status = 'draft' AND stock_id IS NULL AND arranger IS NULL AND confirmed_at IS NULL) OR (status = 'confirmed' AND stock_id IS NOT NULL AND arranger IS NOT NULL AND confirmed_at IS NOT NULL)", name='putaway_confirmation_valid'),
+        CheckConstraint("status IN ('draft','confirmed','cancelled')", name='putaway_status_valid'),
+        CheckConstraint("(status IN ('draft','cancelled') AND stock_id IS NULL AND arranger IS NULL AND confirmed_at IS NULL) OR (status = 'confirmed' AND stock_id IS NOT NULL AND arranger IS NOT NULL AND confirmed_at IS NOT NULL)", name='putaway_confirmation_valid'),
     )
 
 
@@ -1319,8 +1319,71 @@ class AlcobreInventoryDocument(Scoped,Base):
     created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
     __table_args__=(CheckConstraint('(review_id IS NULL) <> (operation_id IS NULL)',name='alcobre_inventory_document_origin'),)
 
+
+class PhysicalSharingReview(Base):
+    __tablename__='physical_sharing_reviews'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    code: Mapped[str]=mapped_column(String(120),nullable=False)
+    label: Mapped[str]=mapped_column(String(120),nullable=False)
+    source_context_id: Mapped[int]=mapped_column(ForeignKey('storage_contexts.id'),nullable=False)
+    other_context_id: Mapped[int]=mapped_column(ForeignKey('storage_contexts.id'),nullable=False)
+    expected: Mapped[str]=mapped_column(Text,nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    status: Mapped[str]=mapped_column(String(20),default='draft',nullable=False)
+    confirmed_by: Mapped[int|None]=mapped_column(ForeignKey('users.id'))
+    confirmed_at: Mapped[datetime|None]=mapped_column(DateTime)
+    __table_args__=(CheckConstraint("status IN ('draft','confirmed')",name='physical_review_status'),)
+
+class PhysicalLocation(Base):
+    """One common rack identity/capacity; original exclusive claims remain historical."""
+    __tablename__='physical_locations'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    warehouse_id: Mapped[int]=mapped_column(ForeignKey('warehouses.id'),nullable=False)
+    code: Mapped[str]=mapped_column(String(120),nullable=False)
+    label: Mapped[str]=mapped_column(String(120),nullable=False)
+    capacity: Mapped[int]=mapped_column(Integer,default=1,nullable=False)
+    review_id: Mapped[int]=mapped_column(ForeignKey('physical_sharing_reviews.id'),unique=True,nullable=False)
+    __table_args__=(UniqueConstraint('warehouse_id','code'),CheckConstraint('warehouse_id=1 AND capacity=1',name='physical_shared_capacity'),
+        ForeignKeyConstraint(['warehouse_id','code'],['physical_location_claims.warehouse_id','physical_location_claims.code']))
+
+class PhysicalLocationAccess(Base):
+    __tablename__='physical_location_access'
+    physical_id: Mapped[int]=mapped_column(ForeignKey('physical_locations.id'),primary_key=True)
+    context_id: Mapped[int]=mapped_column(ForeignKey('storage_contexts.id'),primary_key=True)
+
+class PhysicalLocationState(Base):
+    """Read-only runtime projection; accounting stock alone never releases it."""
+    __tablename__='physical_location_state'
+    physical_id: Mapped[int]=mapped_column(ForeignKey('physical_locations.id'),primary_key=True)
+    state: Mapped[str]=mapped_column(String(30),default='free',nullable=False)
+    context_id: Mapped[int|None]=mapped_column(ForeignKey('storage_contexts.id'))
+    stock_id: Mapped[int|None]=mapped_column(Integer)
+    source_kind: Mapped[str|None]=mapped_column(String(30))
+    source_id: Mapped[int|None]=mapped_column(Integer)
+    previous: Mapped[str|None]=mapped_column(Text)
+    version: Mapped[int]=mapped_column(Integer,default=0,nullable=False)
+    __table_args__=(ForeignKeyConstraint(['context_id','stock_id'],['stock.context_id','stock.id']),
+        CheckConstraint("state IN ('free','pending_putaway','pending_transfer','pending_inventory','occupied','awaiting_collection')",name='physical_state_valid'))
+
+class PhysicalLocationEvent(Scoped,Base):
+    __tablename__='physical_location_events'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    physical_id: Mapped[int]=mapped_column(ForeignKey('physical_locations.id'),nullable=False,index=True)
+    kind: Mapped[str]=mapped_column(String(30),nullable=False)
+    ref_id: Mapped[int]=mapped_column(Integer,nullable=False)
+    stock_id: Mapped[int|None]=mapped_column(ForeignKey('stock.id'))
+    actor_id: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    before_state: Mapped[str]=mapped_column(Text,default='',server_default='',nullable=False)
+    after_state: Mapped[str]=mapped_column(Text,default='',server_default='',nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(UniqueConstraint('physical_id','kind','ref_id'),)
+
 for _table in list(Base.metadata.tables.values()):
-    if _table.name == 'physical_location_claims' or 'context_id' not in _table.c:
+    if _table.name in ('physical_location_claims','physical_location_access','physical_location_state') or 'context_id' not in _table.c:
         continue
     for _unique in list(_table.constraints):
         if isinstance(_unique, UniqueConstraint) and 'context_id' not in _unique.columns:
@@ -1335,7 +1398,7 @@ for _table in list(Base.metadata.tables.values()):
     else:
         _table.append_constraint(UniqueConstraint('context_id', *_pk, name='uq_ctx_' + _table.name))
 for _table in list(Base.metadata.tables.values()):
-    if _table.name == 'physical_location_claims' or 'context_id' not in _table.c:
+    if _table.name in ('physical_location_claims','physical_location_access','physical_location_state') or 'context_id' not in _table.c:
         continue
     for _fk in list(_table.foreign_key_constraints):
         if len(_fk.elements) != 1:

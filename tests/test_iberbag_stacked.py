@@ -285,7 +285,7 @@ def test_stacked_upgrade18_encrypted_backup_restore_and_historical_documents(pg_
     with engine.connect() as conn:before=transfer.inventory(transfer.read_data(conn))
     folder=tmp_path/'before19';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
     assert backup.restore(restored,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)['status']=='reconciled'
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0019'
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0020'
     with engine.connect() as conn:
         assert transfer.inventory(transfer.read_data(conn))==before
         assert conn.scalar(text('SELECT quantidade FROM stock'))==7 and conn.scalar(text('SELECT stacked FROM stock')) is False

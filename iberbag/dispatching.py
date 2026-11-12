@@ -192,6 +192,9 @@ def confirm_order(db, actor, order_id):
         stock = db.get(Stock, pick.stock_id)
         stock.quantidade -= pick.quantidade
     order.status, order.confirmed_by, order.confirmed_at = 'confirmed', actor.username, now_utc()
+    db.flush()
+    from .physical_locations import dispatch_confirm
+    dispatch_confirm(db,actor,order,plan)
     db.add(Audit(username=actor.username, action='CONFIRMAR_SAIDA', details=f'Pedido {order.id}; grupos e quantidades no histórico imutável.'))
     return order.id
 
@@ -270,6 +273,8 @@ def confirm_preparation(db, actor, order_id):
     # Compatibility fields describe the office validation, not a warehouse collection.
     order.checked_by, order.checked_at = actor.username, order.confirmed_at
     db.flush()
+    from .physical_locations import dispatch_confirm
+    dispatch_confirm(db,actor,order,plan)
     rows=[dict(lote=by_line[p.line_id].lote,artigo=by_line[p.line_id].artigo,
                quantidade=p.quantidade,carga=p.carga,local=p.local,stacked=by_line[p.line_id].stacked) for p in plan]
     from .contexts import label

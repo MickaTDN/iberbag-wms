@@ -462,6 +462,26 @@ REQUIRED_POSTGRES |= {
 }
 REQUIRED_WINDOWS.add('test_alcobre_integrated.test_integrated_alcobre_a4_inventory_keeps_every_long_number_and_unknown_quantity')
 
+REQUIRED_POSTGRES |= {
+    'test_shared_locations.test_shared_activation_is_opt_in_one_identity_and_preserves_claim_ids',
+    'test_shared_locations.test_shared_pending_putaway_cannot_be_double_assigned_and_admin_cancel_requires_proof',
+    'test_shared_locations.test_shared_accounting_dispatch_does_not_release_then_physical_completion_allows_cosmopak',
+    'test_shared_locations.test_shared_concurrent_owners_exactly_one_pending_assignment',
+    'test_shared_locations.test_shared_activation_rejects_unreconciled_catalogue_and_stale_review',
+    'test_shared_locations.test_shared_inventory_missing_and_recovery_do_not_overwrite_foreign_occupancy',
+    'test_shared_locations.test_shared_transfer_releases_only_confirmed_source_and_keeps_both_contexts_isolated',
+    'test_shared_locations.test_shared_sql_projection_and_events_are_protected_and_forms_enforce_admin_csrf',
+    'test_shared_locations.test_shared_rollback_does_not_leave_pending_claim_or_partial_stock',
+    'test_shared_locations.test_shared_sqlite_never_activates_operational_sharing',
+    'test_shared_locations.test_shared_migration19_and_encrypted_restore_preserve_history_and_pending_occupancy',
+    'test_shared_locations.test_shared_inventory_compensation_keeps_physical_position_and_original_pdf',
+    'test_shared_locations.test_shared_completed_order_replay_cannot_release_another_pallet',
+    'test_shared_locations.test_shared_restored_function_acl_cannot_use_temporary_writer_trigger',
+    'test_shared_locations.test_shared_runtime_concurrent_assignment_and_physical_release_rollback',
+    'test_shared_locations.test_shared_snapshot_rejects_divergent_projection_or_double_physical_stock',
+}
+REQUIRED_WINDOWS.add('test_shared_locations.test_shared_sqlite_never_activates_operational_sharing')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

@@ -239,6 +239,10 @@ def approve_inventory(db,actor,inventory_id,reason,compensate_order=None):
                 except WarehouseError as error: raise InventoryError(str(error)) from error
             if open_preparations(db,row,compensate_order): raise InventoryError('Há preparação impressa ainda não concluída fisicamente. Não duplicar paletes já descontadas.')
         if not 0<=row['after']<=MAX_INT: raise InventoryError('Quantidade fora do limite técnico.')
+    from .physical_locations import inventory_hold,inventory_commit
+    held=inventory_hold(db,actor,inv,all_scopes,changes)
+    # Reconciliation can replace an identified group: remove before adding, atomically.
+    changes=sorted(changes,key=lambda row:row['delta']>=0)
     for row in changes:
         stock=db.scalar(select(Stock).where(Stock.artigo==row['artigo'],Stock.lote==row['lote'],Stock.carga==row['carga'],Stock.local==row['scope'].local,Stock.stacked==row['stacked']).with_for_update())
         if stock is None:
@@ -253,6 +257,8 @@ def approve_inventory(db,actor,inventory_id,reason,compensate_order=None):
     inv.status='applied'; inv.applied_by,inv.applied_at,inv.reason=actor.username,now_utc(),reason
     if compensate_order is not None:
         db.add(PreparationCompensation(order_id=compensate_order,inventory_id=inv.id,reason=reason,actor=actor.username))
+    db.flush()
+    inventory_commit(db,actor,inv,held,reason)
     db.add(Audit(username=actor.username,action='APROVAR_AJUSTES',details=f'Inventário {inv.id}; {len(changes)} diferenças; {reason}; compensação={compensate_order}.'))
     return inv.id
 
@@ -290,6 +296,10 @@ def close_preparation(db,actor,order_id,reason):
     for local in set(db.scalars(select(DispatchPick.local).join(DispatchLine).where(DispatchLine.order_id==order_id))):
         touch_location(db,local)
     db.add(PreparationCompletion(order_id=order_id,reason=reason,actor=actor.username))
+    db.flush()
+    from .physical_locations import dispatch_release
+    from .dispatching import picks
+    dispatch_release(db,actor,order_id,picks(db,order_id),reason)
     db.add(Audit(username=actor.username,action='EXECUCAO_FISICA',details=f'Preparação {order_id}; {reason}; stock inalterado.'))
     return order_id
 

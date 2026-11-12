@@ -24,7 +24,9 @@
  <div class="map-legend" aria-label="Legenda"><span><i class="legend-dot used"></i> Ocupada</span><span><i class="legend-dot free"></i> Livre</span><span><i class="legend-dot anomaly"></i> Verificar</span><span><i class="legend-dot removed"></i> Não configurada</span></div>
  <div class="map-shelf" role="group" aria-label="Posições do corredor {{ current.codigo }}, andar {{ selected_floor }}">
  {% for slot in slots %}
-   {% if slot.status in ['used','anomaly'] %}
+   {% if slot.physical and slot.physical.state!='free' %}
+    <a class="map-slot used" href="/physical-occupancy" title="{{ slot.code }}: ocupação comum independente do saldo"><b>{{ slot.code }}</b><small>{{ 'Pendente' if slot.physical.state.startswith('pending_') else ('Aguarda recolha' if slot.physical.state=='awaiting_collection' else 'Ocupada') }}</small></a>
+   {% elif slot.status in ['used','anomaly'] %}
     <a class="map-slot {{ slot.status }}" href="/stock?local={{ slot.code|urlencode }}" title="{{ slot.code }}: {{ slot.qty }} palete(s){% if not slot.configured %} · posição fora do catálogo{% endif %}">
       <b>{{ slot.code }}</b><small>{{ slot.qty }} {% if slot.qty == 1 %}palete{% else %}paletes{% endif %}</small>
     </a>
@@ -35,7 +37,8 @@
  </div>
  <p class="map-note">O mapa mostra apenas as posições do andar escolhido. <strong>Verificar</strong> indica ocupação acima da capacidade configurada ou stock numa localização fora do catálogo. Nenhum dado foi corrigido automaticamente.</p>
 </section>
-{% else %}<div class="alert warning">Ainda não existem corredores configurados. Um administrador deverá criar as localizações nas Definições.</div>{% endif %}
+{% elif not shared_positions %}<div class="alert warning">Ainda não existem corredores configurados. Um administrador deverá criar as localizações nas Definições.</div>{% endif %}
+{% if shared_positions %}<section class="panel"><h2>Posições físicas comuns</h2><p>Uma ocupação ou atribuição pendente torna a posição indisponível, mesmo com saldo contabilístico zero. <a href="/physical-occupancy">Estado e histórico próprios</a></p><table><tr><th>Posição</th><th>Disponibilidade física</th><th>Proprietário</th></tr>{% for code,h in shared_positions.items() %}<tr><td>{{ code }}</td><td>{{ 'Livre' if h.state=='free' else 'Indisponível — ' ~ h.state }}</td><td>{{ 'Este contexto' if h.context_id==active_context_id else ('Outro contexto autorizado' if h.context_id else '—') }}</td></tr>{% endfor %}</table></section>{% endif %}
 <section class="panel">
  <div class="panel-head"><h2>Outras situações de stock</h2><span class="pill outline">Fora das posições dos corredores</span></div>
  <div class="map-exceptions">

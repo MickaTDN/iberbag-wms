@@ -183,6 +183,10 @@ def test_shared_sql_projection_and_events_are_protected_and_forms_enforce_admin_
         response=client.post('/settings/shared-locations/review',data=data,follow_redirects=False);assert response.status_code==303
         assert client.post(response.headers['location']+'/confirm',data={'csrf':tokens['admin'][1],'context_id':'1'},follow_redirects=False).status_code==303
         assert 'Ocupação' in client.get('/physical-occupancy').text
+        line=receive(runtime,actor,qty=2)
+        ordinary=hold(runtime,actor,line,local='A102');shared=hold(runtime,actor,line)
+        assert 'cancel-physical-assignment' not in client.get(f'/putaway/{ordinary}').text
+        assert 'cancel-physical-assignment' in client.get(f'/putaway/{shared}').text
     for statement in ("UPDATE physical_location_state SET state='free'",'DELETE FROM physical_location_events','UPDATE physical_locations SET capacity=2',"INSERT INTO stock(context_id,artigo,lote,carga,local,quantidade) VALUES(3,'F','F','F','A101',1)"):
         with runtime.begin() as conn,pytest.raises(DBAPIError):conn.execute(text(statement))
 

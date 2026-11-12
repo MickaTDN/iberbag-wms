@@ -7,7 +7,11 @@ catálogos, referências, saldos ou documentos anteriores. Não ativa os serviç
 Iberbag/FIFO para Cosmopak (`pallet_operations` mantém-se falso). Usa o mesmo
 wrapper transacional, autenticação/CSRF, contextos, `Receipt`/`ReceiptLine`,
 `Carga`, `Stock`, numeração por proprietário/ano, auditoria, backups e **o mesmo
-motor de ocupação física** do PR #35. Não há outra tabela de capacidade.
+motor de ocupação física** do PR #35. Não há outra tabela de capacidade. As referências físicas são sempre
+**tipo de origem + contexto + ID**: um ID de palete Cosmopak coincidente com um
+ID de arrumação legado não permite confirmar, cancelar ou libertar a outra
+atribuição. Os dois casos negativos foram reproduzidos e corrigidos nas guardas
+SQL; a reconciliação também exige correspondência inversa entre palete e posição.
 
 `cosmo_receptions` conserva a origem Excel (bytes/SHA-256), prévia e cabeçalho;
 `cosmo_pallets` identifica cada palete prevista, com linha/ordinal e conteúdo;

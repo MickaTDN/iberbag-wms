@@ -362,3 +362,19 @@ def test_cosmo_runtime_cannot_commit_stock_before_integral_approval(restricted_w
     with scoped(runtime,3) as db:
         assert db.scalar(select(func.count()).select_from(m.Stock))==0
         assert p.common_state(db,'A101')['state']=='pending_putaway'
+
+
+@pytest.mark.parametrize('mode',['draft','cancel'])
+def test_cosmo_pending_identity_never_matches_a_legacy_putaway_with_same_id(restricted_web,mode):
+    app,owner,runtime,role,u,tokens=restricted_web;admin=u['admin'][0];activate(owner,admin)
+    ident=plan(owner,admin,[('A','Fictício','L',1,3,'')]);pid=units(owner,ident)[0][0];place(runtime,admin,pid,'A101')
+    with pytest.raises(DBAPIError,match='Physical (putaway pending assignment required|pending assignment changed)'):
+        with runtime.begin() as conn:
+            receipt=conn.scalar(text("INSERT INTO receipts(context_id,request_key,payload_hash,version,code,received_on,created_by,created_at,status) VALUES(3,:key,:hash,1,'LEGACY-FICT','2026-01-01',:actor,CURRENT_TIMESTAMP,'draft') RETURNING id"),{'key':secrets.token_hex(16),'hash':'0'*64,'actor':admin})
+            line=conn.scalar(text("INSERT INTO receipt_lines(context_id,receipt_id,artigo,lote,quantidade) VALUES(3,:receipt,'A','L',1) RETURNING id"),{'receipt':receipt})
+            conn.execute(text("INSERT INTO putaways(id,context_id,request_key,line_id,local,quantidade,created_by,created_at,status) VALUES(:id,3,:key,:line,'A101',1,:actor,CURRENT_TIMESTAMP,'draft')"),{'id':pid,'key':secrets.token_hex(16),'line':line,'actor':admin})
+            if mode=='cancel':
+                conn.execute(text("UPDATE putaways SET status='cancelled' WHERE id=:id"),{'id':pid})
+                conn.execute(text("INSERT INTO physical_location_events(context_id,physical_id,kind,ref_id,actor_id,reason,before_state,after_state,created_at) SELECT 3,id,'putaway_cancel',:ref,:actor,'Não libertar identidade de outro domínio','','',CURRENT_TIMESTAMP FROM physical_locations WHERE label='A101'"),{'ref':pid,'actor':admin})
+    with scoped(runtime,3) as db:
+        assert p.common_state(db,'A101')['source_kind']=='cosmopak' and p.common_state(db,'A101')['source_id']==pid

@@ -30,7 +30,15 @@ def upgrade():
     branch=Path(__file__).with_name('ddn_0021_common_branch.sql').read_text(encoding='utf-8')
     anchor="  ELSIF NEW.kind IN('putaway_hold','putaway_commit','putaway_cancel') THEN"
     if event.count(anchor)!=1:raise RuntimeError('Motor físico inesperado; revisão manual necessária.')
-    op.execute(event.replace(anchor,branch+'\n'+anchor))
+    event=event.replace(anchor,branch+'\n'+anchor)
+    pending="IF h.state<>'pending_putaway' OR h.context_id<>NEW.context_id OR h.source_id<>put.id THEN"
+    if event.count(pending)!=1:raise RuntimeError('Guarda de origem física inesperada.')
+    event=event.replace(pending,"IF h.state<>'pending_putaway' OR h.source_kind IS DISTINCT FROM 'putaway' OR h.context_id<>NEW.context_id OR h.source_id<>put.id THEN")
+    op.execute(event)
+    complete=con.scalar(s.text("SELECT pg_get_functiondef('ddn_shared_putaway_complete()'::regprocedure)"))
+    pending="AND context_id=current_record.context_id AND source_id=current_record.id"
+    if complete.count(pending)!=1:raise RuntimeError('Ciclo de atribuição física inesperado.')
+    op.execute(complete.replace(pending,"AND source_kind='putaway' AND context_id=current_record.context_id AND source_id=current_record.id"))
     guard=con.scalar(s.text("SELECT pg_get_functiondef('ddn_shared_stock_guard()'::regprocedure)"))
     anchor="    IF h.state='pending_putaway' AND NOT EXISTS"
     if guard.count(anchor)!=1:raise RuntimeError('Guarda física inesperada; revisão manual necessária.')

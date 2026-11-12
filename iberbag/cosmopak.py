@@ -184,6 +184,13 @@ def validate_snapshot(data):
             if expected!=json.loads(json.dumps(state,default=json_value)) or state['version']!=len(operations):raise ValueError('Livro e projeção Cosmopak divergentes.')
         elif state['status']!='planned' or state['version']!=0 or state['local'] is not None:raise ValueError('Palete Cosmopak sem movimento comprovado.')
         rec=receipts[pallet['reception_id']]
+        if state['status'] in ('placed','blocked','approved'):
+            master=next((m for m in data['physical_locations'] if m['warehouse_id']==1 and m['label']==state['local']),None)
+            physical_state=next((h for h in data['physical_location_state'] if master and h['physical_id']==master['id']),None)
+            if not physical_state or physical_state['context_id']!=state['context_id']:raise ValueError('Ocupação Cosmopak sem correspondência física comum.')
+            if state['status']!='approved' and (physical_state['state']!='pending_putaway' or physical_state['source_kind']!='cosmopak' or physical_state['source_id']!=pallet['id']):raise ValueError('Origem da atribuição Cosmopak divergente.')
+            if state['status']=='approved' and (physical_state['state']!='occupied' or physical_state['stock_id']!=state['stock_id']):raise ValueError('Stock Cosmopak sem ocupação física correspondente.')
+        if state['status']=='missing' and state['local'] is not None:raise ValueError('Falta Cosmopak não pode libertar uma posição sem prova física.')
         if state['status']=='approved':
             receipt=next((r for r in data['receipts'] if r['id']==rec['receipt_id'] and r['context_id']==rec['context_id']),None)
             if rec['status']!='approved' or not receipt or receipt['status']!='confirmed':raise ValueError('Receção Cosmopak sem aprovação integral.')

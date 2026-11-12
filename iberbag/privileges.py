@@ -3,7 +3,7 @@ import argparse
 import re
 from sqlalchemy import text
 
-IMMUTABLE = {'physical_locations','physical_location_access','physical_location_events','alcobre_inventory_checks','alcobre_inventory_reviews','alcobre_inventory_operations','alcobre_inventory_documents','alcobre_dispatch_revisions','alcobre_dispatch_operations','alcobre_dispatch_events','alcobre_dispatch_documents','alcobre_owners','alcobre_reviews','alcobre_actions','alcobre_bobines','alcobre_placements','nkt_inventory_checks','nkt_inventory_reviews','nkt_inventory_incidents','nkt_plan_revisions','nkt_operations','nkt_corrections','nkt_stock_events','nkt_documents','nkt_receiving_reviews','nkt_containers','nkt_owners','nkt_reviews','nkt_pallets','valmet_import_drafts','valmet_import_revisions','valmet_import_confirmations','audit', 'dispatch_documents', 'receipt_documents', 'stock_adjustments',
+IMMUTABLE = {'cosmo_receptions','cosmo_pallets','cosmo_operations','cosmo_reviews','physical_locations','physical_location_access','physical_location_events','alcobre_inventory_checks','alcobre_inventory_reviews','alcobre_inventory_operations','alcobre_inventory_documents','alcobre_dispatch_revisions','alcobre_dispatch_operations','alcobre_dispatch_events','alcobre_dispatch_documents','alcobre_owners','alcobre_reviews','alcobre_actions','alcobre_bobines','alcobre_placements','nkt_inventory_checks','nkt_inventory_reviews','nkt_inventory_incidents','nkt_plan_revisions','nkt_operations','nkt_corrections','nkt_stock_events','nkt_documents','nkt_receiving_reviews','nkt_containers','nkt_owners','nkt_reviews','nkt_pallets','valmet_import_drafts','valmet_import_revisions','valmet_import_confirmations','audit', 'dispatch_documents', 'receipt_documents', 'stock_adjustments',
              'lot_resolutions', 'preparation_completions', 'preparation_compensations',
              'customer_pending', 'pending_allocations', 'allocation_collections',
              'physical_location_claims', 'load_numbers', 'valmet_owners', 'valmet_units',
@@ -11,7 +11,7 @@ IMMUTABLE = {'physical_locations','physical_location_access','physical_location_
              'valmet_plan_revisions','valmet_reservations','valmet_handling',
              'valmet_shipments','valmet_shipment_lines','valmet_occurrences','valmet_relocations','valmet_documents',
              'valmet_rolls','valmet_roll_events','valmet_counts','valmet_control_moves','valmet_inventory_decisions','valmet_control_documents'}
-READ_ONLY = {'physical_location_state','alcobre_owners','nkt_owners','valmet_owners','valmet_positions','valmet_rolls','valmet_roll_states'}
+READ_ONLY = {'cosmo_states','physical_location_state','alcobre_owners','nkt_owners','valmet_owners','valmet_positions','valmet_rolls','valmet_roll_states'}
 
 
 def role_flags(connection, role):

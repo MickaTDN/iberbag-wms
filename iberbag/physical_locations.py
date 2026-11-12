@@ -145,7 +145,7 @@ def pending_line_quantity(db,line_id,exclude=None):
     if not _schema(db):return 0
     h=PhysicalLocationState.__table__;p=Putaway.__table__
     q=select(func.coalesce(func.sum(p.c.quantidade),0)).join(h,(h.c.source_id==p.c.id)&(h.c.context_id==p.c.context_id)).where(
-        h.c.state=='pending_putaway',p.c.line_id==line_id,p.c.context_id==context_id(db))
+        h.c.state=='pending_putaway',h.c.source_kind=='putaway',p.c.line_id==line_id,p.c.context_id==context_id(db))
     if exclude is not None:q=q.where(p.c.id!=exclude)
     return db.connection().scalar(q)
 
@@ -290,6 +290,8 @@ def cancel_putaway(db,actor,ident,reason,physically_empty=False):
     if not row or not shared_location(db,row.local):raise ReceivingError('Arrumação partilhada inexistente.',404)
     if row.status=='cancelled':return row.id
     if row.status!='draft':raise ReceivingError('Arrumação confirmada não pode ser cancelada.')
+    h=common_state(db,row.local)
+    if h['state']!='pending_putaway' or h['source_kind']!='putaway' or h['source_id']!=row.id or h['context_id']!=row.context_id:raise ReceivingError('A posição pertence a outra atribuição física; não cancelar por coincidência de IDs.')
     row.status='cancelled';db.flush();_emit(db,actor,row.local,'putaway_cancel',row.id,reason=reason)
     db.add(Audit(username=actor.username,action='CANCELAR_ATRIBUICAO_FISICA',details=f'Arrumação {row.id}; posição {row.local}; {reason}'))
     return row.id
@@ -333,6 +335,10 @@ def validate_shared_snapshot(data):
                 if len(goods)!=1 or goods[0]['id']!=state['stock_id'] or goods[0]['context_id']!=state['context_id']:invalid()
             elif state['state'] in ('pending_putaway','pending_transfer','awaiting_collection') and goods:invalid()
             if state['state']=='pending_putaway':
+                if state['source_kind']=='cosmopak':
+                    pending=next((r for r in data.get('cosmo_states',[]) if r['pallet_id']==state['source_id'] and r['context_id']==state['context_id']),None)
+                    if not pending or pending['status'] not in ('placed','blocked') or pending['local']!=master['label']:invalid()
+                    continue
                 pending=next((r for r in data['putaways'] if r['id']==state['source_id'] and r['context_id']==state['context_id']),None)
                 if not pending or pending['status']!='draft' or pending['local']!=master['label'] or pending['quantidade']!=1 or pending['stacked']:invalid()
             if state['state']=='awaiting_collection':

@@ -1,0 +1,39 @@
+# Cosmopak — PACKINGs, preparação e carregamento (PR #37)
+
+## Fluxo de escritório e conferência física
+
+No contexto Cosmopak/Ovar, abrir **PACKINGs → Pré-visualizar PACKING**. A análise lê apenas **Folha2**; Folha1 não fornece mercadoria. O Administrador identifica explicitamente as colunas de responsável, artigo, lote, caixas por palete e, quando existe, quantidade de paletes. Sem essa coluna, tem de confirmar expressamente que cada linha representa uma palete. Não inferir o layout por posições, cabeçalhos ou quantidades. Conferir a primeira linha de dados e a referência oficial: célula comprovada ou transcrição documentada. DAVID NETO/DDN é incluído, Mecalux é excluído; responsável desconhecido bloqueia. A prévia mostra as linhas originais e preserva o ficheiro/digest e o mapeamento auditado. Identificadores numéricos só são normalizados quando a grafia e os zeros são inequívocos; fórmulas e quantidades ambíguas são recusadas.
+
+Rever e confirmar reserva **uma palete individual** por linha/unidade, apenas com artigo, lote e caixas exatos. Não juntar caixas de paletes diferentes, não dividir e não aplicar FIFO. Havendo várias correspondências exatas, usar o ID interno crescente, sem critério de antiguidade. Linhas sem correspondência ficam em falta. A referência oficial normalizada é única por contexto e não reutilizável; importar novamente não duplica reservas nem permite contornar a referência com outro ficheiro.
+
+Vários utilizadores podem conferir paletes diferentes do mesmo PACKING. Cada conferência verifica a versão individual e o estado da etapa. **Preparada** exige lote/caixas conferidos e movimento físico comprovado da estante para o grupo deste PACKING na **Zona de preparação**. Só este movimento liberta a estante partilhada. A zona integra o motor físico comum como área lógica ilimitada, sem catálogo/capacidade de estante duplicados; os grupos de mercadorias são separados por PACKING e proprietário. A ordenação pode seguir o Excel ou a localização, conservando linha/ordinal.
+
+Desmarcar uma conferência regista motivo e conserva a localização real. Não voltar automaticamente à estante. Antes de **Preparação concluída**, explicar cada palete não preparada. O escritório pode reabrir antes de qualquer início de carregamento. A etiqueta A4 do grupo é opcional e arquivada.
+
+O carregamento pode começar dias depois, por qualquer Operador autenticado, sem nova autorização do escritório. Apenas paletes preparadas podem ser carregadas; exige-se nova conferência de lote/caixas e movimento físico para o camião. Ainda não há desconto contabilístico. Desmarcar **Carregada** não presume que saiu do camião: confirmar separadamente o regresso físico à zona antes de concluir o carregamento. Explicar todas as faltas. Após início do carregamento, nunca acrescentar paletes preparadas; só o escritório pode reabrir o carregamento concluído, com motivo, antes da aprovação final.
+
+O Administrador/escritório revê a data real e aprova a saída. A transação desconta **somente as paletes marcadas carregadas**, mantém identidades/entrada/carga e liberta as outras reservas. Um pedido repetido com a mesma chave não repete movimentos. Não existem pendentes comerciais automáticos ou nova carga implícita. As paletes não expedidas permanecem na posição física comprovada. Para nova reserva noutro PACKING, a preparação exige confirmar o reagrupamento físico; para voltar a uma estante, a palete tem de estar sem reserva, na zona, conferida, e o destino partilhado tem de estar livre. O histórico do PACKING encerrado permanece congelado.
+
+## Documentos, permissões e integridade
+
+PDFs opcionais de identificação A4 e relatório final A4 multipágina. O relatório final inclui todas as linhas, paletes completas/incompletas, quantidades, resultados/motivos e autores/datas das conferências. Fonte Excel, comandos, movimentos, documentos e auditoria são imutáveis. Reimprimir devolve os bytes arquivados e não consulta novamente a seleção ou movimenta stock. Sem transportadora, matrícula, GT ou CMR inventados.
+
+Administrador: importação, mapeamento, confirmação de reservas, substituição equivalente explícita/com motivo, reaberturas, revisão/aprovação final e geração dos documentos. Operador: consulta e conferências físicas/encerramento das etapas; não aprova a saída. Todas as escritas validam autenticação, CSRF, contexto, autorização e versões; comandos revalidam dentro da transação PostgreSQL. O runtime não pode escrever projeções/livros de saída diretamente. Triggers com privilégios elevados só aceitam a tabela de origem exata; funções auxiliares não elevam privilégios.
+
+## Migração e recuperação
+
+Head **ddn_0022**, filha de **ddn_0021**. Novas tabelas para PACKINGs, linhas, reservas/conferências, comandos, resultados imutáveis, movimentos e PDFs; área lógica comum e presenças/eventos físicos tipados. A identidade individual Cosmopak permanece. Um grupo Stock na zona pode reunir várias paletes do mesmo artigo/lote/carga, sem somar caixas nem perder os IDs físicos. Remove-se apenas a unicidade de `CosmoState.stock_id`, mantendo cada projeção por palete e revalidando o saldo como número de paletes aprovadas. O estado expedido preserva todos os vínculos originais. Nenhuma quantidade, referência, PDF ou movimento anterior é reescrito.
+
+A migração recusa uma localização/claim/stock histórico em Ovar com o nome reservado «Zona de preparação» até reconciliação administrativa; não renomeia nem ocupa silenciosamente. As funções publicadas das revisões anteriores não são editadas em ficheiro: a revisão aditiva alarga as transições tipadas do motor físico existente e mantém os guardas dos outros clientes.
+
+Atualização real continua manual: parar a aplicação; backup cifrado e autenticado; ensaio de restauro reconciliado numa base separada/vazia; prévia da atualização; aplicação explícita; reaplicar/verificar grants mínimos com a conta de manutenção; validar saldos, ocupação e PDFs antes de reabrir. Backups abrangem todas as novas tabelas/bytes; restauro verifica fontes, comandos/resultados, exclusividade das reservas, projeções, movimentos físicos e documentos. Regressões de backups antigos validam o catálogo lógico aditivo sem alterar mercadoria. Recuperação por backup verificado; downgrade destrutivo não é oferecido.
+
+## Ensaio fictício e limites
+
+1. Ativar administrativamente estantes partilhadas fictícias livres A101/A102. Receber e aprovar paletes fictícias A/L com 50 e 23 caixas.
+2. Importar Excel fictício com Folha2: DDN A/L 50, Mecalux A/L 20, DDN A/L 23. Confirmar colunas e referência fictícia; conferir exclusão Mecalux e duas reservas.
+3. Dois utilizadores preparam as paletes; confirmar estantes livres e saldo ainda 2 na zona. Desmarcar/reconferir sem gerar movimentos fictícios. Tentar duplicar a reserva noutro PACKING.
+4. Concluir preparação, carregar, desmarcar e comprovar regresso se aplicável; fechar com faltas explícitas. Só escritório aprova a data real. Conferir desconto carregado, reservas libertadas e remanescentes físicos.
+5. Reimprimir os PDFs, comparar bytes; testar reagrupamento/regresso comprovado e restauro integral numa base descartável.
+
+Homologação física Windows 11/PostgreSQL 17 nativo, dois PCs, layout Excel empresarial autorizado, impressão A4 e recuperação operacional permanecem pendentes. O mapeamento explícito evita inventar posições de colunas enquanto o layout real não estiver homologado. SQLite só consulta/testes compatíveis; serviços operacionais recusados. PWA/offline e processos comerciais adicionais não fazem parte desta PR. Nunca usar ficheiros/dados reais nos testes ou GitHub. Resultados executados e CI constam na PR.

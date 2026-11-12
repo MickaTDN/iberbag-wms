@@ -630,3 +630,6 @@ app.include_router(physical_router)
 
 from .cosmopak_routes import router as cosmopak_router
 app.include_router(cosmopak_router)
+
+from .cosmopak_packing_routes import router as cosmopak_packing_router
+app.include_router(cosmopak_packing_router)

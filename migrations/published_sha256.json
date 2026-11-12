@@ -13,5 +13,8 @@
   "migrations/versions/ddn_0020_shared_physical_locations.sql": "eae94368d060bd73e395211552a7dfc5564234111830748e93fc90df27a3e4d2",
   "migrations/versions/ddn_0021_cosmopak_receiving.sql": "d2594e61f9ec113c1b2a2f2bc895bf192bc954d8b873866933417cd4802917d8",
   "migrations/versions/ddn_0021_cosmopak_receiving.py": "15b7bc28f4d056b923f66ff1d5c0b28d7da865570a8ea5fb0854e2562db024a5",
-  "migrations/versions/ddn_0021_common_branch.sql": "7fc78dae911c8f1eccbc6213a2579146d2a9b3c4cda01f81bcb50918ef413219"
+  "migrations/versions/ddn_0021_common_branch.sql": "7fc78dae911c8f1eccbc6213a2579146d2a9b3c4cda01f81bcb50918ef413219",
+  "migrations/versions/ddn_0022_cosmopak_packings.py": "1f94844677ee498aa33ecee459d0f8f3d48541fc84bdcc80c53ba0238cd4bdcb",
+  "migrations/versions/ddn_0022_cosmopak_packings.sql": "2bf25f0ede0763df8d65cbf5d42f12eab859bfc2f007ca3af827e6c63724993d",
+  "migrations/versions/ddn_0022_common_branch.sql": "409603e00da9eca2d4f580f5ba90c4002810dbe8f7d11ca22d0fad5e50c42277"
 }

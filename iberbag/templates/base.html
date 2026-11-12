@@ -16,7 +16,7 @@
     <nav aria-label="Principal">
       <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">◫ &nbsp; Visão geral</a>
       {% if office_alcobre %}<a href="/alcobre/entries">Entradas Alcobre</a><a href="/alcobre/stock">Stock Alcobre por bobine</a><a href="/alcobre/inventories">Inventários e correções Alcobre</a><a href="/alcobre/dispatches">Saídas Alcobre</a>{% endif %}
-      {% if office_cosmopak %}<a href="/cosmopak/receptions">Entradas e arrumação Cosmopak</a><a href="/cosmopak/stock">Stock Cosmopak por palete</a><a href="/map">Mapa de posições partilhadas</a>{% endif %}
+      {% if office_cosmopak %}<a href="/cosmopak/receptions">Entradas e arrumação Cosmopak</a><a href="/cosmopak/stock">Stock Cosmopak por palete</a><a href="/cosmopak/packings">PACKINGs, preparação e carregamento</a><a href="/map">Mapa de posições partilhadas</a>{% endif %}
       {% if office_nkt %}<a href="/nkt/receivings">Entradas NKT</a><a href="/nkt/stock">Stock NKT por PEG</a><a href="/nkt/preparations">Preparações e carregamentos NKT</a><a href="/nkt/inventories">Inventários NKT</a>{% endif %}
       {% if office_valmet %}<a href="/valmet/entries">Entradas Valmet</a><a href="/valmet/stock">Stock Valmet</a><a href="/valmet/preparations">Preparações e reservas</a><a href="/valmet/shipments">Saídas Valmet</a><a href="/valmet/inventories">Inventários</a><a href="/valmet/transfers">Transferências</a>{% if user.role=='admin' %}<a href="/valmet/adjustments">Ajustes</a><a href="/valmet/imports">Importação histórica</a>{% endif %}{% endif %}
       {% if office_operations %}

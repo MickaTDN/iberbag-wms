@@ -226,7 +226,7 @@ def test_shared_migration19_and_encrypted_restore_preserve_history_and_pending_o
     with engine.connect() as conn:before=transfer.inventory(transfer.read_data(conn))
     folder=tmp_path/'before20';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
     assert backup.restore(verified,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)['status']=='reconciled'
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0021'
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0022'
     with engine.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==before
     activate(engine,actor);activate(engine,actor,'A102');logistics_fixture(engine)
     order=prepare(engine,actor);other=receive(engine,actor,3);pending=hold(engine,actor,other,3,'A102')
@@ -234,7 +234,7 @@ def test_shared_migration19_and_encrypted_restore_preserve_history_and_pending_o
         assert p.common_state(db,'A101')['state']=='awaiting_collection'
         with engine.connect() as conn:
             assert transfer.archive_inventory(conn,before)!=before
-            legacy=dict(before,tables={k:v for k,v in before['tables'].items() if k not in transfer.SHARED_TABLES | transfer.COSMO_TABLES})
+            legacy=dict(before,tables={k:v for k,v in before['tables'].items() if k not in transfer.SHARED_TABLES | transfer.COSMO_TABLES | transfer.PACKING_TABLES})
             with pytest.raises(ValueError):transfer.archive_inventory(conn,legacy)
         original=db.get(m.DispatchDocument,order).pdf
     after=tmp_path/'after20';target=pg_databases(restricted=True)

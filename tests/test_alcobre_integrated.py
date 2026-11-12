@@ -140,7 +140,7 @@ def test_integrated_alcobre_receipts_dispatch_inventory_and_full_encrypted_recov
     backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
     assert backup.restore(target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)['status']=='reconciled'
     assert snapshot(target)==before and foreign_snapshot(target)==foreign
-    with target.connect() as conn:assert conn.scalar(text('SELECT version_num FROM alembic_version'))=='ddn_0021'
+    with target.connect() as conn:assert conn.scalar(text('SELECT version_num FROM alembic_version'))=='ddn_0022'
     with scoped(target,5) as db:assert pdfs(db)==documents
     assert first and foreign_snapshot(engine)==foreign
 

@@ -2,7 +2,7 @@
 import json,secrets
 from fastapi import APIRouter,Depends,Request,HTTPException
 from fastapi.responses import Response
-from sqlalchemy import select
+from sqlalchemy import select,func
 from .app import database,render,context,redirect
 from .cosmopak_routes import access
 from .receiving_routes import receiving_form,integer,failure
@@ -27,19 +27,21 @@ def upload(request:Request,data:dict=Depends(named_upload_form),db=Depends(datab
     except service.ReceivingError as error:return failure(request,user,sess,error)
 
 @router.get('/cosmopak/packings/{ident}')
-def detail(ident:int,request:Request,sort:str='excel',db=Depends(database)):
+def detail(ident:int,request:Request,sort:str='excel',history_page:int=1,docs_page:int=1,db=Depends(database)):
     user,sess=access(request,db);src=db.get(Packing,ident)
     if not src:raise HTTPException(404,'PACKING inexistente neste contexto.')
     h=service.header(db,ident)
-    data=service.snapshot(db,ident) if h.stage not in ('draft','reviewed') else dict(items=[])
-    if h.stage=='shipped':data=json.loads(h.final_snapshot)
+    data=json.loads(h.final_snapshot) if h.stage=='shipped' else (service.snapshot(db,ident) if h.stage not in ('draft','reviewed') else dict(items=[]))
     rows=data['items']
     from collections import Counter
     totals=Counter(requested=len(rows),prepared=sum(r['pick']['prepared'] for r in rows),loaded=sum(r['pick']['loaded'] for r in rows),matched=sum(r['pallet'] is not None for r in rows))
     if sort=='local':rows=sorted(rows,key=lambda r:((r.get('material') or {}).get('local') or '',r['line']['source_row'],r['line']['ordinal']))
     from .database import CosmoPackingLine,CosmoPackingAction
     lines=db.scalars(select(CosmoPackingLine).where(CosmoPackingLine.mapping_id==h.mapping_id,CosmoPackingLine.packing_id==ident).order_by(CosmoPackingLine.source_row,CosmoPackingLine.ordinal)).all() if h.mapping_id else []
-    return render(request,'cosmopak_packing.html',context(request,user,sess,src=src,h=h,source=json.loads(src.report),rows=rows,lines=lines,keys=[secrets.token_hex(16) for _ in range(12)],pick_keys={r['pick']['id']:[secrets.token_hex(16) for _ in range(3)] for r in rows},docs=db.scalars(select(Document).where(Document.packing_id==ident).order_by(Document.id.desc())).all(),columns=list('ABCDEFGHIJKLMNOPQRSTUVWXYZ'),totals=totals,mapping_result=json.loads(db.get(CosmoPackingAction,h.mapping_id).payload) if h.mapping_id else None,history=db.scalars(select(CosmoPackingAction).where(CosmoPackingAction.packing_id==ident).order_by(CosmoPackingAction.id.desc())).all()))
+    history_page=max(1,history_page);docs_page=max(1,docs_page)
+    history_total=db.scalar(select(func.count()).select_from(CosmoPackingAction).where(CosmoPackingAction.packing_id==ident))
+    docs_total=db.scalar(select(func.count()).select_from(Document).where(Document.packing_id==ident))
+    return render(request,'cosmopak_packing.html',context(request,user,sess,src=src,h=h,source=json.loads(src.report),rows=rows,lines=lines,keys=[secrets.token_hex(16) for _ in range(12)],pick_keys={r['pick']['id']:[secrets.token_hex(16) for _ in range(3)] for r in rows},docs=db.scalars(select(Document).where(Document.packing_id==ident).order_by(Document.id.desc()).offset((docs_page-1)*100).limit(100)).all(),columns=list('ABCDEFGHIJKLMNOPQRSTUVWXYZ'),totals=totals,mapping_result=json.loads(db.get(CosmoPackingAction,h.mapping_id).payload) if h.mapping_id else None,history=db.scalars(select(CosmoPackingAction).where(CosmoPackingAction.packing_id==ident).order_by(CosmoPackingAction.id.desc()).offset((history_page-1)*100).limit(100)).all(),history_page=history_page,history_pages=max(1,(history_total+99)//100),docs_page=docs_page,docs_pages=max(1,(docs_total+99)//100)))
 
 @router.post('/cosmopak/packings/{ident}/{action}')
 def command(ident:int,action:str,request:Request,data:dict=Depends(receiving_form),db=Depends(database)):

@@ -1483,7 +1483,7 @@ class CosmoPackingState(Scoped,Base):
     loading_started: Mapped[bool]=mapped_column(Boolean,default=False,nullable=False)
     review_id: Mapped[int|None]=mapped_column(Integer)
     dispatched_on: Mapped[datetime|None]=mapped_column(DateTime)
-    final_snapshot: Mapped[str|None]=mapped_column(Text)
+    final_snapshot: Mapped[str|None]=mapped_column(Text,deferred=True)
     __table_args__=(CheckConstraint("stage IN ('draft','reviewed','preparing','prepared','loading','load_closed','dispatch_reviewed','shipped') AND version>=0",name='cosmo_packing_stage_valid'),)
 
 class CosmoPackingLine(Scoped,Base):
@@ -1551,8 +1551,8 @@ class CosmoPackingDocument(Scoped,Base):
     packing_id: Mapped[int]=mapped_column(ForeignKey('cosmo_packings.id'),nullable=False)
     request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
     kind: Mapped[str]=mapped_column(String(20),nullable=False)
-    snapshot: Mapped[str]=mapped_column(Text,nullable=False)
-    pdf: Mapped[bytes]=mapped_column(LargeBinary,nullable=False)
+    snapshot: Mapped[str]=mapped_column(Text,nullable=False,deferred=True)
+    pdf: Mapped[bytes]=mapped_column(LargeBinary,nullable=False,deferred=True)
     digest: Mapped[str]=mapped_column(String(64),nullable=False)
     actor_id: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
     created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)

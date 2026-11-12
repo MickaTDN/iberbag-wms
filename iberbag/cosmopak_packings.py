@@ -1,6 +1,6 @@
 """Office PACKINGs, exclusive individual picks, physical conference and dispatch."""
 import hashlib,json,secrets
-from datetime import date
+from datetime import date,datetime
 from sqlalchemy import select,text,func
 from .database import (CosmoPacking as Packing,CosmoPackingState as State,CosmoPackingLine as Line,
  CosmoPackingPick as Pick,CosmoPackingAction as Action,CosmoPackingDocument as Document,
@@ -59,7 +59,7 @@ def command(db,actor,key,ident,kind,version,payload=None,reason='',pick_id=None,
     fields=dict(packing_id=ident,kind=kind,pick_id=pick_id,pallet_id=pallet_id,expected_version=version,payload=receipts.dump(data),reason=reason)
     old=receipts.previous(db,Action,key,**fields)
     if old:return old.id
-    obj=Action(request_key=key,actor_id=actor.id,**fields);db.add(obj);db.flush();db.expire_all()
+    obj=Action(request_key=key,actor_id=actor.id,created_at=now_utc(),**fields);db.add(obj);db.flush();db.expire_all()
     db.add(Audit(username=actor.username,action='COSMO_PACKING_'+kind.upper(),details=f'PACKING {ident}; comando {obj.id}; {reason}'))
     return obj.id
 
@@ -88,7 +88,13 @@ def validate_snapshot(data):
     """Cross-book recovery proof, with no repairs or synthetic physical identity."""
     from collections import Counter
     from .transfer import json_value
-    normalized=lambda row:json.loads(json.dumps(row,default=json_value))
+    def normalized(row):
+        # PostgreSQL JSON omits trailing fractional-second zeroes; compare
+        # instants without weakening any non-temporal book/projection fields.
+        row=json.loads(json.dumps(row,default=json_value))
+        for field in ('prepared_at','loaded_at','dispatched_on'):
+            if row.get(field) is not None:row[field]=datetime.fromisoformat(row[field]).isoformat(timespec='microseconds')
+        return row
     for src in data.get('cosmo_packings',[]):
         if hashlib.sha256(src['source_excel']).hexdigest()!=src['source_sha256'] or excel.analyze(src['source_excel'])!=json.loads(src['report']):raise ValueError('Origem PACKING divergente.')
     actions={r['id']:r for r in data.get('cosmo_packing_actions',[])}
@@ -123,7 +129,7 @@ def validate_snapshot(data):
         outputs=[ledger[a['id']] for a in commands if a['kind'] not in pick_kinds|{'return_rack'}]
         if outputs:
             expected=json.loads(outputs[-1]['after_state']);expected['version']=head['version']
-            if expected!=normalized(head):raise ValueError('Estado PACKING divergente do livro.')
+            if normalized(expected)!=normalized(head):raise ValueError('Estado PACKING divergente do livro.')
         elif head['stage']!='draft' or head['version']!=0:raise ValueError('PACKING sem origem de estado.')
         for a in commands:
             if a['context_id']!=head['context_id']:raise ValueError('Comando PACKING fora do contexto.')
@@ -142,7 +148,7 @@ def validate_snapshot(data):
             if chain:
                 expected=chain[-1]
                 if head['stage']=='shipped':expected=dict(expected,active=False,version=expected['version']+1)
-                if expected!=normalized(pick):raise ValueError('Conferência/reserva divergente do livro.')
+                if normalized(expected)!=normalized(pick):raise ValueError('Conferência/reserva divergente do livro.')
             elif pick['prepared'] or pick['loaded'] or pick['version']!=(1 if head['stage']=='shipped' else 0):raise ValueError('Conferência sem comando comprovado.')
         if head['stage']=='shipped':
             frozen=json.loads(head['final_snapshot']);items={r['pick']['id']:r for r in frozen['items']}
@@ -152,4 +158,4 @@ def validate_snapshot(data):
             if shipped!={r['pick']['pallet_id'] for r in items.values() if r['pick']['loaded']}:raise ValueError('Expedição divergente das conferências arquivadas.')
             for pick in current:
                 old=items[pick['id']]['pick']
-                if normalized(pick)!=dict(old,active=False,version=old['version']+1):raise ValueError('Saída alterada após aprovação.')
+                if normalized(pick)!=normalized(dict(old,active=False,version=old['version']+1)):raise ValueError('Saída alterada após aprovação.')

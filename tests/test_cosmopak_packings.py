@@ -221,9 +221,11 @@ def test_packing_rollback_between_movement_output_audit_and_commit(warehouse):
     command(engine,op,ident,'prepare',conference(),pick=pick[0],version=0)
 
 
-def test_packing_documents_frozen_and_encrypted_restore_reconciles_all_books(warehouse,pg_databases,tmp_path):
+def test_packing_documents_frozen_and_encrypted_restore_reconciles_all_books(warehouse,pg_databases,tmp_path,monkeypatch):
     from conftest import BACKUP_PASSWORD
     from iberbag import backup,transfer
+    from datetime import datetime
+    monkeypatch.setattr(s,'now_utc',lambda:datetime(2027,4,5,6,7,8,123450))
     engine,u=warehouse;a=u['admin'][0];op=u['operador'][0];stock(engine,a);ident=packing(engine,a)
     command(engine,a,ident,'confirm',{'accepted':True});one,two=picks(engine,ident)
     command(engine,op,ident,'prepare',conference(),pick=one[0]);command(engine,op,ident,'exception',pick=two[0])
@@ -305,3 +307,37 @@ def test_packing_a4_complete_report_and_sqlite_refuses_commands():
     with Session(create_engine('sqlite://')) as db:
         for action in (lambda:s.command(db,1,'a'*32,1,'confirm',0,{'accepted':True},'Fictício'),lambda:s.document(db,1,'b'*32,1,'stage'),lambda:s.store(db,1,'c'*32,b'x','FICT.xlsx',{})):
             with pytest.raises(s.ReceivingError,match='PostgreSQL'):action()
+
+
+def test_packing_two_operators_complete_distinct_rows_and_dispatch_failure_rolls_back(warehouse):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from sqlalchemy import event
+    from iberbag import transfer
+    from copy import deepcopy
+    engine,u=warehouse;a=u['admin'][0];op=u['operador'][0];other=u['other'][0];stock(engine,a)
+    ident=packing(engine,a);command(engine,a,ident,'confirm',{'accepted':True});rows=picks(engine,ident)
+    duplicate=workbook([('DDN','A','L',1,1)])
+    with scoped(engine,3) as db:again=s.preview(db,a,secrets.token_hex(16),duplicate,'OUTRO-FICT.xlsx')
+    with pytest.raises(s.ReceivingError):command(engine,a,again,'map',dict(mapping=MAPPING,reference='000-PACK-FICT',reference_cell='G1'))
+    barrier=Barrier(2)
+    def prepare(args):
+        actor,row,boxes=args;barrier.wait(timeout=10);return command(engine,actor,ident,'prepare',conference(boxes),pick=row[0],version=0)
+    with ThreadPoolExecutor(2) as pool:assert len(list(pool.map(prepare,[(op,rows[0],50),(other,rows[1],23)])))==2
+    command(engine,op,ident,'finish_prepare');command(engine,op,ident,'start_load')
+    for row,boxes in zip(rows,(50,23)):command(engine,op,ident,'load',conference(boxes),pick=row[0])
+    command(engine,op,ident,'finish_load');rev=command(engine,a,ident,'review_dispatch',{'dispatched_on':'2027-05-06'})
+    with scoped(engine,3) as db:
+        v=s.header(db,ident).version
+        def fail(session):raise RuntimeError('Falha fictícia no commit da saída')
+        event.listen(db,'before_commit',fail)
+        with pytest.raises(RuntimeError):s.command(db,a,secrets.token_hex(16),ident,'approve',v,{'accepted':True,'review_id':rev},'Confirmação fictícia')
+    with scoped(engine,3) as db:
+        assert s.header(db,ident).stage=='dispatch_reviewed' and db.scalar(select(func.sum(m.Stock.quantidade)))==2
+        assert all(r[4] for r in picks(engine,ident))
+    command(engine,a,ident,'approve',{'accepted':True,'review_id':rev},version=v)
+    with engine.connect() as conn:data=transfer.read_data(conn)
+    corrupted=deepcopy(data);corrupted['cosmo_packing_picks'][0]['loaded']=False
+    with pytest.raises(ValueError):s.validate_snapshot(corrupted)
+    corrupted=deepcopy(data);corrupted['cosmo_packing_states'][0]['stage']='loading'
+    with pytest.raises(ValueError):s.validate_snapshot(corrupted)

@@ -16,6 +16,7 @@
     <nav aria-label="Principal">
       <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">◫ &nbsp; Visão geral</a>
       {% if office_alcobre %}<a href="/alcobre/entries">Entradas Alcobre</a><a href="/alcobre/stock">Stock Alcobre por bobine</a><a href="/alcobre/inventories">Inventários e correções Alcobre</a><a href="/alcobre/dispatches">Saídas Alcobre</a>{% endif %}
+      {% if office_cosmopak %}<a href="/cosmopak/receptions">Entradas e arrumação Cosmopak</a><a href="/cosmopak/stock">Stock Cosmopak por palete</a><a href="/map">Mapa de posições partilhadas</a>{% endif %}
       {% if office_nkt %}<a href="/nkt/receivings">Entradas NKT</a><a href="/nkt/stock">Stock NKT por PEG</a><a href="/nkt/preparations">Preparações e carregamentos NKT</a><a href="/nkt/inventories">Inventários NKT</a>{% endif %}
       {% if office_valmet %}<a href="/valmet/entries">Entradas Valmet</a><a href="/valmet/stock">Stock Valmet</a><a href="/valmet/preparations">Preparações e reservas</a><a href="/valmet/shipments">Saídas Valmet</a><a href="/valmet/inventories">Inventários</a><a href="/valmet/transfers">Transferências</a>{% if user.role=='admin' %}<a href="/valmet/adjustments">Ajustes</a><a href="/valmet/imports">Importação histórica</a>{% endif %}{% endif %}
       {% if office_operations %}
@@ -27,11 +28,11 @@
       <a href="/transfers" class="{% if request.url.path.startswith('/transfers') %}active{% endif %}">Transferências</a>
       <a href="/inventory" class="{% if request.url.path.startswith('/inventory') %}active{% endif %}">Inventário</a>
       {% endif %}
-      {% if not office_valmet and not office_nkt and not office_alcobre %}<a href="/stock" class="{% if request.url.path.startswith('/stock') %}active{% endif %}">▤ &nbsp; Consulta de stock</a>
+      {% if not office_valmet and not office_nkt and not office_alcobre and not office_cosmopak %}<a href="/stock" class="{% if request.url.path.startswith('/stock') %}active{% endif %}">▤ &nbsp; Consulta de stock</a>
       <a href="/map" class="{% if request.url.path == '/map' %}active{% endif %}">▦ &nbsp; Mapa do armazém</a>
       {% endif %}
     </nav>
-    {% if office_alcobre %}<p class="side-label">Alcobre · Escritório · Bobines individuais, identificação e arrumação.</p>{% elif office_valmet %}<p class="side-label">Valmet · Escritório · Entradas, reservas, expedições e controlo físico.</p>{% elif office_nkt %}<p class="side-label">NKT · Escritório · Entradas, reservas, carregamentos por PEG e inventários por carga.</p>{% elif office_context and not office_operations %}<p class="side-label">Estrutura configurada. Processo específico ainda não implementado.</p>{% endif %}
+    {% if office_cosmopak %}<p class="side-label">Cosmopak · Entradas planeadas, arrumação e aprovação no escritório.</p>{% elif office_alcobre %}<p class="side-label">Alcobre · Escritório · Bobines individuais, identificação e arrumação.</p>{% elif office_valmet %}<p class="side-label">Valmet · Escritório · Entradas, reservas, expedições e controlo físico.</p>{% elif office_nkt %}<p class="side-label">NKT · Escritório · Entradas, reservas, carregamentos por PEG e inventários por carga.</p>{% elif office_context and not office_operations %}<p class="side-label">Estrutura configurada. Processo específico ainda não implementado.</p>{% endif %}
     {% if user.role == 'admin' %}
     <div class="side-label">ADMINISTRAÇÃO</div>
     <nav aria-label="Administração">

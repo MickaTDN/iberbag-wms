@@ -191,7 +191,7 @@ def test_nkt_receiving_encrypted_restore_and_prior_head_upgrade(pg_databases,war
     setup(engine);legacy=save(engine,actor,['000LEGACY']);old_confirm(engine,actor,legacy)
     with engine.connect() as conn:before=transfer.inventory(transfer.read_data(conn))
     folder=tmp_path/'prior';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD);backup.restore(restored,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0020'
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0021'
     with engine.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==before
     rec=stage(engine,actor,content=workbook());confirm(engine,actor,rec)
     restored2=pg_databases(restricted=True);folder=tmp_path/'new'

@@ -250,7 +250,7 @@ def test_historical_import_ddn10_upgrade_preserves_existing_stock_reservations_a
     with scoped(engine,2) as db:p.review(db,actor,order,1);p.confirm(db,actor,order,1);s.issue_document(db,actor,order,1)
     with engine.connect() as conn:before=transfer.inventory(transfer.read_data(conn))
     folder=tmp_path/'ddn10';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD);backup.restore(target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0020'
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0021'
     with engine.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==before
     with scoped(engine,2) as db:assert len(p.active(db))==1 and not db.scalar(select(m.ValmetImportDraft.id))
 

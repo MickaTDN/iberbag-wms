@@ -52,6 +52,7 @@ def database(request: Request):
         from .alcobre import enabled_if_present as alcobre_enabled
         request.state.office_alcobre=alcobre_enabled(db,owner.id,warehouse.id)
         request.state.office_nkt=enabled_if_present(db,owner.id)
+        request.state.office_cosmopak = owner.id==3 and warehouse.id==1
         request.state.office_valmet = db.get(ValmetOwner, owner.id) is not None
         yield db
 
@@ -102,7 +103,8 @@ def context(request, user, sess, **kwargs):
                    if row[0].id == getattr(request.state, 'ddn_context', 1)), None)
     return {'request': request, 'user': user, 'csrf': sess.csrf_token if sess else '',
             'stacked_enabled': bool(active and active[1].id == 1 and active[2].id == 1),
-            'office_context': active, 'office_operations': bool(active and active[1].pallet_operations and not getattr(request.state,'office_valmet',False) and not getattr(request.state,'office_nkt',False) and not getattr(request.state,'office_alcobre',False)),
+            'office_context': active, 'office_operations': bool(active and active[1].pallet_operations and not getattr(request.state,'office_valmet',False) and not getattr(request.state,'office_nkt',False) and not getattr(request.state,'office_alcobre',False) and not getattr(request.state,'office_cosmopak',False)),
+            'office_cosmopak':getattr(request.state,'office_cosmopak',False),
             'office_alcobre':getattr(request.state,'office_alcobre',False),
             'office_nkt':getattr(request.state,'office_nkt',False),
             'office_valmet': getattr(request.state,'office_valmet',False),
@@ -248,6 +250,7 @@ def dashboard(request: Request, db: Session = Depends(database)):
     if getattr(request.state,'office_alcobre',False):return redirect('/alcobre/stock')
     if getattr(request.state,'office_nkt',False):return redirect('/nkt/stock')
     if getattr(request.state,'office_valmet',False):return redirect('/valmet/stock')
+    if getattr(request.state,'office_cosmopak',False):return redirect('/cosmopak/stock')
     stats = db.execute(select(func.coalesce(func.sum(Stock.quantidade),0),func.count(func.distinct(Stock.artigo)),
                               func.count(func.distinct(Stock.lote)), func.count(func.distinct(Stock.local))).where(Stock.quantidade > 0)).first()
     occupied = db.execute(select(Stock.local, func.sum(Stock.quantidade)).where(Stock.quantidade > 0).group_by(Stock.local)).all()
@@ -267,6 +270,7 @@ def stock_page(request: Request, artigo: str='', lote: str='', local: str='', pa
     if getattr(request.state,'office_alcobre',False):return redirect('/alcobre/stock')
     if getattr(request.state,'office_nkt',False):return redirect('/nkt/stock')
     if getattr(request.state,'office_valmet',False):return redirect('/valmet/stock')
+    if getattr(request.state,'office_cosmopak',False):return redirect('/cosmopak/stock')
     page = max(1, min(page, 10000)); filters = {'artigo': artigo.strip()[:100], 'lote': lote.strip()[:100], 'local': local.strip()[:100]}
     query = select(Stock).where(Stock.quantidade > 0)
     count_query = select(func.count(), func.coalesce(func.sum(Stock.quantidade),0)).select_from(Stock).where(Stock.quantidade > 0)
@@ -623,3 +627,6 @@ app.include_router(alcobre_inventory_router)
 
 from .physical_routes import router as physical_router
 app.include_router(physical_router)
+
+from .cosmopak_routes import router as cosmopak_router
+app.include_router(cosmopak_router)

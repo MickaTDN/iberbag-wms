@@ -483,6 +483,33 @@ REQUIRED_POSTGRES |= {
 }
 REQUIRED_WINDOWS.add('test_shared_locations.test_shared_sqlite_never_activates_operational_sharing')
 
+REQUIRED_POSTGRES |= {
+    'test_cosmopak.test_cosmo_restored_function_acls_cannot_forge_projection_writers',
+    'test_cosmopak.test_cosmo_generic_divergence_without_box_difference_still_blocks_until_decision',
+    'test_cosmopak.test_cosmo_numeric_precision_and_repeated_huge_strings_are_rejected',
+    'test_cosmopak.test_cosmo_excel_selected_sheet_box_counts_and_original_identity',
+    'test_cosmopak.test_cosmo_excel_missing_ambiguous_and_invalid_quantities',
+    'test_cosmopak.test_cosmo_excel_formula_xml_zip_limits_and_sqlite_write_prohibition',
+    'test_cosmopak.test_cosmo_planned_pallets_individual_partial_stock_and_atomic_approval',
+    'test_cosmopak.test_cosmo_missing_and_divergent_boxes_need_explicit_decisions',
+    'test_cosmopak.test_cosmo_correction_requires_physical_vacancy_and_missing_never_releases',
+    'test_cosmopak.test_cosmo_concurrent_owners_or_trucks_get_one_position',
+    'test_cosmopak.test_cosmo_approval_rollback_versions_numbering_and_multiple_trucks',
+    'test_cosmopak.test_cosmo_revisions_replays_and_context_permissions',
+    'test_cosmopak.test_cosmo_runtime_http_csrf_authorization_and_projection_guards',
+    'test_cosmopak.test_cosmo_migration20_and_encrypted_restore_preserve_all_owners_and_pending',
+    'test_cosmopak.test_cosmo_approval_concurrency_is_idempotent_and_invalid_previews_never_stock',
+    'test_cosmopak.test_cosmo_iberbag_accounting_release_waits_for_physical_completion',
+    'test_cosmopak.test_cosmo_all_missing_and_historical_reference_never_invent_stock_or_dates',
+    'test_cosmopak.test_cosmo_location_correction_preserves_observed_boxes_and_conflict_rolls_back',
+}
+REQUIRED_WINDOWS |= {
+    'test_cosmopak.test_cosmo_numeric_precision_and_repeated_huge_strings_are_rejected',
+    'test_cosmopak.test_cosmo_excel_selected_sheet_box_counts_and_original_identity',
+    'test_cosmopak.test_cosmo_excel_missing_ambiguous_and_invalid_quantities',
+    'test_cosmopak.test_cosmo_excel_formula_xml_zip_limits_and_sqlite_write_prohibition',
+}
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

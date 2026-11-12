@@ -942,7 +942,7 @@ class NktReceiving(Scoped,Base):
     request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
     source_name: Mapped[str]=mapped_column(String(240),nullable=False)
     source_digest: Mapped[str|None]=mapped_column(String(64))
-    report: Mapped[str]=mapped_column(Text,nullable=False)
+    report: Mapped[str]=mapped_column(Text,nullable=False,deferred=True)
     created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
     created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
     version: Mapped[int]=mapped_column(Integer,default=0,nullable=False)
@@ -1381,6 +1381,84 @@ class PhysicalLocationEvent(Scoped,Base):
     after_state: Mapped[str]=mapped_column(Text,default='',server_default='',nullable=False)
     created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
     __table_args__=(UniqueConstraint('physical_id','kind','ref_id'),)
+
+class CosmoReception(Scoped,Base):
+    __tablename__='cosmo_receptions'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    source_name: Mapped[str]=mapped_column(String(240),nullable=False)
+    source_sha256: Mapped[str]=mapped_column(String(64),nullable=False)
+    source_excel: Mapped[bytes]=mapped_column(LargeBinary,nullable=False,deferred=True)
+    report: Mapped[str]=mapped_column(Text,nullable=False,deferred=True)
+    created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    version: Mapped[int]=mapped_column(Integer,default=1,nullable=False)
+    status: Mapped[str]=mapped_column(String(20),default='planned',nullable=False)
+    guide: Mapped[str|None]=mapped_column(String(120))
+    arrived_on: Mapped[datetime|None]=mapped_column(DateTime)
+    legacy_code: Mapped[str|None]=mapped_column(String(120))
+    unloaded_by: Mapped[int|None]=mapped_column(ForeignKey('users.id'))
+    unloaded_at: Mapped[datetime|None]=mapped_column(DateTime)
+    receipt_id: Mapped[int|None]=mapped_column(ForeignKey('receipts.id'),unique=True)
+    __table_args__=(CheckConstraint("status IN ('planned','unloaded','reviewed','approved') AND version>0",name='cosmo_reception_valid'),)
+
+class CosmoPallet(Scoped,Base):
+    __tablename__='cosmo_pallets'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    reception_id: Mapped[int]=mapped_column(ForeignKey('cosmo_receptions.id'),nullable=False,index=True)
+    source_row: Mapped[int]=mapped_column(Integer,nullable=False)
+    ordinal: Mapped[int]=mapped_column(Integer,nullable=False)
+    article: Mapped[str]=mapped_column(String(120),nullable=False)
+    description: Mapped[str]=mapped_column(String(240),nullable=False)
+    lot: Mapped[str]=mapped_column(String(120),nullable=False)
+    boxes: Mapped[int]=mapped_column(Integer,nullable=False)
+    incomplete: Mapped[bool]=mapped_column(Boolean,nullable=False)
+    __table_args__=(UniqueConstraint('reception_id','source_row','ordinal'),CheckConstraint('source_row>0 AND ordinal>0 AND boxes>=0',name='cosmo_pallet_valid'))
+
+class CosmoState(Scoped,Base):
+    __tablename__='cosmo_states'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    pallet_id: Mapped[int]=mapped_column(ForeignKey('cosmo_pallets.id'),unique=True,nullable=False)
+    status: Mapped[str]=mapped_column(String(20),default='planned',nullable=False)
+    local: Mapped[str|None]=mapped_column(String(120))
+    actual_boxes: Mapped[int|None]=mapped_column(Integer)
+    decision: Mapped[str]=mapped_column(String(20),default='unresolved',nullable=False)
+    stock_id: Mapped[int|None]=mapped_column(ForeignKey('stock.id'),unique=True)
+    version: Mapped[int]=mapped_column(Integer,default=0,nullable=False)
+    __table_args__=(CheckConstraint("status IN ('planned','placed','missing','blocked','approved') AND decision IN ('unresolved','accept','exclude') AND version>=0 AND (actual_boxes IS NULL OR actual_boxes>=0)",name='cosmo_state_valid'),)
+
+class CosmoOperation(Scoped,Base):
+    __tablename__='cosmo_operations'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    pallet_id: Mapped[int]=mapped_column(ForeignKey('cosmo_pallets.id'),nullable=False,index=True)
+    kind: Mapped[str]=mapped_column(String(20),nullable=False)
+    expected_version: Mapped[int]=mapped_column(Integer,nullable=False)
+    local: Mapped[str|None]=mapped_column(String(120))
+    actual_boxes: Mapped[int|None]=mapped_column(Integer)
+    decision: Mapped[str|None]=mapped_column(String(20))
+    vacated: Mapped[bool]=mapped_column(Boolean,default=False,nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    actor_id: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    stock_id: Mapped[int|None]=mapped_column(ForeignKey('stock.id'))
+    receipt_id: Mapped[int|None]=mapped_column(ForeignKey('receipts.id'))
+    before_state: Mapped[str]=mapped_column(Text,default='',nullable=False)
+    after_state: Mapped[str]=mapped_column(Text,default='',nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint("kind IN ('place','missing','decide','approve')",name='cosmo_operation_valid'),)
+
+class CosmoReview(Scoped,Base):
+    __tablename__='cosmo_reviews'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    reception_id: Mapped[int]=mapped_column(ForeignKey('cosmo_receptions.id'),nullable=False,index=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    kind: Mapped[str]=mapped_column(String(20),nullable=False)
+    expected_version: Mapped[int]=mapped_column(Integer,nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    actor_id: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+    __table_args__=(CheckConstraint("kind IN ('metadata','unloaded','review','approve')",name='cosmo_review_valid'),)
 
 for _table in list(Base.metadata.tables.values()):
     if _table.name in ('physical_location_claims','physical_location_access','physical_location_state') or 'context_id' not in _table.c:

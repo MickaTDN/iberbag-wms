@@ -333,6 +333,10 @@ def validate_shared_snapshot(data):
                 if len(goods)!=1 or goods[0]['id']!=state['stock_id'] or goods[0]['context_id']!=state['context_id']:invalid()
             elif state['state'] in ('pending_putaway','pending_transfer','awaiting_collection') and goods:invalid()
             if state['state']=='pending_putaway':
+                if state['source_kind']=='cosmopak':
+                    pending=next((r for r in data.get('cosmo_states',[]) if r['pallet_id']==state['source_id'] and r['context_id']==state['context_id']),None)
+                    if not pending or pending['status'] not in ('placed','blocked') or pending['local']!=master['label']:invalid()
+                    continue
                 pending=next((r for r in data['putaways'] if r['id']==state['source_id'] and r['context_id']==state['context_id']),None)
                 if not pending or pending['status']!='draft' or pending['local']!=master['label'] or pending['quantidade']!=1 or pending['stacked']:invalid()
             if state['state']=='awaiting_collection':

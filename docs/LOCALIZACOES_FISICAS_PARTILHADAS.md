@@ -192,3 +192,12 @@ originais). Partição ausente, repetida, cancelada, incompleta ou divergente
 bloqueia a integração. Testes negativos cobrem a própria divisão e agregação.
 Resultados/durações da execução final ficam nas provas e no relatório do PR;
 não se considera o PostgreSQL aprovado até à conclusão desse check.
+
+## Evolução Cosmopak na PR #36
+
+A revisão ddn_0021 acrescenta apenas entradas/arrumação Cosmopak, usando o mesmo
+livro físico e capacidade comum. As paletes em descarga usam atribuição pendente
+antes do stock oficial; correções exigem prova física e a aprovação é integral.
+Ver [processo, migração e limites](COSMOPAK_ENTRADAS_E_ARRUMACAO.md). As referências
+acima a processos Cosmopak pendentes descrevem o âmbito original da ddn_0020;
+PACKINGs, saídas/FIFO Cosmopak, PWA e offline continuam por implementar.

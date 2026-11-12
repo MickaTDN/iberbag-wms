@@ -13,7 +13,7 @@ class BoundedPostBody:
     async def __call__(self, scope, receive, send):
         if scope['type'] != 'http' or scope['method'] != 'POST':
             return await self.app(scope, receive, send)
-        limit = 20*1024*1024+16384 if scope.get('path') in ('/valmet/imports/upload','/nkt/receivings/upload') and self.limit == MAX_POST_BYTES else self.limit
+        limit = 20*1024*1024+16384 if scope.get('path') in ('/valmet/imports/upload','/nkt/receivings/upload','/cosmopak/receptions/upload') and self.limit == MAX_POST_BYTES else self.limit
         if scope.get('path') in ('/alcobre/entries/upload','/alcobre/dispatches/upload') and self.limit == MAX_POST_BYTES: limit=5*1024*1024+16384
         lengths = [v for k, v in scope['headers'] if k.lower() == b'content-length']
         async def refuse(status, detail):

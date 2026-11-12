@@ -274,7 +274,7 @@ def test_alcobre_ddn16_upgrade_encrypted_restore_and_guide_history(pg_databases,
         seed_legacy_catalogue(db);user=m.User(username='admin',display_name='Fictício',role='admin',active=True);set_password(user,secrets.token_urlsafe(24));db.add(user);db.commit();actor=user.id
     seed(engine,actor);before=snapshot(engine);folder=tmp_path/'prior17'
     backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD);backup.restore(old_target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0020' and snapshot(engine)==before
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0021' and snapshot(engine)==before
     with engine.connect() as conn:
         native=transfer.read_data(conn)
         for name in (transfer.ALCOBRE_DISPATCH_TABLES | transfer.ALCOBRE_INVENTORY_TABLES):native.pop(name)

@@ -156,3 +156,25 @@ CREATE TRIGGER cosmo_operations_no_truncate BEFORE TRUNCATE ON cosmo_operations 
 CREATE TRIGGER cosmo_reviews_no_truncate BEFORE TRUNCATE ON cosmo_reviews FOR EACH STATEMENT EXECUTE FUNCTION wms_append_only();
 
 CREATE TRIGGER cosmo_states_no_truncate BEFORE TRUNCATE ON cosmo_states FOR EACH STATEMENT EXECUTE FUNCTION wms_append_only();
+
+-- Stock writes are intermediate only inside the integral approval transaction.
+-- A caller cannot commit after INSERT stock / per-pallet approval and omit the
+-- final reception event. This supplements, rather than replaces, capacity guards.
+CREATE FUNCTION ddn_cosmo_reconcile() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE b cosmo_states;a cosmo_pallets;r cosmo_receptions;rec receipts;
+BEGIN
+ SELECT s.* INTO b FROM cosmo_states s JOIN cosmo_pallets x ON x.id=s.pallet_id AND x.context_id=s.context_id
+ WHERE s.context_id=NEW.context_id AND (s.stock_id=NEW.id OR (s.local=NEW.local AND EXISTS(
+   SELECT 1 FROM physical_locations p JOIN physical_location_state h ON h.physical_id=p.id
+   WHERE p.label=NEW.local AND h.context_id=NEW.context_id AND h.source_kind='cosmopak' AND h.source_id=s.pallet_id))) LIMIT 1;
+ IF NOT FOUND THEN RETURN NEW;END IF;
+ SELECT * INTO a FROM cosmo_pallets WHERE id=b.pallet_id AND context_id=NEW.context_id;
+ SELECT * INTO r FROM cosmo_receptions WHERE id=a.reception_id AND context_id=NEW.context_id;
+ SELECT * INTO rec FROM receipts WHERE id=r.receipt_id AND context_id=NEW.context_id;
+ IF r.status<>'approved' OR b.status<>'approved' OR b.stock_id IS DISTINCT FROM NEW.id OR rec.id IS NULL OR rec.status<>'confirmed'
+  OR (NEW.artigo,NEW.lote,NEW.carga,NEW.local,NEW.quantidade,NEW.stacked) IS DISTINCT FROM (a.article,a.lot,rec.code,b.local,1,false)
+  OR NOT EXISTS(SELECT 1 FROM physical_locations p JOIN physical_location_state h ON h.physical_id=p.id WHERE p.label=b.local AND h.context_id=NEW.context_id AND h.state='occupied' AND h.stock_id=NEW.id) THEN
+  RAISE EXCEPTION 'Integral Cosmopak approval required before committing stock' USING ERRCODE='23514';END IF;
+ RETURN NEW;
+END $$;
+CREATE CONSTRAINT TRIGGER cosmo_integral_stock AFTER INSERT OR UPDATE ON stock DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ddn_cosmo_reconcile();

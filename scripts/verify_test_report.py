@@ -484,6 +484,7 @@ REQUIRED_POSTGRES |= {
 REQUIRED_WINDOWS.add('test_shared_locations.test_shared_sqlite_never_activates_operational_sharing')
 
 REQUIRED_POSTGRES |= {
+    'test_cosmopak.test_cosmo_runtime_cannot_commit_stock_before_integral_approval',
     'test_cosmopak.test_cosmo_restored_function_acls_cannot_forge_projection_writers',
     'test_cosmopak.test_cosmo_generic_divergence_without_box_difference_still_blocks_until_decision',
     'test_cosmopak.test_cosmo_numeric_precision_and_repeated_huge_strings_are_rejected',

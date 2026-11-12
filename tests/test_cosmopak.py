@@ -351,3 +351,14 @@ def test_cosmo_restored_function_acls_cannot_forge_projection_writers(restricted
             with pytest.raises(DBAPIError,match='Untrusted Cosmopak'):
                 conn.execute(text(f'INSERT INTO fake_cosmo_{index}(id) VALUES(1)'))
     with runtime.connect() as conn:assert conn.scalar(text('SELECT count(*) FROM cosmo_states'))==0
+
+
+def test_cosmo_runtime_cannot_commit_stock_before_integral_approval(restricted_web):
+    app,owner,runtime,role,u,tokens=restricted_web;admin=u['admin'][0];activate(owner,admin)
+    ident=plan(owner,admin,[('A','Fictício','L',1,3,'')]);place(runtime,admin,units(owner,ident)[0][0],'A101');review(runtime,admin,admin,ident)
+    with pytest.raises(DBAPIError,match='Integral Cosmopak approval required'):
+        with runtime.begin() as conn:
+            conn.execute(text("INSERT INTO stock(context_id,artigo,lote,carga,local,quantidade) VALUES(3,'A','L','UNAPPROVED-FICT','A101',1)"))
+    with scoped(runtime,3) as db:
+        assert db.scalar(select(func.count()).select_from(m.Stock))==0
+        assert p.common_state(db,'A101')['state']=='pending_putaway'

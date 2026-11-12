@@ -185,5 +185,7 @@ def validate_snapshot(data):
         elif state['status']!='planned' or state['version']!=0 or state['local'] is not None:raise ValueError('Palete Cosmopak sem movimento comprovado.')
         rec=receipts[pallet['reception_id']]
         if state['status']=='approved':
+            receipt=next((r for r in data['receipts'] if r['id']==rec['receipt_id'] and r['context_id']==rec['context_id']),None)
+            if rec['status']!='approved' or not receipt or receipt['status']!='confirmed':raise ValueError('Receção Cosmopak sem aprovação integral.')
             goods=stock.get(state['stock_id'])
-            if not goods or goods['context_id']!=pallet['context_id'] or goods['quantidade']!=1 or goods['artigo']!=pallet['article'] or goods['lote']!=pallet['lot'] or goods['local']!=state['local']:raise ValueError('Stock oficial Cosmopak divergente da identidade física.')
+            if not goods or goods['context_id']!=pallet['context_id'] or goods['quantidade']!=1 or goods['artigo']!=pallet['article'] or goods['lote']!=pallet['lot'] or goods['local']!=state['local'] or goods['carga']!=receipt['code']:raise ValueError('Stock oficial Cosmopak divergente da identidade física.')

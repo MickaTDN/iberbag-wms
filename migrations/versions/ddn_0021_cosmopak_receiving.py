@@ -43,7 +43,7 @@ def upgrade():
     ELSIF h.state='pending_putaway' AND NOT EXISTS"""
     op.execute(guard.replace(anchor,new))
     schema=con.dialect.identifier_preparer.quote(con.scalar(s.text('SELECT current_schema()')))
-    for name in ('ddn_cosmo_guard','ddn_cosmo_initial','ddn_cosmo_operation','ddn_cosmo_review','ddn_cosmo_complete','ddn_cosmo_stock','ddn_cosmo_projection','ddn_cosmo_physical'):
+    for name in ('ddn_cosmo_guard','ddn_cosmo_initial','ddn_cosmo_operation','ddn_cosmo_review','ddn_cosmo_complete','ddn_cosmo_stock','ddn_cosmo_projection','ddn_cosmo_physical','ddn_cosmo_reconcile'):
         op.execute(f'ALTER FUNCTION {name}() SET search_path TO pg_catalog, {schema}, pg_temp')
         op.execute(f'REVOKE ALL ON FUNCTION {name}() FROM PUBLIC')
 

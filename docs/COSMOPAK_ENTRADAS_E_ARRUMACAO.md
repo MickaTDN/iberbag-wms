@@ -106,6 +106,10 @@ atribuições em ocupação comum oficial na **mesma transação**. Uma receçã
 as paletes comprovadamente em falta conserva o registo da carga/guia, mas cria zero
 stock e nenhuma identidade física recebida fictícia. Repetições não duplicam
 stock, carga, números ou eventos. Falhas intermédias fazem rollback integral.
+A guarda SQL diferida também recusa um commit que tente parar após inserir stock
+ou aprovar apenas uma palete, sem concluir a receção integral. O cenário foi
+reproduzido com a conta runtime restrita e ficou coberto por teste negativo;
+projeções e backups exigem igualmente a aprovação integral e carga correspondente.
 
 A consulta mostra cada palete, artigo, lote, posição, caixas reais, tipo importado
 e disponibilidade. Arrumadas por aprovar e bloqueadas aparecem separadas do stock

@@ -341,3 +341,31 @@ def test_packing_two_operators_complete_distinct_rows_and_dispatch_failure_rolls
     with pytest.raises(ValueError):s.validate_snapshot(corrupted)
     corrupted=deepcopy(data);corrupted['cosmo_packing_states'][0]['stage']='loading'
     with pytest.raises(ValueError):s.validate_snapshot(corrupted)
+
+
+def test_packing_stage_label_uses_latest_immutable_completion_not_print_date(warehouse,monkeypatch):
+    from datetime import datetime
+    from pypdf import PdfReader
+    engine,u=warehouse;a=u['admin'][0];op=u['operador'][0];stock(engine,a,(50,))
+    ident=packing(engine,a,[('DDN','A','L',50,1)]);command(engine,a,ident,'confirm',{'accepted':True});pick=picks(engine,ident)[0]
+    command(engine,op,ident,'prepare',conference(),pick=pick[0])
+    monkeypatch.setattr(s,'now_utc',lambda:datetime(2027,4,5,11,12,13))
+    command(engine,op,ident,'finish_prepare')
+    monkeypatch.setattr(s,'now_utc',lambda:datetime(2027,4,8,17,18,19))
+    key=secrets.token_hex(16)
+    with scoped(engine,3) as db:
+        first=s.document(db,a,key,ident,'stage');original=db.get(m.CosmoPackingDocument,first).pdf
+    text_pdf=lambda data:''.join(p.extract_text() for p in PdfReader(BytesIO(data)).pages)
+    assert 'Preparação concluída: 05/04/2027 11:12:13 UTC' in text_pdf(original)
+    assert '000-PACK-FICT' in text_pdf(original) and 'Previstas: 1 paletes' in text_pdf(original) and 'Preparadas: 1' in text_pdf(original)
+    command(engine,a,ident,'reopen_prepare')
+    with scoped(engine,3) as db:
+        pending=s.document(db,a,secrets.token_hex(16),ident,'stage')
+        assert 'Preparação ainda não concluída' in text_pdf(db.get(m.CosmoPackingDocument,pending).pdf)
+    monkeypatch.setattr(s,'now_utc',lambda:datetime(2027,4,10,9,8,7));command(engine,op,ident,'finish_prepare')
+    monkeypatch.setattr(s,'now_utc',lambda:datetime(2027,4,12,15,16,17))
+    with scoped(engine,3) as db:
+        second=s.document(db,a,secrets.token_hex(16),ident,'stage')
+        assert 'Preparação concluída: 10/04/2027 09:08:07 UTC' in text_pdf(db.get(m.CosmoPackingDocument,second).pdf)
+        assert s.document(db,a,key,ident,'stage')==first
+        assert db.get(m.CosmoPackingDocument,first).pdf==original

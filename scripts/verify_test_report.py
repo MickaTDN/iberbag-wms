@@ -517,6 +517,8 @@ REQUIRED_WINDOWS |= {'test_cosmopak_packings.test_packing_a4_complete_report_and
 
 REQUIRED_POSTGRES.add('test_cosmopak_packings.test_packing_two_operators_complete_distinct_rows_and_dispatch_failure_rolls_back')
 
+REQUIRED_POSTGRES.add('test_cosmopak_packings.test_packing_stage_label_uses_latest_immutable_completion_not_print_date')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

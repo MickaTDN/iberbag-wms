@@ -78,7 +78,12 @@ def document(db,actor,key,ident,kind):
         data=snapshot(db,ident)
     else:raise ReceivingError('Tipo de documento inválido.',400)
     from .cosmopak_packing_pdf import render_pdf
-    created=now_utc();pdf=render_pdf(data,kind,actor.username,created)
+    created=now_utc()
+    completed=None
+    if kind=='stage':
+        last=db.scalar(select(Action).where(Action.packing_id==ident,Action.kind.in_(('finish_prepare','reopen_prepare'))).order_by(Action.id.desc()).limit(1))
+        if last and last.kind=='finish_prepare':completed=last.created_at
+    pdf=render_pdf(data,kind,actor.username,created,prepared_on=completed)
     doc=Document(packing_id=ident,request_key=key,kind=kind,snapshot=receipts.dump(data),pdf=pdf,digest=hashlib.sha256(pdf).hexdigest(),actor_id=actor.id,created_at=created)
     db.add(doc);db.flush();db.add(Audit(username=actor.username,action='COSMO_PACKING_PDF',details=f'Documento {doc.id}; sem movimento de stock.'))
     return doc.id

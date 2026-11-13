@@ -11,7 +11,7 @@ from reportlab.platypus import SimpleDocTemplate,Paragraph,Spacer,LongTable,Tabl
 from .receiving import ReceivingError
 
 
-def render_pdf(data,kind,actor,created):
+def render_pdf(data,kind,actor,created,*,prepared_on=None):
     if 'WMSVera' not in pdfmetrics.getRegisteredFontNames():pdfmetrics.registerFont(TTFont('WMSVera',str(Path(reportlab.__file__).parent/'fonts'/'Vera.ttf')))
     h=data['packing'];rows=data['items'];out=BytesIO()
     style=ParagraphStyle('Cosmo',fontName='WMSVera',fontSize=8,leading=11,wordWrap='CJK')
@@ -22,7 +22,8 @@ def render_pdf(data,kind,actor,created):
         if any(ord(c) not in glyphs and c not in '\n\r\t' for c in v):raise ReceivingError('Texto sem representação segura no PDF; não truncar.',400)
         return Paragraph(escape(v),sty)
     requested=len(rows);prepared=sum(r['pick']['prepared'] for r in rows);loaded=sum(r['pick']['loaded'] for r in rows)
-    flow=[p('Cosmopak · DDN WMS'),p('PACKING '+h['reference'],title),p('Identificação do grupo na Zona de preparação' if kind=='stage' else 'Expedição aprovada pelo escritório'),p('Data: '+(h.get('dispatched_on') or created.isoformat())),Spacer(1,12),p(f'Previstas: {requested} paletes · Preparadas: {prepared} · Carregadas: {loaded}'),p(f'Em falta / não expedidas: {requested-loaded} paletes'),Spacer(1,12)]
+    preparation_date=('Preparação concluída: '+prepared_on.strftime('%d/%m/%Y %H:%M:%S')+' UTC') if prepared_on else 'Preparação ainda não concluída'
+    flow=[p('Cosmopak · DDN WMS'),p('PACKING '+h['reference'],title),p('Identificação do grupo na Zona de preparação' if kind=='stage' else 'Expedição aprovada pelo escritório'),p(preparation_date if kind=='stage' else 'Data: '+(h.get('dispatched_on') or created.isoformat())),Spacer(1,12),p(f'Previstas: {requested} paletes · Preparadas: {prepared} · Carregadas: {loaded}'),p(f'Em falta / não expedidas: {requested-loaded} paletes'),Spacer(1,12)]
     if kind=='dispatch':
         table=[[p(v) for v in ('Linha','Artigo / lote','Palete / tipo','Caixas','Resultado / motivo')]]
         for r in rows:

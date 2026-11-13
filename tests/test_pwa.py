@@ -146,6 +146,22 @@ def test_pwa_real_https_service_worker_offline_shell_and_update_keep_queue(tmp_p
             page.wait_for_function("document.getElementById('status').textContent.includes('Consulta WMS')")
             page.locator('#phrase').fill('Frase fictícia local segura');page.locator('#unlock').click()
             page.wait_for_function("document.getElementById('queue').textContent.includes('PENDENTE-FICT')")
+            # Mobile UI persists explicit physical evidence before sending it.
+            mobile_task={'kind':'Receção','reference':'REC-FICT','id':7,'version':1,'status':'draft','lines':[{'id':55,'version':2,'article':'A','lot':'L','quantity':1,'boxes':23,'classification':'INCOMPLETA','location':None,'status':'planned'}]}
+            ctx.route('**/pwa/api/tasks?**',lambda r:r.fulfill(json={'user':10,'context':3,'synced_at':'FICTICIO','tasks':[mobile_task]}))
+            page.locator('#refresh').click();page.get_by_role('button',name='Confirmar posição',exact=True).wait_for()
+            replies=iter(['A101','23','L',None,'Local e identidade comprovados',None])
+            def physical_dialog(d):
+                value=next(replies)
+                d.accept(value) if d.type=='prompt' else d.accept()
+            page.on('dialog',physical_dialog)
+            page.get_by_role('button',name='Confirmar posição',exact=True).click()
+            page.wait_for_function("document.getElementById('status').textContent.includes('persistido cifrado')")
+            page.remove_listener('dialog',physical_dialog)
+            assert page.evaluate("""async()=>{const {Vault}=await import('/pwa/vault.js');const v=new Vault(10,3);await v.unlock('Frase fictícia local segura',async()=>({user:10,context:3}));const q=(await v.get()).queue.find(q=>q.operation==='mobile');return q.state==='pending'&&q.command.target===55&&q.command.version===2&&q.command.payload.boxes===23&&q.command.payload.physical===true&&q.command.payload.local==='A101';}""")
+            ctx.route('**/pwa/api/commands',lambda r:r.fulfill(json={'confirmed':True}))
+            page.locator('#sync').click()
+            page.wait_for_function("document.getElementById('queue').textContent.includes('Confirmada pelo WMS')")
             ctx.set_offline(True);page.locator('#logout').click()
             page.wait_for_function("document.getElementById('tasks').textContent===''&&document.getElementById('queue').textContent===''")
             ctx.set_offline(False);page.locator('#erase').click()

@@ -1,6 +1,6 @@
-# PWA comum — Iberbag/Cosmopak (PR #38)
+# PWA comum — Iberbag/Cosmopak (PRs #38–39)
 
-Base confirmada: PR #37 integrado na main, `3d54f08`; head Alembic mantém **ddn_0022**. Não há migração, novo backend, motor de stock ou comandos físicos neste PR. A interface `/pwa/` usa as mesmas contas individuais DDN, sessões e contextos. Não cria contas externas por cliente. Administrador pode consultar com a mesma conta, mas a interface móvel não apresenta funções administrativas.
+Base confirmada: PR #37 integrado na main, `3d54f08`; head Alembic mantém **ddn_0022**. A base de consulta foi introduzida no PR #38; os comandos físicos do PR #39 são descritos abaixo. Não há novo motor de stock nem migração. A interface `/pwa/` usa as mesmas contas individuais DDN, sessões e contextos. Não cria contas externas por cliente. Administrador pode consultar com a mesma conta, mas a interface móvel não apresenta funções administrativas.
 
 ## Instalação Android e servidor Windows
 
@@ -14,7 +14,7 @@ No Android, abrir `https://NOME-VALIDO/pwa/` em Chrome atualizado, iniciar sess�
 
 Iberbag: entradas confirmadas ainda por arrumar, preparações de escritório confirmadas que aguardam execução física e ocorrências de conferência. Revisões ainda não confirmadas, pedidos legados e preparações concluídas/compensadas não são anunciados como novas recolhas físicas; os respetivos históricos e decisões administrativas continuam no escritório. As sobrepostas mantêm a indicação para retirar juntas. Não se inventa uma etapa de carregamento Iberbag diferente do fluxo atual. Cosmopak: receções por descarregar/arrumar e PACKINGs em preparação/preparados/carregamento/conferência, com a ordem original, caixas exatas e COMPLETA/INCOMPLETA. Paletes ainda fisicamente no camião são identificadas mesmo após desmarcar a conferência; uma desmarcação não simula um regresso à zona. Notas livres de escritório não são expostas. Só são expostos referência operacional, identificador/versão, artigo, lote, quantidade, posição e estado. Não são expostos ficheiros de origem, clientes comerciais, GT ou campos administrativos. Localizações são do contexto proprietário; não há mudanças físicas ou contabilísticas por consulta.
 
-A seleção reutiliza `/context` com sessão/CSRF/contexto original e as APIs GET revalidam autenticação, atividade do contexto e pertença a Iberbag/Cosmopak em Ovar. Um pedido com contexto diferente do cookie é recusado. Os perfis existentes têm os acessos internos autorizados pelo WMS; não é introduzido RLS nem um novo sistema de permissões. Nenhuma ação física está disponível por botão, endpoint ou sincronização em produção; adaptadores do PR #39 estão ausentes.
+A seleção reutiliza `/context` com sessão/CSRF/contexto original e as APIs GET revalidam autenticação, atividade do contexto e pertença a Iberbag/Cosmopak em Ovar. Um pedido com contexto diferente do cookie é recusado. Os perfis existentes têm os acessos internos autorizados pelo WMS; não é introduzido RLS nem um novo sistema de permissões. As ações físicas autorizadas usam `/pwa/api/commands`, com a mesma validação transacional, como descrito abaixo.
 
 ## Cofre offline e fila genérica
 
@@ -22,7 +22,7 @@ A cópia offline é opcional e contém apenas os dados mínimos recebidos pela c
 
 Depois de desbloqueada online, a cópia permanece consultável durante perda de Wi-Fi. A interface identifica OFFLINE e a data da última sincronização, sem assumir stock atual. **Fechar/reiniciar a aplicação, logout ou 20 minutos de inatividade bloqueiam a chave; o próximo desbloqueio exige rede e sessão válida**, além da frase local. Este limite deliberado evita converter a frase local numa credencial de login offline. As operações persistidas não são apagadas; recuperam-se após voltar a autenticar e desbloquear. Logout na PWA limpa a vista/chaves das outras abas PWA através de BroadcastChannel. A revogação remota de uma sessão não pode ser detetada enquanto um dispositivo continua isolado da rede: não há escrita oficial offline e todas as futuras ações têm de reautenticar no servidor. Usar dispositivos/perfis individuais protegidos; cifragem local não protege contra dispositivo desbloqueado comprometido ou XSS com execução na mesma origem.
 
-A infraestrutura `vault.js` regista identidade, contexto, operação, referência, versão, dependências e chave de idempotência. Estados: Pendente no dispositivo, Enviada, Confirmada pelo WMS, Conflito/Recusada. Web Locks serializa abas e IndexedDB confirma a persistência antes de resolver a operação. Um carregamento depende explicitamente da preparação do mesmo trabalho. Só uma resposta positiva explícita do adaptador pode confirmar. Interrupções conservam Enviada e exigem revisão explícita antes de repetir com a mesma chave; conflitos não são sobrepostos por decisões automáticas. A autorização é revalidada antes do envio. **Não existem adaptadores ativos, produtores de comandos na interface, background sync ou endpoints de stock PWA neste PR.** Os adaptadores futuros devem reutilizar os serviços existentes e revalidar sessão/CSRF/versão/contexto e resposta oficial; não basta marcar a fila local.
+A infraestrutura `vault.js` regista identidade, contexto, operação, referência, versão, dependências e chave de idempotência. Estados: Pendente no dispositivo, Enviada, Confirmada pelo WMS, Conflito/Recusada. Web Locks serializa abas e IndexedDB confirma a persistência antes de resolver a operação. Um carregamento depende explicitamente da preparação do mesmo trabalho. Só uma resposta positiva explícita do adaptador pode confirmar. Interrupções conservam Enviada e exigem revisão explícita antes de repetir com a mesma chave; conflitos não são sobrepostos por decisões automáticas. A autorização é revalidada antes do envio. O PR #39 acrescenta o adaptador explícito de comandos móveis e payloads integrais cifrados. Não há background sync; o envio exige ação humana e validação pelo servidor.
 
 A opção «Eliminar» revalida online a sessão e a correspondência exata de utilizador/contexto, também no método do cofre e sob Web Lock. Não exige conhecer a frase local; exige uma sessão válida. Logout (mesmo falhado offline) revoga a referência local do cofre; sessão expirada, falta de rede ou identidade divergente recusam a eliminação e conservam os dados. A opção exige confirmação irreversível, identificando que inclui dados não sincronizados. Não há limpeza automática de IndexedDB por logout, atualização ou falha de rede. Cada publicação deve incrementar VERSION em sw.js em conjunto com os recursos públicos; não reutilizar o nome de cache para recursos de uma versão diferente. Atualizações do service worker aguardam ação do utilizador e removem só caches públicos antigos com prefixo próprio; não tocam no cofre/fila. A primeira instalação não força recarregar a página.
 
@@ -36,4 +36,52 @@ IndexedDB é local ao perfil/origem: não é backup empresarial nem sincronizaç
 
 Testes fictícios: API com sessão/contextos e runtime restrito; ausência de comandos e de alterações de stock; Chromium com viewport/toque Android; AES-GCM, frase errada, adulteração, isolamento, concorrência de abas, dependências, conflitos, falha parcial e reautenticação; servidor HTTPS local de ensaio para service worker, modo offline, reinício e atualização preservando fila. O teste usa certificado efémero e exceção TLS **apenas no browser de testes**, nunca na configuração do produto. CI executa Chromium em Linux/Windows, regressão PostgreSQL integral e Security.
 
-Antes de uso: homologar num Android real com o certificado de produção válido, instalação/desinstalação controlada, rede Wi-Fi real/intermitente, vários operadores, expiração/revogação, autonomia/armazenamento, atualizações e acessibilidade. Validar servidor Windows 11/PostgreSQL 17 nativo e dois dispositivos. Não se declara homologação física com base na CI. PR #39 ligará os comandos físicos autorizados; não antecipar essas funcionalidades.
+Antes de uso: homologar num Android real com o certificado de produção válido, instalação/desinstalação controlada, rede Wi-Fi real/intermitente, vários operadores, expiração/revogação, autonomia/armazenamento, atualizações e acessibilidade. Validar servidor Windows 11/PostgreSQL 17 nativo e dois dispositivos. Não se declara homologação física com base na CI. Os comandos físicos autorizados do PR #39 mantêm esta exigência de homologação.
+
+## PR #39 — operações físicas móveis
+
+Base `23043aa5`, sem nova migração: o resultado móvel usa a auditoria imutável
+existente (`PWA_COMMAND`), incluída nos backups. Cada comando conserva utilizador,
+contexto, chave, payload integral, versão e dependências. O lock transacional
+existente serializa comandos e a comparação integral recusa reutilização de chave
+com valores diferentes. Serviços de domínio são compostos na mesma transação do
+resultado: não há commits intermédios entre revisão/arrumação e auditoria.
+
+Desbloquear primeiro o cofre, consultar tarefas, selecionar linha e registar
+manualmente os valores e prova física. A persistência cifrada precede a mensagem
+Pendente. Sincronizar explicitamente; apenas a resposta do servidor confirma.
+Arrumação Iberbag usa revisão/confirmacão existentes. Conferir recolha só acrescenta
+auditoria; faltas usam ocorrências existentes. Não liberta posições nem fecha a
+preparação administrativa. Cosmopak usa as conferências e etapas existentes; só o
+escritório aprova stock/saída. A interface não inclui ações administrativas.
+
+Depois de resposta perdida, rever e repetir a mesma ação, conservando chave e
+payload. Dependências pendentes bloqueiam o comando no servidor. Versões antigas
+não são atualizadas automaticamente: operações sequenciais que mudem a versão da
+mesma unidade/etapa podem exigir sincronização, nova consulta e revisão humana.
+Uma ação recusada permanece visível; não se eliminam provas para vencer conflitos.
+
+Homologação posterior: Android real, certificado confiável, Windows 11/PostgreSQL
+17 e Wi-Fi empresarial. Conferir descarga parcial, posições concorrentes, sobrepostas,
+PACKING com dois operadores, faltas e carregamento parcial; cortar Wi-Fi antes e
+depois do commit; repetir sem duplicações; trocar sessão/contexto, atualizar PWA,
+reabrir o cofre e restaurar backup numa base separada. Não usar stock empresarial
+até validação explícita. Chromium emulado não constitui homologação física.
+
+
+### Dependências físicas da fila (correção PR #39)
+
+A gravação móvel associa chaves de idempotência a IDs locais, sob Web Lock, antes
+ de confirmar a persistência. O último predecessor ainda não confirmado da mesma tarefa/referência
+ e família física liga transitivamente as seguintes ações: inclui preparação, conclusão,
+ início de carregamento, carregar/desmarcar/regressar e conclusão, além de correções
+ e conclusão de descarga. Esta ordenação é conservadora dentro de cada tarefa;
+ tarefas independentes conservam filas distintas. As chaves e payloads persistidos
+ não são reescritos. Filas anteriores com ligações locais vazias são também verificadas
+ no envio pelas chaves originais e pela ordem física local, sem alterar os comandos.
+
+Só predecessores Confirmados pelo WMS libertam sucessores. Pendente, Enviada ou
+ Conflito mantêm os sucessores pendentes, sem chamar o adaptador. A repetição explícita
+ conserva chave/payload/versão; uma versão desatualizada continua a exigir revisão
+ humana. Esta ordenação não presume que os movimentos ocorreram no servidor nem
+ altera as guardas PostgreSQL ou permissões de outros operadores.

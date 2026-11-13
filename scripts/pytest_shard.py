@@ -1,6 +1,8 @@
 """Explicit deterministic CI partitioning; no production or inherited-env switch."""
 import hashlib
 import json
+import os
+import re
 from pathlib import Path
 import pytest
 
@@ -50,7 +52,13 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
-    yield
+    outcome = yield
+    report = outcome.get_result()
+    if report.failed and os.getenv('GITHUB_ACTIONS') == 'true':
+        # Never publish parameter values, exception text, payloads or credentials.
+        name = item.nodeid.split('[')[0]
+        if re.fullmatch(r'[A-Za-z0-9_./:]+', name):
+            print(f'\n::error title=DDN failed test::{name}', flush=True)
     if call.when == 'teardown':
         item.config._ddn_finished.add(identity(item.nodeid))
 

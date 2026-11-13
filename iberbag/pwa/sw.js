@@ -1,4 +1,4 @@
-const VERSION='ddn-public-pwa-2';
+const VERSION='ddn-public-pwa-4';
 const PUBLIC=['/pwa/','/pwa/index.html','/pwa/app.js','/pwa/vault.js','/pwa/app.css','/pwa/icon.svg','/pwa/icon-192.png','/pwa/icon-512.png','/pwa/manifest.webmanifest'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(VERSION).then(c=>c.addAll(PUBLIC))));
 // No skipWaiting on installation; updates require explicit user action.

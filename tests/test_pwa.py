@@ -31,6 +31,19 @@ def test_pwa_secure_context_session_isolation_and_no_stock_commands(restricted_w
         assert client.get('/pwa/api/tasks?context_id=1').status_code==403
         assert client.post('/pwa/api/command',json={'operation':'load'}).status_code in (404,405)
         client.cookies.set('ddn_context','1');assert client.get('/pwa/api/tasks?context_id=1').json()['tasks']==[]
+        from test_dispatching import add_stock,order as legacy,review as legacy_review,check as legacy_check,confirm as legacy_confirm
+        from test_etapa6 import prepare,confirm as office_confirm
+        add_stock(owner,'PWA-FICT-LEGACY',qty=2)
+        old=legacy(owner,a);legacy_review(owner,a,old);legacy_check(owner,a,old);legacy_confirm(owner,a,old)
+        assert client.get('/pwa/api/tasks?context_id=1').json()['tasks']==[]
+        current=prepare(owner,a)
+        assert client.get('/pwa/api/tasks?context_id=1').json()['tasks']==[]
+        office_confirm(owner,a,current)
+        tasks=client.get('/pwa/api/tasks?context_id=1').json()['tasks']
+        assert len(tasks)==1 and tasks[0]['id']==current and tasks[0]['kind']=='Recolha'
+        from iberbag.inventorying import close_preparation
+        with scoped(owner,1) as db:close_preparation(db,a,current,'Retirada física fictícia comprovada')
+        assert client.get('/pwa/api/tasks?context_id=1').json()['tasks']==[]
         client.cookies.set('ddn_context','2');assert client.get('/pwa/api/tasks?context_id=2').status_code==403
         shell=client.get('/pwa');assert 'script-src \'self\'' in shell.headers['content-security-policy'] and 'Definições' not in shell.text
     from conftest import login_data

@@ -47,8 +47,8 @@ def tasks(request:Request,context_id:int,db=Depends(database)):
         for rec in db.scalars(select(m.Receipt).where(m.Receipt.status=='confirmed').order_by(m.Receipt.id)):
             lines=[dict(article=l.artigo,lot=l.lote,quantity=remaining(db,l),location=None,status='Aguarda arrumação') for l in db.scalars(select(m.ReceiptLine).where(m.ReceiptLine.receipt_id==rec.id)) if remaining(db,l)>0]
             if lines:add('Arrumação',rec.code,rec.id,rec.version,lines,'Pendente')
-        for order in db.scalars(select(m.DispatchOrder).where(m.DispatchOrder.status.in_(('ready','checked','blocked','confirmed'))).order_by(m.DispatchOrder.id)):
-            if db.get(m.PreparationCompletion,order.id):continue
+        for order in db.scalars(select(m.DispatchOrder).where(m.DispatchOrder.office.is_(True),m.DispatchOrder.status=='confirmed').order_by(m.DispatchOrder.id)):
+            if db.get(m.PreparationCompletion,order.id) or db.get(m.PreparationCompensation,order.id):continue
             lines=[]
             for pick in db.scalars(select(m.DispatchPick).join(m.DispatchLine,m.DispatchLine.id==m.DispatchPick.line_id).where(m.DispatchLine.order_id==order.id)):
                 stock=db.get(m.Stock,pick.stock_id)

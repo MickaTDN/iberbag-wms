@@ -25,13 +25,18 @@ export class Vault{
  async save(value){if(!this.key)throw Error('Cofre bloqueado.');const iv=crypto.getRandomValues(new Uint8Array(12));const cipher=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:enc.encode(this.id)},this.key,enc.encode(JSON.stringify(value)));await write(this.id,{salt:this.salt,iv,cipher});}
  async change(fn){if(!navigator.locks)throw Error('Navegador sem bloqueio transacional local.');return navigator.locks.request('ddn-vault-'+this.id,async()=>{const d=await this.get();const result=await fn(d);await this.save(d);return result;});}
  async copy(data){if(data.user!==this.user||data.context!==this.context)throw Error('Contexto/operador incorreto.');
- const clean={user:data.user,context:data.context,synced_at:data.synced_at,tasks:data.tasks.map(t=>({kind:t.kind,reference:t.reference,id:t.id,version:t.version,status:t.status,lines:t.lines.map(l=>Object.fromEntries(['article','lot','quantity','boxes','classification','location','status'].filter(k=>l[k]!==undefined).map(k=>[k,l[k]])))}))};
+ const clean={user:data.user,context:data.context,synced_at:data.synced_at,locations:(data.locations||[]).map(l=>({code:l.code,capacity:l.capacity,state:l.state})),tasks:data.tasks.map(t=>({kind:t.kind,reference:t.reference,id:t.id,version:t.version,status:t.status,lines:t.lines.map(l=>Object.fromEntries(['id','version','pallet_id','article','lot','quantity','boxes','classification','location','status'].filter(k=>l[k]!==undefined).map(k=>[k,l[k]])))}))};
  if(JSON.stringify(clean).length>2000000)throw Error('Cópia excede limite local.');return this.change(d=>{d.copy=clean;});}
  async enqueue(action){
   // Generic infrastructure only; UI has no stock command, no production adapter.
   const {operation,reference,version,depends=[]}=action;
   if(!['prepare','load','putaway'].includes(operation)||typeof reference!=='string'||!reference||reference.length>120||!Number.isSafeInteger(version)||version<0||!Array.isArray(depends)||depends.length>1000||new Set(depends).size!==depends.length)throw Error('Operação local inválida.');
   return this.change(d=>{if(operation==='load'&&!depends.some(id=>d.queue.some(q=>q.id===id&&q.operation==='prepare'&&q.reference===reference)))throw Error('Carregamento exige preparação dependente explícita.');if(depends.some(id=>!d.queue.some(q=>q.id===id)))throw Error('Dependência inexistente.');if(d.queue.length>=1000)throw Error('Fila local cheia; preservar e resolver operações existentes.');const id=crypto.randomUUID();d.queue.push({id,user:this.user,context:this.context,operation,reference,version,depends,idempotency:crypto.randomUUID().replaceAll('-',''),state:'pending'});return id;});
+ }
+ async enqueueMobile(command,reference){
+  const payload=JSON.parse(JSON.stringify(command));
+  if(payload.user!==this.user||payload.context!==this.context||JSON.stringify(payload).length>20000)throw Error('Ação inválida.');
+  return this.change(d=>{if(d.queue.length>=1000)throw Error('Fila cheia.');const id=crypto.randomUUID();d.queue.push({id,user:this.user,context:this.context,operation:'mobile',reference,version:payload.version,depends:[],idempotency:payload.key,command:payload,state:'pending'});return id;});
  }
  async sync(authorize,adapters={}){
   const who=await authorize();if(who.user!==this.user||who.context!==this.context)throw Error('Reautenticar no contexto original.');
@@ -41,7 +46,7 @@ export class Vault{
    const current=await authorize();if(current.user!==this.user||current.context!==this.context)throw Error('Sessão alterada; ação continua pendente.');
    const ready=await this.change(d=>{const q=d.queue.find(q=>q.id===row.id);if(q.state!=='pending'||q.depends.some(id=>!d.queue.some(p=>p.id===id&&p.state==='confirmed')))return false;q.state='sent';return true;});
    if(!ready)continue;
-   try{const reply=await adapters[row.operation](row);await this.change(d=>{d.queue.find(q=>q.id===row.id).state=reply.confirmed===true?'confirmed':'conflict';});}
+   try{const reply=await adapters[row.operation](row);await this.change(d=>{const q=d.queue.find(q=>q.id===row.id);q.state=reply.confirmed===true?'confirmed':'conflict';q.message=reply.detail||'';});}
    catch(e){throw Error('Envio interrompido; estado Enviada preservado. Rever antes de repetir.');}
   }
  }

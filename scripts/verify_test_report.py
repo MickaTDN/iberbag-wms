@@ -531,6 +531,9 @@ REQUIRED_WINDOWS.add('test_pwa.test_pwa_browser_vault_tampering_concurrent_tabs_
 REQUIRED_POSTGRES.add('test_pwa.test_pwa_erase_requires_online_identity_even_when_locked_or_phrase_forgotten')
 REQUIRED_WINDOWS.add('test_pwa.test_pwa_erase_requires_online_identity_even_when_locked_or_phrase_forgotten')
 
+REQUIRED_POSTGRES.update({'test_pwa_commands.test_mobile_receiving_cosmo_capacity_and_iberbag_collection_no_discount','test_pwa_commands.test_mobile_putaway_atomic_partial_stacked_repeat_and_rollback','test_pwa_commands.test_mobile_packing_restricted_session_csrf_replay_and_office_boundary','test_pwa_commands.test_mobile_same_key_concurrent_devices_and_context_isolation','test_pwa_commands.test_mobile_encrypted_payload_lost_reply_and_exact_retry'})
+REQUIRED_WINDOWS.add('test_pwa_commands.test_mobile_encrypted_payload_lost_reply_and_exact_retry')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

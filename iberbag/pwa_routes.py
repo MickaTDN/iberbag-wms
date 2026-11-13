@@ -69,6 +69,6 @@ def entry(request:Request):
 @router.get('/pwa/{filename}')
 def asset(filename:str,request:Request):
     secure(request)
-    if filename not in ('index.html','app.js','vault.js','app.css','sw.js','manifest.webmanifest','icon.svg'):raise HTTPException(404)
-    media={'js':'text/javascript','html':'text/html','css':'text/css','webmanifest':'application/manifest+json','svg':'image/svg+xml'}
+    if filename not in ('index.html','app.js','vault.js','app.css','sw.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png'):raise HTTPException(404)
+    media={'js':'text/javascript','html':'text/html','css':'text/css','webmanifest':'application/manifest+json','svg':'image/svg+xml','png':'image/png'}
     return FileResponse(ROOT/filename,media_type=media[filename.rsplit('.',1)[-1]],headers={'Cache-Control':'no-cache','Content-Security-Policy':CSP,'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'DENY'})

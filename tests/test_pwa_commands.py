@@ -131,3 +131,18 @@ def test_mobile_receiving_cosmo_capacity_and_iberbag_collection_no_discount(ware
         assert db.scalar(select(func.sum(m.Stock.quantidade)))==before
         assert db.get(m.PreparationCompletion,ident) is None
         assert db.scalar(select(func.count()).select_from(m.StockIncident))==1
+
+def test_mobile_backup_restores_command_receipt_and_exact_replay(warehouse,pg_databases,tmp_path):
+    from conftest import BACKUP_PASSWORD
+    from iberbag import backup,transfer
+    engine,u=warehouse;op=u['operador'][0];rec,line=receive(engine,op,1)
+    with scoped(engine,1) as db:
+        a=action(op,1,'ib.putaway',line,db.get(m.Receipt,rec).version,dict(local='Chão',quantity=1))
+        result=s.execute(db,op,a)
+    with engine.connect() as conn:before=transfer.inventory(transfer.read_data(conn))
+    folder=tmp_path/'PWA-FICT';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
+    restored=pg_databases(restricted=True)
+    assert backup.restore(restored,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)['status']=='reconciled'
+    with restored.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==before
+    with scoped(restored,1) as db:assert s.execute(db,op,a)==result
+    with restored.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==before

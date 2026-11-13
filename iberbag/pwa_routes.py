@@ -40,7 +40,7 @@ def tasks(request:Request,context_id:int,db=Depends(database)):
             add('Receção',rec.guide or str(rec.id),rec.id,rec.version,lines,rec.status)
         for h in db.scalars(select(m.CosmoPackingState).where(m.CosmoPackingState.stage.in_(('preparing','prepared','loading','load_closed'))).order_by(m.CosmoPackingState.packing_id)):
             from .cosmopak_packings import snapshot
-            lines=[dict(article=r['line']['article'],lot=r['line']['lot'],quantity=1,boxes=r['line']['boxes'],classification=('INCOMPLETA' if r['pallet']['incomplete'] else 'COMPLETA') if r['pallet'] else 'EM FALTA',location=(r['material'] or {}).get('local'),status=('Carregada' if r['pick']['loaded'] else 'Preparada' if r['pick']['prepared'] else r['pick']['reason'] or 'Por preparar')) for r in snapshot(db,h.packing_id)['items']]
+            lines=[dict(article=r['line']['article'],lot=r['line']['lot'],quantity=1,boxes=r['line']['boxes'],classification=('INCOMPLETA' if r['pallet']['incomplete'] else 'COMPLETA') if r['pallet'] else 'EM FALTA',location=(r['material'] or {}).get('local'),status=(('No camião — carregada' if r['pick']['loaded'] else 'No camião — conferência pendente') if (r['physical'] or {}).get('phase')=='loading' else 'Ocorrência por conferir' if r['pick']['reason'] else 'Preparada' if r['pick']['prepared'] else 'Por preparar')) for r in snapshot(db,h.packing_id)['items']]
             add('PACKING',h.reference,h.packing_id,h.version,lines,h.stage)
     else:
         from .receiving import remaining

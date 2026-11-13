@@ -22,6 +22,12 @@ def test_pwa_secure_context_session_isolation_and_no_stock_commands(restricted_w
         response=client.get('/pwa/api/tasks?context_id=3');assert response.status_code==200 and response.headers['cache-control']=='no-store'
         assert response.json()['tasks'][0]['lines'][0]['boxes']==50
         assert 'COMPLETA' in response.text and 'source_excel' not in response.text and 'csrf' not in response.text
+        from test_cosmopak_packings import picks,conference
+        pick=picks(owner,ident)[0]
+        command(owner,a,ident,'prepare',conference(),pick=pick[0]);command(owner,a,ident,'finish_prepare');command(owner,a,ident,'start_load')
+        command(owner,a,ident,'load',conference(),pick=pick[0]);command(owner,a,ident,'unload',pick=pick[0],reason='Nota privada fictícia não necessária à consulta')
+        pending=client.get('/pwa/api/tasks?context_id=3')
+        assert 'No camião — conferência pendente' in pending.text and 'Nota privada' not in pending.text
         assert client.get('/pwa/api/tasks?context_id=1').status_code==403
         assert client.post('/pwa/api/command',json={'operation':'load'}).status_code in (404,405)
         client.cookies.set('ddn_context','1');assert client.get('/pwa/api/tasks?context_id=1').json()['tasks']==[]
@@ -111,11 +117,14 @@ def test_pwa_real_https_service_worker_offline_shell_and_update_keep_queue(tmp_p
             ctx.set_offline(True);page.reload();assert page.locator('h1').inner_text()=='DDN WMS'
             assert page.evaluate("""async()=>{const keys=await caches.keys();for(const k of keys){for(const r of await (await caches.open(k)).keys()){if(r.url.includes('/api/')||r.url.includes('/login'))return false;}}return true;}""")
             ctx.set_offline(False)
+            css=root/'pwa/app.css';css.write_text(css.read_text()+'\n/* SYNTHETIC-RELEASE-2 */')
             sw=root/'pwa/sw.js';sw.write_text(sw.read_text().replace('ddn-public-pwa-1','ddn-public-pwa-2'))
             page.evaluate('async()=>{const r=await navigator.serviceWorker.getRegistration();await r.update();}')
             page.wait_for_function('navigator.serviceWorker.getRegistration().then(r=>!!r.waiting)')
+            assert not page.evaluate("async()=>(await (await fetch('/pwa/app.css')).text()).includes('SYNTHETIC-RELEASE-2')")
             with page.expect_navigation(wait_until='domcontentloaded'):
                 page.locator('#update').click()
+            assert page.evaluate("async()=>(await (await fetch('/pwa/app.css')).text()).includes('SYNTHETIC-RELEASE-2')")
             assert page.evaluate("""async()=>{const {Vault}=await import('/pwa/vault.js');const v=new Vault(10,3);await v.unlock('Frase fictícia local segura',async()=>({user:10,context:3}));return (await v.get()).queue[0].reference==='PENDENTE-FICT';}""")
             browser.close()
     finally:server.shutdown();server.server_close();thread.join(timeout=5)

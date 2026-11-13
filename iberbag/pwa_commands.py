@@ -27,13 +27,13 @@ def execute(db,actor,action):
     key=r.request_key(action['key']);kind=action['kind'];p=action['payload']
     if kind not in KINDS or not isinstance(p,dict):raise r.ReceivingError('Comando móvel não autorizado.',403)
     if action['user']!=actor.id or action['context']!=m.context_id(db):raise r.ReceivingError('Identidade/contexto diferente.',403)
-    for field in ('target','version'):
+    for field in ('user','context','target','version'):
         if type(action[field]) is not int or action[field]<0:raise r.ReceivingError('Referência/versão inválida.',400)
     deps=action['depends']
     if not isinstance(deps,list) or len(deps)>100 or len(set(deps))!=len(deps):raise r.ReceivingError('Dependências inválidas.',400)
     old=previous(db,key)
     if old:
-        if old['action']!=action:raise r.ReceivingError('Chave utilizada com outros dados.')
+        if encode(old['action'])!=encode(action):raise r.ReceivingError('Chave utilizada com outros dados.')
         return old['result']
     for dep in deps:
         prior=previous(db,r.request_key(dep))

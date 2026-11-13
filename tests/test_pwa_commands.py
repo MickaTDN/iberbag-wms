@@ -32,8 +32,9 @@ def test_mobile_putaway_atomic_partial_stacked_repeat_and_rollback(warehouse,mon
         assert db.scalar(select(func.sum(m.Stock.quantidade)))==2
         monkeypatch.setattr(s,'encode',original)
         s.execute(db,operator,pending);assert db.scalar(select(func.sum(m.Stock.quantidade)))==3
-        changed=dict(normal,payload=dict(normal['payload'],quantity=2))
-        with pytest.raises(ValueError):s.execute(db,operator,changed)
+        for changed_quantity in (2,True,1.0):
+            changed=dict(normal,payload=dict(normal['payload'],quantity=changed_quantity))
+            with pytest.raises(ValueError):s.execute(db,operator,changed)
 
 def test_mobile_packing_restricted_session_csrf_replay_and_office_boundary(restricted_web,monkeypatch):
     app,owner,runtime,role,users,tokens=restricted_web

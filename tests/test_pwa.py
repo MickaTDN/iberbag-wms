@@ -57,6 +57,7 @@ def test_pwa_browser_encryption_queue_recovery_dependencies_and_isolation(tmp_pa
  await v.copy({user:10,context:3,synced_at:'FICTICIO',tasks:[],csrf:'NUNCA-GUARDAR'});
  const a=await v.enqueue({operation:'prepare',reference:'PACK-FICT',version:1});
  const b=await v.enqueue({operation:'load',reference:'PACK-FICT',version:1,depends:[a]});
+ if(!(await v.get()).queue.every(q=>/^[a-f0-9]{32}$/.test(q.idempotency)))throw Error('Chave incompatível com serviços WMS');
  let failures=0;try{await v.enqueue({operation:'load',reference:'OUTRO',version:1});}catch{failures++;}
  try{await v.sync(async()=>({user:20,context:3}),{prepare:async()=>({confirmed:true})});}catch{failures++;}
  await v.sync(auth);if((await v.get()).queue.some(q=>q.state!=='pending'))throw Error('Adapter ativo');

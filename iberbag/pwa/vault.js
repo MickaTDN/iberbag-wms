@@ -29,8 +29,8 @@ export class Vault{
  async enqueue(action){
   // Generic infrastructure only; UI has no stock command, no production adapter.
   const {operation,reference,version,depends=[]}=action;
-  if(!['prepare','load','putaway'].includes(operation)||typeof reference!=='string'||!reference||reference.length>120||!Number.isSafeInteger(version)||version<0||!Array.isArray(depends))throw Error('Operação local inválida.');
-  return this.change(d=>{if(operation==='load'&&!depends.some(id=>d.queue.some(q=>q.id===id&&q.operation==='prepare'&&q.reference===reference)))throw Error('Carregamento exige preparação dependente explícita.');if(depends.some(id=>!d.queue.some(q=>q.id===id)))throw Error('Dependência inexistente.');if(d.queue.length>=1000)throw Error('Fila local cheia; preservar e resolver operações existentes.');const id=crypto.randomUUID();d.queue.push({id,user:this.user,context:this.context,operation,reference,version,depends,idempotency:crypto.randomUUID(),state:'pending'});return id;});
+  if(!['prepare','load','putaway'].includes(operation)||typeof reference!=='string'||!reference||reference.length>120||!Number.isSafeInteger(version)||version<0||!Array.isArray(depends)||depends.length>1000||new Set(depends).size!==depends.length)throw Error('Operação local inválida.');
+  return this.change(d=>{if(operation==='load'&&!depends.some(id=>d.queue.some(q=>q.id===id&&q.operation==='prepare'&&q.reference===reference)))throw Error('Carregamento exige preparação dependente explícita.');if(depends.some(id=>!d.queue.some(q=>q.id===id)))throw Error('Dependência inexistente.');if(d.queue.length>=1000)throw Error('Fila local cheia; preservar e resolver operações existentes.');const id=crypto.randomUUID();d.queue.push({id,user:this.user,context:this.context,operation,reference,version,depends,idempotency:crypto.randomUUID().replaceAll('-',''),state:'pending'});return id;});
  }
  async sync(authorize,adapters={}){
   const who=await authorize();if(who.user!==this.user||who.context!==this.context)throw Error('Reautenticar no contexto original.');

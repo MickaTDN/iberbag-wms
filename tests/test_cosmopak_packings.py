@@ -363,6 +363,8 @@ def test_packing_stage_label_uses_latest_immutable_completion_not_print_date(war
         pending=s.document(db,a,secrets.token_hex(16),ident,'stage')
         assert 'Preparação ainda não concluída' in text_pdf(db.get(m.CosmoPackingDocument,pending).pdf)
     monkeypatch.setattr(s,'now_utc',lambda:datetime(2027,4,10,9,8,7));command(engine,op,ident,'finish_prepare')
+    monkeypatch.setattr(s,'now_utc',lambda:datetime(2027,4,11,14,13,12))
+    command(engine,op,ident,'start_load');command(engine,op,ident,'load',conference(),pick=pick[0])
     monkeypatch.setattr(s,'now_utc',lambda:datetime(2027,4,12,15,16,17))
     with scoped(engine,3) as db:
         second=s.document(db,a,secrets.token_hex(16),ident,'stage')

@@ -177,7 +177,7 @@ def valid_login_origin(request):
 @app.get('/login', response_class=HTMLResponse)
 def login_page(request: Request, db: Session = Depends(database)):
     user, sess = identity(request, db)
-    if user: return redirect('/')
+    if user: return redirect('/pwa' if request.query_params.get('mobile')=='1' else '/')
     return login_response(request)
 
 @app.post('/login')
@@ -226,7 +226,7 @@ async def login(request: Request, db: Session = Depends(database)):
     token = new_session(db, user)
     db.add(Audit(username=user.username, action='LOGIN', details='Sessão iniciada.'))
     db.commit()
-    resp = redirect('/')
+    resp = redirect('/pwa' if request.query_params.get('mobile')=='1' else '/')
     resp.delete_cookie('__Host-wms_login' if COOKIE_SECURE else 'wms_login', path='/', secure=COOKIE_SECURE, samesite='strict')
     resp.set_cookie('wms_session', token, max_age=8 * 3600, httponly=True, secure=COOKIE_SECURE, samesite='strict', path='/')
     return resp
@@ -633,3 +633,6 @@ app.include_router(cosmopak_router)
 
 from .cosmopak_packing_routes import router as cosmopak_packing_router
 app.include_router(cosmopak_packing_router)
+
+from .pwa_routes import router as pwa_router
+app.include_router(pwa_router)

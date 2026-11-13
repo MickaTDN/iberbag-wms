@@ -6,8 +6,9 @@ async function read(id){const d=await db();try{return await request(d.transactio
 async function write(id,value){const d=await db();try{await new Promise((yes,no)=>{const t=d.transaction('vaults','readwrite');t.objectStore('vaults').put(value,id);t.oncomplete=yes;t.onabort=()=>no(t.error);t.onerror=()=>no(t.error);});}finally{d.close();}}
 export const states={pending:'Pendente no dispositivo',sent:'Enviada',confirmed:'Confirmada pelo WMS',conflict:'Conflito/Recusada'};
 export class Vault{
- constructor(user,context){this.user=user;this.context=context;this.id=`${user}:${context}`;this.key=null;}
+ constructor(user,context){this.user=user;this.context=context;this.id=`${user}:${context}`;this.key=null;this.revoked=false;}
  lock(){this.key=null;}
+ revoke(){this.revoked=true;this.lock();if(this.eraseTx){try{this.eraseTx.abort();}catch{ /* Already completed: no pending transaction to cancel. */ }}}
  async unlock(passphrase,authorize){
   if(!navigator.locks)throw Error('Navegador sem bloqueio local.');
   return navigator.locks.request('ddn-vault-'+this.id,()=>this.open(passphrase,authorize));
@@ -45,5 +46,21 @@ export class Vault{
   }
  }
  async retry(id,authorize){const who=await authorize();if(who.user!==this.user||who.context!==this.context)throw Error('Identidade inválida.');return this.change(d=>{const q=d.queue.find(q=>q.id===id);if(!q||!['sent','conflict'].includes(q.state))throw Error('Revisão inválida.');q.state='pending';});}
- async erase(confirmed){if(confirmed!==true)throw Error('Confirmação explícita obrigatória.');this.lock();const d=await db();await new Promise((yes,no)=>{const t=d.transaction('vaults','readwrite');t.objectStore('vaults').delete(this.id);t.oncomplete=yes;t.onabort=no;});d.close();}
+ async erase(confirmed){
+  if(confirmed!==true)throw Error('Confirmação explícita obrigatória.');
+  if(this.revoked)throw Error('Sessão local terminada. Reautenticar antes de eliminar.');
+  if(!navigator.onLine)throw Error('Sem rede; dados locais preservados.');
+  if(!navigator.locks)throw Error('Navegador sem bloqueio local.');
+  return navigator.locks.request('ddn-vault-'+this.id,async()=>{
+   const response=await fetch('/pwa/api/session',{cache:'no-store',credentials:'same-origin',redirect:'error'});
+   if(!response.ok)throw Error('Sessão inválida; dados locais preservados.');
+   const who=await response.json();
+   if(this.revoked||who.user!==this.user||who.current!==this.context)throw Error('Identidade/contexto diferente; dados locais preservados.');
+   const d=await db();try{
+    if(this.revoked)throw Error('Sessão local terminada; dados locais preservados.');
+    await new Promise((yes,no)=>{const t=d.transaction('vaults','readwrite');this.eraseTx=t;t.objectStore('vaults').delete(this.id);t.oncomplete=yes;t.onabort=()=>no(t.error||Error('Eliminação cancelada.'));t.onerror=()=>no(t.error);});
+   }finally{this.eraseTx=null;d.close();}
+   this.lock();
+  });
+ }
 }

@@ -528,6 +528,9 @@ REQUIRED_WINDOWS.add('test_pwa.test_pwa_real_https_service_worker_offline_shell_
 REQUIRED_POSTGRES.add('test_pwa.test_pwa_browser_vault_tampering_concurrent_tabs_and_expired_auth')
 REQUIRED_WINDOWS.add('test_pwa.test_pwa_browser_vault_tampering_concurrent_tabs_and_expired_auth')
 
+REQUIRED_POSTGRES.add('test_pwa.test_pwa_erase_requires_online_identity_even_when_locked_or_phrase_forgotten')
+REQUIRED_WINDOWS.add('test_pwa.test_pwa_erase_requires_online_identity_even_when_locked_or_phrase_forgotten')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

@@ -132,7 +132,7 @@ def test_pwa_real_https_service_worker_offline_shell_and_update_keep_queue(tmp_p
             assert page.evaluate("""async()=>{const keys=await caches.keys();for(const k of keys){for(const r of await (await caches.open(k)).keys()){if(r.url.includes('/api/')||r.url.includes('/login'))return false;}}return true;}""")
             ctx.set_offline(False)
             css=root/'pwa/app.css';css.write_text(css.read_text()+'\n/* SYNTHETIC-RELEASE-2 */')
-            sw=root/'pwa/sw.js';sw.write_text(sw.read_text().replace('ddn-public-pwa-1','ddn-public-pwa-2'))
+            sw=root/'pwa/sw.js';sw.write_text(sw.read_text().replace("const VERSION='","const VERSION='synthetic-next-"))
             page.evaluate('async()=>{const r=await navigator.serviceWorker.getRegistration();await r.update();}')
             page.wait_for_function('navigator.serviceWorker.getRegistration().then(r=>!!r.waiting)')
             assert not page.evaluate("async()=>(await (await fetch('/pwa/app.css')).text()).includes('SYNTHETIC-RELEASE-2')")
@@ -140,6 +140,26 @@ def test_pwa_real_https_service_worker_offline_shell_and_update_keep_queue(tmp_p
                 page.locator('#update').click()
             assert page.evaluate("async()=>(await (await fetch('/pwa/app.css')).text()).includes('SYNTHETIC-RELEASE-2')")
             assert page.evaluate("""async()=>{const {Vault}=await import('/pwa/vault.js');const v=new Vault(10,3);await v.unlock('Frase fictícia local segura',async()=>({user:10,context:3}));return (await v.get()).queue[0].reference==='PENDENTE-FICT';}""")
+            ctx.route('**/context',lambda r:r.fulfill(body='OK'))
+            ctx.route('**/pwa/api/tasks?**',lambda r:r.fulfill(json={'user':10,'context':3,'synced_at':'FICTICIO','tasks':[]}))
+            page.locator('#context').select_option('3')
+            page.wait_for_function("document.getElementById('status').textContent.includes('Consulta WMS')")
+            page.locator('#phrase').fill('Frase fictícia local segura');page.locator('#unlock').click()
+            page.wait_for_function("document.getElementById('queue').textContent.includes('PENDENTE-FICT')")
+            ctx.set_offline(True);page.locator('#logout').click()
+            page.wait_for_function("document.getElementById('tasks').textContent===''&&document.getElementById('queue').textContent===''")
+            ctx.set_offline(False);page.locator('#erase').click()
+            page.wait_for_function("document.getElementById('status').textContent.includes('Iniciar sessão e selecionar contexto')")
+            exists="""async()=>new Promise(resolve=>{const r=indexedDB.open('ddn-operator-v1');r.onsuccess=()=>{const d=r.result,q=d.transaction('vaults').objectStore('vaults').get('10:3');q.onsuccess=()=>{d.close();resolve(!!q.result);};};})"""
+            assert page.evaluate(exists)
+            page.reload();page.wait_for_function("document.getElementById('status').textContent.includes('Sessão individual validada')")
+            page.locator('#context').select_option('3');page.wait_for_function("document.getElementById('status').textContent.includes('Consulta WMS')")
+            # Forgotten phrase: no unlock, but a fresh authenticated identity.
+            page.once('dialog',lambda d:d.dismiss());page.locator('#erase').click();page.wait_for_timeout(300)
+            assert page.evaluate(exists)
+            page.once('dialog',lambda d:d.accept());page.locator('#erase').click()
+            page.wait_for_function("document.getElementById('status').textContent.includes('Dados locais eliminados explicitamente')")
+            assert not page.evaluate(exists)
             browser.close()
     finally:server.shutdown();server.server_close();thread.join(timeout=5)
 
@@ -167,4 +187,38 @@ def test_pwa_browser_vault_tampering_concurrent_tabs_and_expired_auth(tmp_path):
         assert pages[0].evaluate('async()=>(await v.get()).queue.length')==16
         assert pages[0].evaluate("""async()=>{try{await v.sync(async()=>{throw Error('Sessão expirada');},{prepare:async()=>({confirmed:true})});}catch{}return (await v.get()).queue.every(q=>q.state==='pending');}""")
         assert pages[0].evaluate("""async()=>{const d=await new Promise((yes,no)=>{const r=indexedDB.open('ddn-operator-v1');r.onsuccess=()=>yes(r.result);r.onerror=no;});await new Promise((yes,no)=>{const t=d.transaction('vaults','readwrite'),s=t.objectStore('vaults'),r=s.get('10:3');r.onsuccess=()=>{const a=r.result;const b=new Uint8Array(a.cipher);b[0]^=1;a.cipher=b.buffer;s.put(a,'10:3');};t.oncomplete=yes;t.onabort=no;});d.close();try{await v.get();return false;}catch{return true;}}""")
+        browser.close()
+
+
+def test_pwa_erase_requires_online_identity_even_when_locked_or_phrase_forgotten():
+    import shutil
+    from pathlib import Path
+    from playwright.sync_api import sync_playwright
+    root=Path(__file__).resolve().parents[1]/'iberbag/pwa'
+    with sync_playwright() as p:
+        browser=p.chromium.launch(executable_path=shutil.which('chromium'),args=['--no-sandbox'])
+        ctx=browser.new_context();reply={'status':200,'body':{'user':10,'current':3}}
+        def route(r):
+            if r.request.url.endswith('vault.js'):r.fulfill(body=(root/'vault.js').read_bytes(),content_type='text/javascript')
+            elif '/api/session' in r.request.url:r.fulfill(status=reply['status'],json=reply['body'])
+            else:r.fulfill(body='<html>Fictício</html>',content_type='text/html')
+        ctx.route('https://wms.test/**',route);page=ctx.new_page();page.goto('https://wms.test/pwa/')
+        page.evaluate("""async()=>{const {Vault}=await import('/pwa/vault.js');window.Vault=Vault;window.v=new Vault(10,3);await v.unlock('Frase local fictícia segura',async()=>({user:10,context:3}));await v.enqueue({operation:'prepare',reference:'PENDENTE',version:1});v.lock();window.exists=()=>new Promise((resolve,reject)=>{const r=indexedDB.open('ddn-operator-v1');r.onsuccess=()=>{const d=r.result,q=d.transaction('vaults').objectStore('vaults').get('10:3');q.onsuccess=()=>{d.close();resolve(!!q.result);};q.onerror=reject;};});}""")
+        async_erase="async()=>{try{await v.erase(true);return false;}catch{return await exists();}}"
+        assert page.evaluate("async()=>{try{await v.erase(false);}catch{}return await exists();}")
+        for status,body in ((401,{}),(200,{'user':11,'current':3}),(200,{'user':10,'current':1})):
+            reply.update(status=status,body=body);assert page.evaluate(async_erase)
+        reply.update(status=200,body={'user':10,'current':3})
+        # A transport failure is refused even if the browser reports online.
+        ctx.route('**/pwa/api/session',lambda r:r.abort('internetdisconnected'))
+        assert page.evaluate(async_erase)
+        ctx.unroute('**/pwa/api/session')
+        ctx.set_offline(True);assert page.evaluate(async_erase)
+        # Same retained object after a failed offline logout cannot erase, even
+        # when the server still has a valid cookie after connection recovers.
+        page.evaluate('v.revoke()');ctx.set_offline(False);assert page.evaluate(async_erase)
+        # Logout while online validation is still pending also preserves the vault.
+        assert page.evaluate("""async()=>{const pending=new Vault(10,3),original=window.fetch;let release;window.fetch=()=>new Promise(resolve=>release=resolve);const result=pending.erase(true).then(()=>false,()=>exists());while(!release)await new Promise(r=>setTimeout(r,0));pending.revoke();release(new Response(JSON.stringify({user:10,current:3}),{status:200}));try{return await result;}finally{window.fetch=original;}}""")
+        # Fresh online identity can delete without the forgotten phrase/key.
+        assert page.evaluate("async()=>{const fresh=new Vault(10,3);await fresh.erase(true);return !(await exists());}")
         browser.close()

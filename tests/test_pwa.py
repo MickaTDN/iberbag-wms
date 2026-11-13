@@ -124,6 +124,7 @@ def test_pwa_real_https_service_worker_offline_shell_and_update_keep_queue(tmp_p
             page=ctx.new_page();base=f'https://localhost:{server.server_port}'
             page.goto(base+'/pwa/index.html');page.wait_for_function('navigator.serviceWorker.controller !== null')
             page.wait_for_function("document.getElementById('status').textContent.includes('Sessão individual validada')")
+            assert page.locator('#update').is_hidden()
             page.locator('#refresh').click()
             assert 'Selecionar contexto' in page.locator('#status').inner_text()
             page.evaluate("""async()=>{const {Vault}=await import('/pwa/vault.js');const v=new Vault(10,3);await v.unlock('Frase fictícia local segura',async()=>({user:10,context:3}));await v.enqueue({operation:'prepare',reference:'PENDENTE-FICT',version:1});}""")

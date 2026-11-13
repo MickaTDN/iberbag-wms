@@ -104,6 +104,9 @@ def test_pwa_real_https_service_worker_offline_shell_and_update_keep_queue(tmp_p
             ctx.route('**/pwa/api/session',lambda r:r.fulfill(json={'user':10,'csrf':'FICTICIO','current':3,'contexts':[{'id':3,'label':'Cosmopak / Ovar'}]}))
             page=ctx.new_page();base=f'https://localhost:{server.server_port}'
             page.goto(base+'/pwa/index.html');page.wait_for_function('navigator.serviceWorker.controller !== null')
+            page.wait_for_function("document.getElementById('status').textContent.includes('Sessão individual validada')")
+            page.locator('#refresh').click()
+            assert 'Selecionar contexto' in page.locator('#status').inner_text()
             page.evaluate("""async()=>{const {Vault}=await import('/pwa/vault.js');const v=new Vault(10,3);await v.unlock('Frase fictícia local segura',async()=>({user:10,context:3}));await v.enqueue({operation:'prepare',reference:'PENDENTE-FICT',version:1});}""")
             ctx.set_offline(True);page.reload();assert page.locator('h1').inner_text()=='DDN WMS'
             assert page.evaluate("""async()=>{const keys=await caches.keys();for(const k of keys){for(const r of await (await caches.open(k)).keys()){if(r.url.includes('/api/')||r.url.includes('/login'))return false;}}return true;}""")
@@ -132,8 +135,11 @@ def test_pwa_browser_vault_tampering_concurrent_tabs_and_expired_auth(tmp_path):
             page.goto('https://wms.test/pwa/')
             page.evaluate("""async()=>{const {Vault}=await import('/pwa/vault.js');window.v=new Vault(10,3);await v.unlock('Frase fictícia isolada local',async()=>({user:10,context:3}));}""")
         # Browser tasks run in separate pages concurrently, serialized by Web Locks.
-        pages[0].evaluate("window.pending=Promise.all(Array.from({length:8},(_,i)=>v.enqueue({operation:'prepare',reference:'A'+i,version:1})))")
-        pages[1].evaluate("window.pending=Promise.all(Array.from({length:8},(_,i)=>v.enqueue({operation:'prepare',reference:'B'+i,version:1})))")
+        pages[0].evaluate("window.hold=navigator.locks.request('ddn-vault-10:3',()=>new Promise(resolve=>window.release=resolve));void 0")
+        pages[0].wait_for_function('typeof window.release==="function"')
+        pages[0].evaluate("window.pending=Promise.all(Array.from({length:8},(_,i)=>v.enqueue({operation:'prepare',reference:'A'+i,version:1})));void 0")
+        pages[1].evaluate("window.pending=Promise.all(Array.from({length:8},(_,i)=>v.enqueue({operation:'prepare',reference:'B'+i,version:1})));void 0")
+        pages[0].evaluate('release()')
         for page in pages:page.evaluate('async()=>await pending')
         assert pages[0].evaluate('async()=>(await v.get()).queue.length')==16
         assert pages[0].evaluate("""async()=>{try{await v.sync(async()=>{throw Error('Sessão expirada');},{prepare:async()=>({confirmed:true})});}catch{}return (await v.get()).queue.every(q=>q.state==='pending');}""")

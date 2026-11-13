@@ -37,9 +37,9 @@ export class Vault{
   // No automatic retry of sent/conflicted actions; explicit review is required.
   for(const row of (await this.get()).queue){
    if(row.state!=='pending'||typeof adapters[row.operation]!=='function')continue;
+   const current=await authorize();if(current.user!==this.user||current.context!==this.context)throw Error('Sessão alterada; ação continua pendente.');
    const ready=await this.change(d=>{const q=d.queue.find(q=>q.id===row.id);if(q.state!=='pending'||q.depends.some(id=>!d.queue.some(p=>p.id===id&&p.state==='confirmed')))return false;q.state='sent';return true;});
    if(!ready)continue;
-   const current=await authorize();if(current.user!==this.user||current.context!==this.context)throw Error('Sessão alterada; rever ação Enviada.');
    try{const reply=await adapters[row.operation](row);await this.change(d=>{d.queue.find(q=>q.id===row.id).state=reply.confirmed===true?'confirmed':'conflict';});}
    catch(e){throw Error('Envio interrompido; estado Enviada preservado. Rever antes de repetir.');}
   }

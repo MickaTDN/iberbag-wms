@@ -51,7 +51,7 @@ def test_partition_completion_proof_has_only_digests(tmp_path):
     item=SimpleNamespace(nodeid='test_case[PRIVATE-SENTINEL]',config=config)
     hook=plugin.pytest_runtest_makereport(item,SimpleNamespace(when='teardown'))
     next(hook)
-    with pytest.raises(StopIteration):next(hook)
+    with pytest.raises(StopIteration):hook.send(SimpleNamespace(get_result=lambda:SimpleNamespace(failed=False)))
     plugin.pytest_sessionfinish(SimpleNamespace(config=config),0)
     report=json.loads(target.read_text())
     assert report['completed']==[plugin.identity(item.nodeid)]
@@ -92,3 +92,15 @@ def test_aggregate_rejects_incomplete_contradictory_or_replayed_evidence(case):
 
 def test_selection_rejects_absent_evidence():
     with pytest.raises(ValueError):validate_selection({},1)
+
+
+def test_failure_annotation_omits_parameters_and_exception_data(monkeypatch,capsys):
+    monkeypatch.setenv('GITHUB_ACTIONS','true')
+    item=SimpleNamespace(nodeid='tests/test_synthetic.py::test_case[PRIVATE-SENTINEL]')
+    hook=plugin.pytest_runtest_makereport(item,SimpleNamespace(when='call'))
+    next(hook)
+    with pytest.raises(StopIteration):
+        hook.send(SimpleNamespace(get_result=lambda:SimpleNamespace(failed=True,longrepr='PRIVATE-EXCEPTION')))
+    output=capsys.readouterr().out
+    assert '::error title=DDN failed test::tests/test_synthetic.py::test_case' in output
+    assert 'PRIVATE' not in output

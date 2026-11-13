@@ -14,7 +14,7 @@ CSP="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'
 
 def secure(request):
     from .app import COOKIE_SECURE
-    if request.url.scheme!='https' or not COOKIE_SECURE:raise HTTPException(503,'PWA exige HTTPS e sessões Secure. Contactar o escritório.')
+    if request.url.scheme!='https' or not COOKIE_SECURE:raise HTTPException(403 if request.method=='POST' else 503,'PWA exige HTTPS e sessões Secure. Contactar o escritório.')
 
 def actor(request,db):
     secure(request);user,sess=identity(request,db)

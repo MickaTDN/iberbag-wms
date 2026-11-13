@@ -14,10 +14,12 @@ from iberbag.pg_environment import isolated_test_environment
 def main():
     name = 'iberbag-test-' + secrets.token_hex(6)
     password = secrets.token_urlsafe(32)
+    phase='docker_start'
     try:
         subprocess.run(['docker', 'run', '--detach', '--rm', '--name', name,
                         '-e', 'POSTGRES_PASSWORD=' + password, '-e', 'POSTGRES_DB=iberbag_test',
                         '-p', '127.0.0.1::5432', 'postgres:17@sha256:b8faeff7712663c2773a190181e1246e37e364b887611c04658c28b44e2408fe'], check=True, stdout=subprocess.DEVNULL)
+        phase='docker_ready'
         for attempt in range(60):
             if subprocess.run(['docker', 'exec', name, 'pg_isready', '-h', '127.0.0.1', '-U', 'postgres'],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
@@ -31,10 +33,17 @@ def main():
                          host='127.0.0.1', port=port, database='iberbag_test')
         env = dict(isolated_test_environment(), WMS_TEST_POSTGRES_URL=url.render_as_string(hide_password=False),
                    WMS_TEST_PG_CONTAINER=name)
+        phase='pytest'
         result = subprocess.run([sys.executable, '-m', 'pytest', '-q', *sys.argv[1:]], env=env,
                                 cwd=Path(__file__).resolve().parent.parent)
+    except Exception as error:
+        if os.environ.get('GITHUB_ACTIONS')=='true':
+            print(f'::error title=DDN PostgreSQL launcher::{phase}: {type(error).__name__}',flush=True)
+        raise
     finally:
         subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if result.returncode and os.environ.get('GITHUB_ACTIONS')=='true':
+        print(f'::error title=DDN PostgreSQL launcher::pytest exit={result.returncode}',flush=True)
     sys.exit(result.returncode)
 
 

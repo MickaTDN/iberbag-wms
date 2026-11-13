@@ -263,7 +263,7 @@ def test_rolls_ddn9_upgrade_never_backfills_legacy_or_changes_pdfs(pg_databases,
         p.review(db,actor,another,1);p.confirm(db,actor,another,1)
     with engine.connect() as conn:before=transfer.inventory(transfer.read_data(conn))
     folder=tmp_path/'ddn9';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD);backup.restore(target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0021'
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0022'
     with engine.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==before
     with scoped(engine,2) as db:
         assert not r.present(db,1) and not p.source(db)

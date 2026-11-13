@@ -474,10 +474,10 @@ def test_control_migrate_ddn8_preserves_shipments_reservations_documents_and_pos
     with engine.connect() as connection:before=transfer.inventory(transfer.read_data(connection))
     folder=tmp_path/'ddn8';backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
     backup.restore(target,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0021'
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0022'
     with engine.connect() as connection:
         assert transfer.inventory(transfer.read_data(connection))==before
-        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalars().all()==['ddn_0021']
+        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalars().all()==['ddn_0022']
     with scoped(engine,2) as db:
         assert sum(h.physical for h in p.active(db))==2
         assert db.scalar(select(func.count()).select_from(Move))==0

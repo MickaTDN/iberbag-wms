@@ -233,7 +233,7 @@ def test_migration_preserves_every_legacy_column_and_document(warehouse,pg_datab
     receive(engine,actor,qty=5);prepare(engine,actor,1,7)
     with engine.connect() as conn:
         legacy={t.name:[{k:v for k,v in r.items() if k!='context_id' and k not in transfer.STACKED_DEFAULTS.get(t.name,{})} for r in conn.execute(select(t)).mappings()]
-                for t in Base.metadata.sorted_tables if t.name not in (transfer.COSMO_TABLES | transfer.SHARED_TABLES) | transfer.CONTEXT_TABLES | transfer.PHYSICAL_TABLES | transfer.VALMET_TABLES | transfer.NKT_TABLES | transfer.NKT_RECEIVING_TABLES | transfer.NKT_LOADING_TABLES | (transfer.NKT_INVENTORY_TABLES | (transfer.ALCOBRE_TABLES | (transfer.ALCOBRE_DISPATCH_TABLES | transfer.ALCOBRE_INVENTORY_TABLES)))}
+                for t in Base.metadata.sorted_tables if t.name not in ((transfer.PACKING_TABLES | transfer.COSMO_TABLES) | transfer.SHARED_TABLES) | transfer.CONTEXT_TABLES | transfer.PHYSICAL_TABLES | transfer.VALMET_TABLES | transfer.NKT_TABLES | transfer.NKT_RECEIVING_TABLES | transfer.NKT_LOADING_TABLES | (transfer.NKT_INVENTORY_TABLES | (transfer.ALCOBRE_TABLES | (transfer.ALCOBRE_DISPATCH_TABLES | transfer.ALCOBRE_INVENTORY_TABLES)))}
     target=pg_databases(restricted=True)
     with target.begin() as conn:
         cfg=config();cfg.attributes['connection']=conn;command.upgrade(cfg,'0006')
@@ -241,7 +241,7 @@ def test_migration_preserves_every_legacy_column_and_document(warehouse,pg_datab
         conn.execute(text('ALTER TABLE locations DISABLE TRIGGER catalogue_clock'))
         # This is synthetic fixture restoration, not an application migration path.
         for table in Base.metadata.sorted_tables:
-            if table.name in (transfer.COSMO_TABLES | transfer.SHARED_TABLES) | transfer.CONTEXT_TABLES | transfer.PHYSICAL_TABLES | transfer.VALMET_TABLES | transfer.NKT_TABLES | transfer.NKT_RECEIVING_TABLES | transfer.NKT_LOADING_TABLES | (transfer.NKT_INVENTORY_TABLES | (transfer.ALCOBRE_TABLES | (transfer.ALCOBRE_DISPATCH_TABLES | transfer.ALCOBRE_INVENTORY_TABLES))) or not legacy[table.name]:continue
+            if table.name in ((transfer.PACKING_TABLES | transfer.COSMO_TABLES) | transfer.SHARED_TABLES) | transfer.CONTEXT_TABLES | transfer.PHYSICAL_TABLES | transfer.VALMET_TABLES | transfer.NKT_TABLES | transfer.NKT_RECEIVING_TABLES | transfer.NKT_LOADING_TABLES | (transfer.NKT_INVENTORY_TABLES | (transfer.ALCOBRE_TABLES | (transfer.ALCOBRE_DISPATCH_TABLES | transfer.ALCOBRE_INVENTORY_TABLES))) or not legacy[table.name]:continue
             reflected=Table(table.name,MetaData(),autoload_with=conn)
             # Preserve insertion guards; restore headers in draft and finalise last.
             rows=legacy[table.name]

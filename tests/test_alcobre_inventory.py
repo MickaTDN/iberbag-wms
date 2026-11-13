@@ -313,7 +313,7 @@ def test_alcobre_inventory_ddn17_upgrade_and_encrypted_recovery_preserve_guide_b
     for ident in ids:dispatch_review(engine,actor,ident);prepare(engine,actor,ident)
     ship(engine,actor,ids[0],['000101']);before=snapshot(engine);folder=tmp_path/'before18'
     backup.backup(engine,folder,runner=docker_client,passphrase=BACKUP_PASSWORD);backup.restore(verified,folder,runner=docker_client,passphrase=BACKUP_PASSWORD)
-    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0021' and snapshot(engine)==before
+    assert apply_upgrade(engine,folder)['revision']==REVISION=='ddn_0022' and snapshot(engine)==before
     monkeypatch.setattr(dispatch,'operation',original)
     with engine.connect() as conn:
         native=transfer.read_data(conn)

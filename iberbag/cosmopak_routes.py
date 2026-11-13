@@ -84,7 +84,11 @@ def stock(request:Request,article:str='',lot:str='',local:str='',db=Depends(data
     for column,value in ((Pallet.article,article),(Pallet.lot,lot),(State.local,local)):
         if value:query=query.where(column.contains(value[:120],autoescape=True))
     rows=db.execute(query.order_by(State.local,Pallet.id).limit(1000)).all()
-    return render(request,'cosmopak_stock.html',context(request,user,sess,rows=rows,article=article,lot=lot,local=local))
+    from .database import CosmoPackingPick,PhysicalStagingPosition
+    reserved=set(db.scalars(select(CosmoPackingPick.pallet_id).where(CosmoPackingPick.active.is_(True),CosmoPackingPick.pallet_id.is_not(None))))
+    positions={r.unit_id:r for r in db.scalars(select(PhysicalStagingPosition).where(PhysicalStagingPosition.unit_kind=='cosmopak'))}
+    return_keys={p.id:secrets.token_hex(16) for p,s in rows}
+    return render(request,'cosmopak_stock.html',context(request,user,sess,rows=rows,reserved=reserved,positions=positions,return_keys=return_keys,article=article,lot=lot,local=local))
 
 @router.get('/cosmopak/receptions/{ident}/source.xlsx')
 def source(ident:int,request:Request,db=Depends(database)):

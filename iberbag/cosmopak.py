@@ -177,22 +177,31 @@ def validate_snapshot(data):
         if not ctx or ctx['client_id']!=3 or ctx['warehouse_id']!=1 or hashlib.sha256(rec['source_excel']).hexdigest()!=rec['source_sha256']:raise ValueError('Origem/contexto Cosmopak divergente.')
     for pallet in data['cosmo_pallets']:
         state=next((s for s in data['cosmo_states'] if s['pallet_id']==pallet['id']),None)
-        operations=[r for r in data['cosmo_operations'] if r['pallet_id']==pallet['id']]
+        operations=[r for r in data['cosmo_operations']+data.get('cosmo_packing_moves',[]) if r['pallet_id']==pallet['id']]
         if not state or state['context_id']!=pallet['context_id']:raise ValueError('Projeção Cosmopak ausente/fora do contexto.')
         if operations:
-            expected=json.loads(max(operations,key=lambda o:o['id'])['after_state'])
+            expected=max((json.loads(o['after_state']) for o in operations),key=lambda o:o['version'])
             if expected!=json.loads(json.dumps(state,default=json_value)) or state['version']!=len(operations):raise ValueError('Livro e projeção Cosmopak divergentes.')
         elif state['status']!='planned' or state['version']!=0 or state['local'] is not None:raise ValueError('Palete Cosmopak sem movimento comprovado.')
         rec=receipts[pallet['reception_id']]
         if state['status'] in ('placed','blocked','approved'):
-            master=next((m for m in data['physical_locations'] if m['warehouse_id']==1 and m['label']==state['local']),None)
-            physical_state=next((h for h in data['physical_location_state'] if master and h['physical_id']==master['id']),None)
-            if not physical_state or physical_state['context_id']!=state['context_id']:raise ValueError('Ocupação Cosmopak sem correspondência física comum.')
-            if state['status']!='approved' and (physical_state['state']!='pending_putaway' or physical_state['source_kind']!='cosmopak' or physical_state['source_id']!=pallet['id']):raise ValueError('Origem da atribuição Cosmopak divergente.')
-            if state['status']=='approved' and (physical_state['state']!='occupied' or physical_state['stock_id']!=state['stock_id']):raise ValueError('Stock Cosmopak sem ocupação física correspondente.')
+            if state['local']=='Zona de preparação':
+                pos=next((p for p in data.get('physical_staging_positions',[]) if p['context_id']==state['context_id'] and p['unit_kind']=='cosmopak' and p['unit_id']==pallet['id']),None)
+                if state['status']!='approved' or not pos or pos['phase'] not in ('staged','loading'):raise ValueError('Presença na zona de preparação não comprovada.')
+            else:
+                master=next((m for m in data['physical_locations'] if m['warehouse_id']==1 and m['label']==state['local']),None)
+                physical_state=next((h for h in data['physical_location_state'] if master and h['physical_id']==master['id']),None)
+                if not physical_state or physical_state['context_id']!=state['context_id']:raise ValueError('Ocupação Cosmopak sem correspondência física comum.')
+                if state['status']!='approved' and (physical_state['state']!='pending_putaway' or physical_state['source_kind']!='cosmopak' or physical_state['source_id']!=pallet['id']):raise ValueError('Origem da atribuição Cosmopak divergente.')
+                if state['status']=='approved' and (physical_state['state']!='occupied' or physical_state['stock_id']!=state['stock_id']):raise ValueError('Stock Cosmopak sem ocupação física correspondente.')
         if state['status']=='missing' and state['local'] is not None:raise ValueError('Falta Cosmopak não pode libertar uma posição sem prova física.')
         if state['status']=='approved':
             receipt=next((r for r in data['receipts'] if r['id']==rec['receipt_id'] and r['context_id']==rec['context_id']),None)
             if rec['status']!='approved' or not receipt or receipt['status']!='confirmed':raise ValueError('Receção Cosmopak sem aprovação integral.')
             goods=stock.get(state['stock_id'])
-            if not goods or goods['context_id']!=pallet['context_id'] or goods['quantidade']!=1 or goods['artigo']!=pallet['article'] or goods['lote']!=pallet['lot'] or goods['local']!=state['local'] or goods['carga']!=receipt['code']:raise ValueError('Stock oficial Cosmopak divergente da identidade física.')
+            if not goods or goods['context_id']!=pallet['context_id'] or goods['quantidade']!=sum(r['status']=='approved' and r['stock_id']==state['stock_id'] for r in data['cosmo_states']) or goods['artigo']!=pallet['article'] or goods['lote']!=pallet['lot'] or goods['local']!=state['local'] or goods['carga']!=receipt['code']:raise ValueError('Stock oficial Cosmopak divergente da identidade física.')
+
+    for state in data['cosmo_states']:
+        if state['status']=='shipped':
+            pos=next((p for p in data.get('physical_staging_positions',[]) if p['context_id']==state['context_id'] and p['unit_kind']=='cosmopak' and p['unit_id']==state['pallet_id']),None)
+            if not pos or pos['phase']!='shipped':raise ValueError('Expedição sem movimento físico final.')

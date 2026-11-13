@@ -1423,9 +1423,9 @@ class CosmoState(Scoped,Base):
     local: Mapped[str|None]=mapped_column(String(120))
     actual_boxes: Mapped[int|None]=mapped_column(Integer)
     decision: Mapped[str]=mapped_column(String(20),default='unresolved',nullable=False)
-    stock_id: Mapped[int|None]=mapped_column(ForeignKey('stock.id'),unique=True)
+    stock_id: Mapped[int|None]=mapped_column(ForeignKey('stock.id'))
     version: Mapped[int]=mapped_column(Integer,default=0,nullable=False)
-    __table_args__=(CheckConstraint("status IN ('planned','placed','missing','blocked','approved') AND decision IN ('unresolved','accept','exclude') AND version>=0 AND (actual_boxes IS NULL OR actual_boxes>=0)",name='cosmo_state_valid'),)
+    __table_args__=(CheckConstraint("status IN ('planned','placed','missing','blocked','approved','shipped') AND decision IN ('unresolved','accept','exclude') AND version>=0 AND (actual_boxes IS NULL OR actual_boxes>=0)",name='cosmo_state_valid'),)
 
 class CosmoOperation(Scoped,Base):
     __tablename__='cosmo_operations'
@@ -1459,6 +1459,137 @@ class CosmoReview(Scoped,Base):
     actor_id: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
     created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
     __table_args__=(CheckConstraint("kind IN ('metadata','unloaded','review','approve')",name='cosmo_review_valid'),)
+
+class CosmoPacking(Scoped,Base):
+    __tablename__='cosmo_packings'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    source_name: Mapped[str]=mapped_column(String(240),nullable=False)
+    source_sha256: Mapped[str]=mapped_column(String(64),nullable=False)
+    source_excel: Mapped[bytes]=mapped_column(LargeBinary,nullable=False,deferred=True)
+    report: Mapped[str]=mapped_column(Text,nullable=False,deferred=True)
+    created_by: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+
+class CosmoPackingState(Scoped,Base):
+    __tablename__='cosmo_packing_states'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    packing_id: Mapped[int]=mapped_column(ForeignKey('cosmo_packings.id'),unique=True,nullable=False)
+    reference: Mapped[str|None]=mapped_column(String(120))
+    reference_key: Mapped[str|None]=mapped_column(String(120),unique=True)
+    stage: Mapped[str]=mapped_column(String(24),default='draft',nullable=False)
+    version: Mapped[int]=mapped_column(Integer,default=0,nullable=False)
+    mapping_id: Mapped[int|None]=mapped_column(Integer)
+    loading_started: Mapped[bool]=mapped_column(Boolean,default=False,nullable=False)
+    review_id: Mapped[int|None]=mapped_column(Integer)
+    dispatched_on: Mapped[datetime|None]=mapped_column(DateTime)
+    final_snapshot: Mapped[str|None]=mapped_column(Text,deferred=True)
+    __table_args__=(CheckConstraint("stage IN ('draft','reviewed','preparing','prepared','loading','load_closed','dispatch_reviewed','shipped') AND version>=0",name='cosmo_packing_stage_valid'),)
+
+class CosmoPackingLine(Scoped,Base):
+    __tablename__='cosmo_packing_lines'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    packing_id: Mapped[int]=mapped_column(ForeignKey('cosmo_packings.id'),nullable=False,index=True)
+    mapping_id: Mapped[int]=mapped_column(Integer,nullable=False)
+    source_row: Mapped[int]=mapped_column(Integer,nullable=False)
+    ordinal: Mapped[int]=mapped_column(Integer,nullable=False)
+    article: Mapped[str]=mapped_column(String(120),nullable=False)
+    lot: Mapped[str]=mapped_column(String(120),nullable=False)
+    boxes: Mapped[int]=mapped_column(Integer,nullable=False)
+    __table_args__=(UniqueConstraint('mapping_id','source_row','ordinal'),CheckConstraint('source_row>0 AND ordinal>0 AND boxes>=0',name='cosmo_packing_line_valid'))
+
+class CosmoPackingPick(Scoped,Base):
+    __tablename__='cosmo_packing_picks'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    packing_id: Mapped[int]=mapped_column(ForeignKey('cosmo_packings.id'),nullable=False,index=True)
+    line_id: Mapped[int]=mapped_column(ForeignKey('cosmo_packing_lines.id'),unique=True,nullable=False)
+    pallet_id: Mapped[int|None]=mapped_column(ForeignKey('cosmo_pallets.id'))
+    active: Mapped[bool]=mapped_column(Boolean,default=True,nullable=False)
+    prepared: Mapped[bool]=mapped_column(Boolean,default=False,nullable=False)
+    loaded: Mapped[bool]=mapped_column(Boolean,default=False,nullable=False)
+    reason: Mapped[str|None]=mapped_column(Text)
+    prepared_by: Mapped[int|None]=mapped_column(ForeignKey('users.id'))
+    prepared_at: Mapped[datetime|None]=mapped_column(DateTime)
+    loaded_by: Mapped[int|None]=mapped_column(ForeignKey('users.id'))
+    loaded_at: Mapped[datetime|None]=mapped_column(DateTime)
+    version: Mapped[int]=mapped_column(Integer,default=0,nullable=False)
+    __table_args__=(Index('uq_cosmo_active_pallet','context_id','pallet_id',unique=True,postgresql_where=text('active AND pallet_id IS NOT NULL'),sqlite_where=text('active AND pallet_id IS NOT NULL')),)
+
+class CosmoPackingAction(Scoped,Base):
+    __tablename__='cosmo_packing_actions'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    packing_id: Mapped[int]=mapped_column(ForeignKey('cosmo_packings.id'),nullable=False,index=True)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    kind: Mapped[str]=mapped_column(String(24),nullable=False)
+    pick_id: Mapped[int|None]=mapped_column(ForeignKey('cosmo_packing_picks.id'))
+    pallet_id: Mapped[int|None]=mapped_column(ForeignKey('cosmo_pallets.id'))
+    expected_version: Mapped[int]=mapped_column(Integer,nullable=False)
+    payload: Mapped[str]=mapped_column(Text,nullable=False)
+    reason: Mapped[str]=mapped_column(Text,nullable=False)
+    actor_id: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+
+class CosmoPackingLedger(Scoped,Base):
+    __tablename__='cosmo_packing_ledger'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    action_id: Mapped[int]=mapped_column(ForeignKey('cosmo_packing_actions.id'),unique=True,nullable=False)
+    before_state: Mapped[str]=mapped_column(Text,nullable=False)
+    after_state: Mapped[str]=mapped_column(Text,nullable=False)
+
+class CosmoPackingMove(Scoped,Base):
+    __tablename__='cosmo_packing_moves'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    action_id: Mapped[int]=mapped_column(ForeignKey('cosmo_packing_actions.id'),nullable=False)
+    pallet_id: Mapped[int]=mapped_column(ForeignKey('cosmo_pallets.id'),nullable=False,index=True)
+    before_state: Mapped[str]=mapped_column(Text,nullable=False)
+    after_state: Mapped[str]=mapped_column(Text,nullable=False)
+    __table_args__=(UniqueConstraint('action_id','pallet_id'),)
+
+class CosmoPackingDocument(Scoped,Base):
+    __tablename__='cosmo_packing_documents'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    packing_id: Mapped[int]=mapped_column(ForeignKey('cosmo_packings.id'),nullable=False)
+    request_key: Mapped[str]=mapped_column(String(64),unique=True,nullable=False)
+    kind: Mapped[str]=mapped_column(String(20),nullable=False)
+    snapshot: Mapped[str]=mapped_column(Text,nullable=False,deferred=True)
+    pdf: Mapped[bytes]=mapped_column(LargeBinary,nullable=False,deferred=True)
+    digest: Mapped[str]=mapped_column(String(64),nullable=False)
+    actor_id: Mapped[int]=mapped_column(ForeignKey('users.id'),nullable=False)
+    created_at: Mapped[datetime]=mapped_column(DateTime,default=now_utc,nullable=False)
+
+class PhysicalStagingArea(Base):
+    """Shared logical area of the existing physical engine; no capacity counter."""
+    __tablename__='physical_staging_areas'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    warehouse_id: Mapped[int]=mapped_column(ForeignKey('warehouses.id',deferrable=True,initially='DEFERRED'),unique=True,nullable=False)
+    label: Mapped[str]=mapped_column(String(120),nullable=False)
+
+class PhysicalStagingPosition(Scoped,Base):
+    __tablename__='physical_staging_positions'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    area_id: Mapped[int]=mapped_column(ForeignKey('physical_staging_areas.id'),nullable=False)
+    unit_kind: Mapped[str]=mapped_column(String(30),nullable=False)
+    unit_id: Mapped[int]=mapped_column(Integer,nullable=False)
+    group_kind: Mapped[str]=mapped_column(String(30),nullable=False)
+    group_id: Mapped[int]=mapped_column(Integer,nullable=False)
+    phase: Mapped[str]=mapped_column(String(20),nullable=False)
+    version: Mapped[int]=mapped_column(Integer,nullable=False)
+    __table_args__=(UniqueConstraint('unit_kind','unit_id'),CheckConstraint("phase IN ('staged','loading','rack','shipped') AND version>0",name='physical_staging_phase'),)
+
+class PhysicalStagingEvent(Scoped,Base):
+    __tablename__='physical_staging_events'
+    id: Mapped[int]=mapped_column(primary_key=True)
+    area_id: Mapped[int]=mapped_column(ForeignKey('physical_staging_areas.id'),nullable=False)
+    unit_kind: Mapped[str]=mapped_column(String(30),nullable=False)
+    unit_id: Mapped[int]=mapped_column(Integer,nullable=False)
+    group_kind: Mapped[str]=mapped_column(String(30),nullable=False)
+    group_id: Mapped[int]=mapped_column(Integer,nullable=False)
+    phase: Mapped[str]=mapped_column(String(20),nullable=False)
+    source_kind: Mapped[str]=mapped_column(String(30),nullable=False)
+    source_id: Mapped[int]=mapped_column(Integer,nullable=False)
+    before_state: Mapped[str]=mapped_column(Text,default='',nullable=False)
+    after_state: Mapped[str]=mapped_column(Text,default='',nullable=False)
+    __table_args__=(UniqueConstraint('source_kind','source_id','unit_kind','unit_id'),)
 
 for _table in list(Base.metadata.tables.values()):
     if _table.name in ('physical_location_claims','physical_location_access','physical_location_state') or 'context_id' not in _table.c:

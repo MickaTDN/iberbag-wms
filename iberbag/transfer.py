@@ -21,6 +21,7 @@ _claim = next(t for t in TABLES if t.name == 'physical_location_claims')
 TABLES.remove(_claim)
 TABLES.insert(next(i for i,t in enumerate(TABLES) if t.name == 'storage_contexts')+1, _claim)
 PHYSICAL_TABLES = {'physical_location_claims'}
+PACKING_TABLES = {'cosmo_packings','cosmo_packing_states','cosmo_packing_lines','cosmo_packing_picks','cosmo_packing_actions','cosmo_packing_ledger','cosmo_packing_moves','cosmo_packing_documents','physical_staging_areas','physical_staging_positions','physical_staging_events'}
 COSMO_TABLES = {'cosmo_receptions','cosmo_pallets','cosmo_states','cosmo_operations','cosmo_reviews'}
 SHARED_TABLES = {'physical_sharing_reviews','physical_locations','physical_location_access','physical_location_state','physical_location_events'}
 NUMBER_TABLES = {'load_numbers'}
@@ -75,7 +76,9 @@ def read_data(connection):
     names = set(inspector.get_table_names())
     expected = {t.name for t in TABLES}
     missing = expected - names
-    missing_legacy = missing - COSMO_TABLES - SHARED_TABLES - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES - PLANNING_TABLES - SHIPPING_TABLES - CONTROL_TABLES - ROLL_TABLES - IMPORT_TABLES - NKT_TABLES - NKT_RECEIVING_TABLES - NKT_LOADING_TABLES - NKT_INVENTORY_TABLES - ALCOBRE_TABLES - ALCOBRE_DISPATCH_TABLES - ALCOBRE_INVENTORY_TABLES
+    missing_legacy = missing - PACKING_TABLES - COSMO_TABLES - SHARED_TABLES - CONTEXT_TABLES - PHYSICAL_TABLES - NUMBER_TABLES - VALMET_TABLES - PLANNING_TABLES - SHIPPING_TABLES - CONTROL_TABLES - ROLL_TABLES - IMPORT_TABLES - NKT_TABLES - NKT_RECEIVING_TABLES - NKT_LOADING_TABLES - NKT_INVENTORY_TABLES - ALCOBRE_TABLES - ALCOBRE_DISPATCH_TABLES - ALCOBRE_INVENTORY_TABLES
+    if missing & PACKING_TABLES not in (set(),PACKING_TABLES):raise ValueError('Estrutura PACKING/física incompleta.')
+    if not missing & PACKING_TABLES and missing & COSMO_TABLES:raise ValueError('PACKING sem identidades Cosmopak.')
     if missing & COSMO_TABLES not in (set(),COSMO_TABLES):raise ValueError('Estrutura Cosmopak incompleta.')
     if not missing & COSMO_TABLES and missing & SHARED_TABLES:raise ValueError('Cosmopak sem motor físico comum.')
     if missing & SHARED_TABLES not in (set(),SHARED_TABLES):raise ValueError('Estrutura física comum incompleta.')
@@ -126,7 +129,7 @@ def read_data(connection):
             allowed = ({frozenset({'ddn_0002'}),frozenset({'ddn_0002','0007'}),frozenset({'ddn_security_0001'})}
                        if missing & NUMBER_TABLES else ({frozenset({'ddn_0003'})} if missing & VALMET_TABLES else
                        ({frozenset({'ddn_0004'}),frozenset({'ddn_0005'}),frozenset({'ddn_0006'})} if missing & PLANNING_TABLES else
-                       ({frozenset({'ddn_0007'})} if missing & SHIPPING_TABLES else ({frozenset({'ddn_0008'})} if missing & CONTROL_TABLES else ({frozenset({'ddn_0009'})} if missing & ROLL_TABLES else ({frozenset({'ddn_0010'})} if missing & IMPORT_TABLES else ({frozenset({'ddn_0011'})} if missing & NKT_TABLES else ({frozenset({'ddn_0012'})} if missing & NKT_RECEIVING_TABLES else ({frozenset({'ddn_0013'})} if missing & NKT_LOADING_TABLES else ({frozenset({'ddn_0014'})} if missing & NKT_INVENTORY_TABLES else ({frozenset({'ddn_0015'})} if missing & ALCOBRE_TABLES else ({frozenset({'ddn_0016'})} if missing & ALCOBRE_DISPATCH_TABLES else ({frozenset({'ddn_0017'})} if missing & ALCOBRE_INVENTORY_TABLES else ({frozenset({'ddn_0018'})} if 'stacked' not in {c['name'] for c in inspector.get_columns('stock')} else ({frozenset({'ddn_0019'})} if missing & SHARED_TABLES else ({frozenset({'ddn_0020'})} if missing & COSMO_TABLES else {frozenset({REVISION})})))))))))))))))))
+                       ({frozenset({'ddn_0007'})} if missing & SHIPPING_TABLES else ({frozenset({'ddn_0008'})} if missing & CONTROL_TABLES else ({frozenset({'ddn_0009'})} if missing & ROLL_TABLES else ({frozenset({'ddn_0010'})} if missing & IMPORT_TABLES else ({frozenset({'ddn_0011'})} if missing & NKT_TABLES else ({frozenset({'ddn_0012'})} if missing & NKT_RECEIVING_TABLES else ({frozenset({'ddn_0013'})} if missing & NKT_LOADING_TABLES else ({frozenset({'ddn_0014'})} if missing & NKT_INVENTORY_TABLES else ({frozenset({'ddn_0015'})} if missing & ALCOBRE_TABLES else ({frozenset({'ddn_0016'})} if missing & ALCOBRE_DISPATCH_TABLES else ({frozenset({'ddn_0017'})} if missing & ALCOBRE_INVENTORY_TABLES else ({frozenset({'ddn_0018'})} if 'stacked' not in {c['name'] for c in inspector.get_columns('stock')} else ({frozenset({'ddn_0019'})} if missing & SHARED_TABLES else ({frozenset({'ddn_0020'})} if missing & COSMO_TABLES else ({frozenset({'ddn_0021'})} if missing & PACKING_TABLES else {frozenset({REVISION})}))))))))))))))))))
         if versions not in allowed:
             raise ValueError('Revisão/heads incompatíveis com o esquema. Não usar stamp para contornar.')
     if connection.dialect.name == 'sqlite':
@@ -187,6 +190,11 @@ def read_data(connection):
         result['nkt_owners']=[dict(client_id=row['id']) for row in result['clients'] if row['name']=='NKT']
     if missing & ALCOBRE_TABLES:
         result['alcobre_owners'],result['alcobre_zones']=initial_alcobre_catalogue(result)
+    if missing & PACKING_TABLES or (connection.dialect.name=='sqlite' and not result['physical_staging_areas']):
+        if any(result[n] for n in PACKING_TABLES-{'physical_staging_areas'}):raise ValueError('Livros PACKING sem catálogo físico; não reconstruir presenças.')
+        result['physical_staging_areas']=[dict(id=1,warehouse_id=1,label='Zona de preparação')]
+    from .cosmopak_packings import validate_snapshot as validate_packings
+    validate_packings(result)
     from .cosmopak import validate_snapshot as validate_cosmo
     validate_cosmo(result)
     from .physical_locations import validate_shared_snapshot
@@ -251,6 +259,9 @@ def archive_inventory(connection, expected):
                 if fingerprint(projected) == old['sha256'] or old_context_projection: data[name] = projected
     wanted = set(expected.get('tables', {}))
     current = {t.name for t in TABLES}
+    if not wanted & PACKING_TABLES:
+        if any(data[n] for n in PACKING_TABLES-{'physical_staging_areas'}) or data['physical_staging_areas']!=[dict(id=1,warehouse_id=1,label='Zona de preparação')]:raise ValueError('Backup anterior não abrange PACKINGs/presenças físicas.')
+        current-=PACKING_TABLES
     if not wanted & COSMO_TABLES:
         if any(data[n] for n in COSMO_TABLES):raise ValueError('Backup antigo não abrange receções Cosmopak.')
         current-=COSMO_TABLES
@@ -405,7 +416,7 @@ def require_empty(connection):
 def apply(bundle, engine):
     require_test_target(engine)
     data, report = load_bundle(bundle)
-    if any(data[name] for name in COSMO_TABLES | SHARED_TABLES | (VALMET_TABLES-{'valmet_owners'})|PLANNING_TABLES|SHIPPING_TABLES|CONTROL_TABLES|ROLL_TABLES|IMPORT_TABLES|(NKT_TABLES-{'nkt_owners'})|NKT_RECEIVING_TABLES|NKT_LOADING_TABLES|NKT_INVENTORY_TABLES|(ALCOBRE_TABLES-{'alcobre_owners','alcobre_zones'})|ALCOBRE_DISPATCH_TABLES|ALCOBRE_INVENTORY_TABLES):
+    if any(data[name] for name in (PACKING_TABLES-{'physical_staging_areas'}) | COSMO_TABLES | SHARED_TABLES | (VALMET_TABLES-{'valmet_owners'})|PLANNING_TABLES|SHIPPING_TABLES|CONTROL_TABLES|ROLL_TABLES|IMPORT_TABLES|(NKT_TABLES-{'nkt_owners'})|NKT_RECEIVING_TABLES|NKT_LOADING_TABLES|NKT_INVENTORY_TABLES|(ALCOBRE_TABLES-{'alcobre_owners','alcobre_zones'})|ALCOBRE_DISPATCH_TABLES|ALCOBRE_INVENTORY_TABLES):
         raise ValueError('Importação operacional Valmet não implementada. Usar backup/restauro PostgreSQL verificado.')
     with engine.begin() as connection:
         connection.execute(text('SELECT pg_advisory_xact_lock(:key)'), {'key': LOCK})
@@ -418,9 +429,9 @@ def apply(bundle, engine):
             raise ValueError('Configuração Valmet divergente; reconciliar numa cópia, sem substituir atribuições.')
         nkt_owners=connection.execute(select(Base.metadata.tables['nkt_owners'])).mappings().all()
         if list(nkt_owners)!=data['nkt_owners']:raise ValueError('Configuração NKT divergente; reconciliar sem substituir atribuições.')
-        for name in ('alcobre_owners','alcobre_zones'):
+        for name in ('alcobre_owners','alcobre_zones','physical_staging_areas'):
             actual=[dict(r) for r in connection.execute(select(Base.metadata.tables[name]).order_by(*Base.metadata.tables[name].primary_key)).mappings()]
-            if actual!=data[name]:raise ValueError('Configuração Alcobre divergente; usar restauro reconciliado, sem substituir atribuições.')
+            if actual!=data[name]:raise ValueError('Catálogo físico/Alcobre divergente; usar restauro reconciliado, sem substituir atribuições.')
         # The migration seeds only empty administrative catalogues; a snapshot
         # carries their exact values, including subsequently added clients.
         for name in ('storage_contexts','clients','warehouses'):
@@ -428,7 +439,7 @@ def apply(bundle, engine):
         connection.execute(text('ALTER TABLE stock DISABLE TRIGGER stock_clock'))
         connection.execute(text('ALTER TABLE locations DISABLE TRIGGER catalogue_clock'))
         for table in TABLES:
-            if table.name in ('valmet_owners','nkt_owners','alcobre_owners','alcobre_zones'):continue  # Verified immutable seed, never disable its guards.
+            if table.name in ('valmet_owners','nkt_owners','alcobre_owners','alcobre_zones','physical_staging_areas'):continue  # Verified immutable seed, never disable its guards.
             if data[table.name]:
                 rows = data[table.name]
                 if table.name == 'receipts':

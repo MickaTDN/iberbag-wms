@@ -344,3 +344,16 @@ def validate_shared_snapshot(data):
             if state['state']=='awaiting_collection':
                 order=next((r for r in data['dispatch_orders'] if r['id']==state['source_id'] and r['context_id']==state['context_id']),None)
                 if not order or order['status']!='confirmed' or not order['office'] or any(r['order_id']==order['id'] for r in data['preparation_completions']+data['preparation_compensations']):invalid()
+
+
+def staging_status(db):
+    """Unlimited common logical area; foreign owners' goods/groups remain private."""
+    from .database import PhysicalStagingArea,PhysicalStagingPosition,StorageContext,context_id
+    from sqlalchemy import func
+    ctx=db.get(StorageContext,context_id(db))
+    area=db.scalar(select(PhysicalStagingArea).where(PhysicalStagingArea.warehouse_id==ctx.warehouse_id)) if ctx else None
+    if not area:return None
+    t=PhysicalStagingPosition.__table__
+    total=db.connection().scalar(select(func.count()).select_from(t).where(t.c.area_id==area.id,t.c.phase=='staged'))
+    own=db.scalars(select(PhysicalStagingPosition).where(PhysicalStagingPosition.area_id==area.id,PhysicalStagingPosition.phase.in_(('staged','loading'))).order_by(PhysicalStagingPosition.group_id,PhysicalStagingPosition.unit_id)).all()
+    return dict(label=area.label,total=total,own=own)

@@ -237,7 +237,7 @@ def test_cosmo_migration20_and_encrypted_restore_preserve_all_owners_and_pending
     with engine.connect() as conn:before=transfer.inventory(transfer.read_data(conn))
     old=tmp_path/'old';backup.backup(engine,old,runner=docker_client,passphrase=BACKUP_PASSWORD)
     assert backup.restore(target,old,runner=docker_client,passphrase=BACKUP_PASSWORD)['status']=='reconciled'
-    assert apply_upgrade(engine,old)['revision']==REVISION=='ddn_0021'
+    assert apply_upgrade(engine,old)['revision']==REVISION=='ddn_0022'
     with engine.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==before
     first=plan(engine,admin,[('A','Fictício','L',1,8,'X')]);place(engine,admin,units(engine,first)[0][0],'A101');confirm(engine,admin,first,review(engine,admin,admin,first))
     second=plan(engine,admin,[('A','Fictício','L',1,4,'')]);place(engine,admin,units(engine,second)[0][0],'A102')

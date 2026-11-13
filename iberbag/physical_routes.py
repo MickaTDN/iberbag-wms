@@ -65,4 +65,4 @@ def occupancy(request:Request,db:Session=Depends(database)):
     states=service.physical_statuses(db)
     # Events are context-scoped. No other owner's stock or documents are disclosed.
     events=db.scalars(select(PhysicalLocationEvent).order_by(PhysicalLocationEvent.id.desc()).limit(100)).all()
-    return render(request,'physical_occupancy.html',context(request,user,sess,states=states,events=events))
+    return render(request,'physical_occupancy.html',context(request,user,sess,states=states,events=events,staging=service.staging_status(db)))

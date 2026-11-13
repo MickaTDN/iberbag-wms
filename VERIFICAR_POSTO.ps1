@@ -17,7 +17,7 @@ try {
     if (-not $addresses) { throw 'Sem enderecos DNS.' }
     $results += 'DNS: resolvido. Confirmar que o IP e o do servidor.'
     $response = Invoke-RestMethod -Uri "https://$serverName/health" -TimeoutSec 10
-    if ($response.status -ne 'ok' -or $response.application -ne 'Iberbag WMS') { throw 'Health invalido.' }
+    if ($response.status -ne 'ok' -or $response.application -ne 'DDN WMS') { throw 'Health invalido.' }
     $results += 'PASS: HTTPS, certificado e base disponiveis.'
 } catch {
     $results += 'FAIL: DNS, HTTPS, certificado ou aplicacao. Nao ignorar avisos TLS.'

@@ -36,7 +36,16 @@ export class Vault{
  async enqueueMobile(command,reference){
   const payload=JSON.parse(JSON.stringify(command));
   if(payload.user!==this.user||payload.context!==this.context||JSON.stringify(payload).length>20000)throw Error('Ação inválida.');
-  return this.change(d=>{if(d.queue.length>=1000)throw Error('Fila cheia.');const id=crypto.randomUUID();d.queue.push({id,user:this.user,context:this.context,operation:'mobile',reference,version:payload.version,depends:[],idempotency:payload.key,command:payload,state:'pending'});return id;});
+  return this.change(d=>{
+   if(d.queue.length>=1000)throw Error('Fila cheia.');
+   if(!Array.isArray(payload.depends)||new Set(payload.depends).size!==payload.depends.length||d.queue.some(q=>q.idempotency===payload.key))throw Error('Dependências/chave inválidas.');
+   // Establish the physical order under the SAME cross-tab lock as persistence.
+   // Serialize outstanding actions of this task, including corrections and closures.
+   const preceding=d.queue.filter(q=>q.command&&q.reference===reference&&q.command.kind.split('.')[0]===payload.kind.split('.')[0]&&q.state!=='confirmed');
+   payload.depends=[...new Set([...payload.depends,...preceding.map(q=>q.idempotency)])];
+   const depends=payload.depends.map(key=>{const q=d.queue.find(q=>q.idempotency===key&&q.user===this.user&&q.context===this.context);if(!q)throw Error('Dependência local inexistente; preservar para revisão.');return q.id;});
+   const id=crypto.randomUUID();d.queue.push({id,user:this.user,context:this.context,operation:'mobile',reference,version:payload.version,depends,idempotency:payload.key,command:payload,state:'pending'});return id;
+  });
  }
  async sync(authorize,adapters={}){
   const who=await authorize();if(who.user!==this.user||who.context!==this.context)throw Error('Reautenticar no contexto original.');
@@ -44,7 +53,7 @@ export class Vault{
   for(const row of (await this.get()).queue){
    if(row.state!=='pending'||typeof adapters[row.operation]!=='function')continue;
    const current=await authorize();if(current.user!==this.user||current.context!==this.context)throw Error('Sessão alterada; ação continua pendente.');
-   const ready=await this.change(d=>{const q=d.queue.find(q=>q.id===row.id);if(q.state!=='pending'||q.depends.some(id=>!d.queue.some(p=>p.id===id&&p.state==='confirmed')))return false;q.state='sent';return true;});
+   const ready=await this.change(d=>{const q=d.queue.find(q=>q.id===row.id);const keys=q.command?.depends||[];const linked=keys.map(key=>d.queue.find(p=>p.idempotency===key&&p.user===this.user&&p.context===this.context)?.id);if(linked.some(id=>!id))return false;const earlier=q.command?d.queue.slice(0,d.queue.indexOf(q)).filter(p=>p.command&&p.reference===q.reference&&p.command.kind.split('.')[0]===q.command.kind.split('.')[0]).map(p=>p.id):[];const dependencies=[...new Set([...q.depends,...linked,...earlier])];if(q.state!=='pending'||dependencies.some(id=>!d.queue.some(p=>p.id===id&&p.state==='confirmed')))return false;q.state='sent';return true;});
    if(!ready)continue;
    try{const reply=await adapters[row.operation](row);await this.change(d=>{const q=d.queue.find(q=>q.id===row.id);q.state=reply.confirmed===true?'confirmed':'conflict';q.message=reply.detail||'';});}
    catch(e){throw Error('Envio interrompido; estado Enviada preservado. Rever antes de repetir.');}

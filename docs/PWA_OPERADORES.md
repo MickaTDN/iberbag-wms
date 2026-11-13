@@ -67,3 +67,21 @@ PACKING com dois operadores, faltas e carregamento parcial; cortar Wi-Fi antes e
 depois do commit; repetir sem duplicações; trocar sessão/contexto, atualizar PWA,
 reabrir o cofre e restaurar backup numa base separada. Não usar stock empresarial
 até validação explícita. Chromium emulado não constitui homologação física.
+
+
+### Dependências físicas da fila (correção PR #39)
+
+A gravação móvel associa chaves de idempotência a IDs locais, sob Web Lock, antes
+ de confirmar a persistência. Ações ainda não confirmadas da mesma tarefa/referência
+ e família física são predecessoras das seguintes: inclui preparação, conclusão,
+ início de carregamento, carregar/desmarcar/regressar e conclusão, além de correções
+ e conclusão de descarga. Esta ordenação é conservadora dentro de cada tarefa;
+ tarefas independentes conservam filas distintas. As chaves e payloads persistidos
+ não são reescritos. Filas anteriores com ligações locais vazias são também verificadas
+ no envio pelas chaves originais e pela ordem física local, sem alterar os comandos.
+
+Só predecessores Confirmados pelo WMS libertam sucessores. Pendente, Enviada ou
+ Conflito mantêm os sucessores pendentes, sem chamar o adaptador. A repetição explícita
+ conserva chave/payload/versão; uma versão desatualizada continua a exigir revisão
+ humana. Esta ordenação não presume que os movimentos ocorreram no servidor nem
+ altera as guardas PostgreSQL ou permissões de outros operadores.

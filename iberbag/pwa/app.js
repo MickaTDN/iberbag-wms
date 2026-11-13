@@ -50,7 +50,7 @@ async function recordMobile(task,line,kind){
  if(!confirm('Confirma que executou fisicamente esta operação? Offline fica apenas pendente, sem alterar stock oficial.'))return;
  p.physical=true;
  const command={key:crypto.randomUUID().replaceAll('-',''),user:session.user,context:ctx,kind,target:line?.id||task.id,version:line?.version??task.version,payload:p,depends:[]};
- if(kind.startsWith('pack.')&&['pack.load','pack.finish_load','pack.start_load'].includes(kind)){const d=await vault.get();command.depends=d.queue.filter(q=>q.reference===task.reference&&q.command&&['pack.prepare','pack.finish_prepare','pack.start_load'].includes(q.command.kind)&&q.state!=='confirmed').map(q=>q.command.key);}
+
  await vault.enqueueMobile(command,task.reference);await queue();$('status').textContent='Pendente no dispositivo — persistido cifrado. Sincronizar para validação do WMS.';
 }
 

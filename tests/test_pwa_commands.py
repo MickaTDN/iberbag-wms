@@ -147,3 +147,60 @@ def test_mobile_backup_restores_command_receipt_and_exact_replay(warehouse,pg_da
     with restored.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==before
     with scoped(restored,1) as db:assert s.execute(db,op,a)==result
     with restored.connect() as conn:assert transfer.inventory(transfer.read_data(conn))==before
+
+def test_mobile_offline_chain_blocks_successors_and_retries_exactly():
+    import shutil
+    from pathlib import Path
+    from playwright.sync_api import sync_playwright
+    root=Path(__file__).resolve().parents[1]/'iberbag/pwa'
+    with sync_playwright() as p:
+        browser=p.chromium.launch(executable_path=shutil.which('chromium'),args=['--no-sandbox'])
+        ctx=browser.new_context();ctx.route('https://wms.test/**',lambda r:r.fulfill(body=(root/'vault.js').read_bytes(),content_type='text/javascript') if r.request.url.endswith('vault.js') else r.fulfill(body='<html>Fictício</html>',content_type='text/html'))
+        page=ctx.new_page();page.goto('https://wms.test/pwa/')
+        assert page.evaluate("""async()=>{
+         const {Vault}=await import('/pwa/vault.js');const v=new Vault(10,3),auth=async()=>({user:10,context:3});await v.unlock('Frase fictícia segura para fila',auth);
+         const kinds=['prepare','finish_prepare','start_load','load','unload','return_stage','finish_load'];
+         for(let i=0;i<kinds.length;i++)await v.enqueueMobile({key:String(i+1).padStart(32,'0'),user:10,context:3,kind:'pack.'+kinds[i],target:12,version:0,payload:{physical:true},depends:[]},'PACK-FICT');
+         let rows=(await v.get()).queue,original=JSON.stringify(rows.map(q=>q.command));
+         if(rows[6].depends.length!==6||rows[6].command.depends.length!==6)return false;
+         const calls=[];await v.sync(auth,{mobile:async q=>{calls.push(q.command.kind);return {confirmed:calls.length===1};}});
+         rows=(await v.get()).queue;if(calls.length!==2||rows[1].state!=='conflict'||rows.slice(2).some(q=>q.state!=='pending'))return false;
+         // Legacy records from PR39 with empty local links must also be blocked.
+         await v.change(d=>{for(const q of d.queue)q.depends=[];});await v.sync(auth,{mobile:async()=>{throw Error('Successor must not send');}});
+         await v.retry(rows[1].id,auth);await v.sync(auth,{mobile:async()=>({confirmed:true})});
+         rows=(await v.get()).queue;if(!rows.every(q=>q.state==='confirmed')||JSON.stringify(rows.map(q=>q.command))!==original)return false;
+         const second=new Vault(10,3);await second.unlock('Frase fictícia segura para fila',auth);
+         await Promise.all([v,second].map((vault,i)=>vault.enqueueMobile({key:String(8+i).padStart(32,'0'),user:10,context:3,kind:'pack.prepare',target:12+i,version:0,payload:{physical:true},depends:[]},'PACK-CONCURRENT')));
+         rows=(await v.get()).queue;const last=rows.slice(-2);if(!last[1].depends.includes(last[0].id)||!last[1].command.depends.includes(last[0].idempotency))return false;
+         await v.change(d=>{d.queue[d.queue.length-2].state='sent';for(const q of d.queue.slice(-2)){q.depends=[];q.command.depends=[];}});
+         let sent=0;await v.sync(auth,{mobile:async()=>{sent++;return {confirmed:true};}});return sent===0&&(await v.get()).queue.at(-1).state==='pending';
+        }""")
+        # Separate tabs must establish local links while holding the same lock.
+        other=ctx.new_page();other.goto('https://wms.test/pwa/')
+        for tab in (page,other):
+            tab.evaluate("""async()=>{const {Vault}=await import('/pwa/vault.js');window.tabVault=new Vault(10,3);await tabVault.unlock('Frase fictícia segura para fila',async()=>({user:10,context:3}));}""")
+        for i,tab in enumerate((page,other)):
+            tab.evaluate("""i=>{window.saved=tabVault.enqueueMobile({key:String(20+i).padStart(32,'0'),user:10,context:3,kind:'pack.prepare',target:20+i,version:0,payload:{physical:true},depends:[]},'PACK-TABS');}""",i)
+        for tab in (page,other):tab.evaluate('async()=>await saved')
+        assert page.evaluate("""async()=>{const rows=(await tabVault.get()).queue.filter(q=>q.reference==='PACK-TABS');return rows.length===2&&rows[1].depends.includes(rows[0].id)&&rows[1].command.depends.includes(rows[0].idempotency);}""")
+        browser.close()
+
+
+def test_mobile_server_dependencies_revalidate_without_consuming_successors(warehouse):
+    engine,u=warehouse;op=u['operador'][0];other=u['other'][0];rec,line=receive(engine,op,3)
+    with scoped(engine,1) as db:
+        version=db.get(m.Receipt,rec).version
+        first=action(op,1,'ib.putaway',line,version,dict(local='Chão',quantity=1))
+        second=action(op,1,'ib.putaway',line,version,dict(local='Chão',quantity=1));second['depends']=[first['key']]
+        original=json.dumps(second,sort_keys=True)
+        with pytest.raises(ValueError):s.execute(db,op,second)
+        assert s.previous(db,second['key']) is None
+        result=s.execute(db,op,first);assert s.execute(db,op,first)==result
+        answer=s.execute(db,op,second);assert s.execute(db,op,second)==answer
+        assert json.dumps(second,sort_keys=True)==original
+        foreign=action(other,1,'ib.putaway',line,version,dict(local='Chão',quantity=1));foreign['depends']=[second['key']]
+        with pytest.raises(ValueError):s.execute(db,other,foreign)
+        assert db.scalar(select(func.sum(m.Stock.quantidade)))==2
+        independent=action(other,1,'ib.putaway',line,version,dict(local='Chão',quantity=1))
+        s.execute(db,other,independent)
+        assert db.scalar(select(func.sum(m.Stock.quantidade)))==3

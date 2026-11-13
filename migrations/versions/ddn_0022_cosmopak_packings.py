@@ -154,7 +154,7 @@ def upgrade():
         s.Column('id',s.Integer(),nullable=False,primary_key=True),
         s.Column('warehouse_id',s.Integer(),nullable=False),
         s.Column('label',s.String(length=120),nullable=False),
-        s.ForeignKeyConstraint(['warehouse_id'],['warehouses.id']),
+        s.ForeignKeyConstraint(['warehouse_id'],['warehouses.id'],deferrable=True,initially='DEFERRED'),
         s.UniqueConstraint('warehouse_id'))
     op.create_table('physical_staging_positions',
         s.Column('id',s.Integer(),nullable=False,primary_key=True),

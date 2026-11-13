@@ -190,7 +190,9 @@ def read_data(connection):
         result['nkt_owners']=[dict(client_id=row['id']) for row in result['clients'] if row['name']=='NKT']
     if missing & ALCOBRE_TABLES:
         result['alcobre_owners'],result['alcobre_zones']=initial_alcobre_catalogue(result)
-    if missing & PACKING_TABLES:result['physical_staging_areas']=[dict(id=1,warehouse_id=1,label='Zona de preparação')]
+    if missing & PACKING_TABLES or (connection.dialect.name=='sqlite' and not result['physical_staging_areas']):
+        if any(result[n] for n in PACKING_TABLES-{'physical_staging_areas'}):raise ValueError('Livros PACKING sem catálogo físico; não reconstruir presenças.')
+        result['physical_staging_areas']=[dict(id=1,warehouse_id=1,label='Zona de preparação')]
     from .cosmopak_packings import validate_snapshot as validate_packings
     validate_packings(result)
     from .cosmopak import validate_snapshot as validate_cosmo
@@ -427,9 +429,9 @@ def apply(bundle, engine):
             raise ValueError('Configuração Valmet divergente; reconciliar numa cópia, sem substituir atribuições.')
         nkt_owners=connection.execute(select(Base.metadata.tables['nkt_owners'])).mappings().all()
         if list(nkt_owners)!=data['nkt_owners']:raise ValueError('Configuração NKT divergente; reconciliar sem substituir atribuições.')
-        for name in ('alcobre_owners','alcobre_zones'):
+        for name in ('alcobre_owners','alcobre_zones','physical_staging_areas'):
             actual=[dict(r) for r in connection.execute(select(Base.metadata.tables[name]).order_by(*Base.metadata.tables[name].primary_key)).mappings()]
-            if actual!=data[name]:raise ValueError('Configuração Alcobre divergente; usar restauro reconciliado, sem substituir atribuições.')
+            if actual!=data[name]:raise ValueError('Catálogo físico/Alcobre divergente; usar restauro reconciliado, sem substituir atribuições.')
         # The migration seeds only empty administrative catalogues; a snapshot
         # carries their exact values, including subsequently added clients.
         for name in ('storage_contexts','clients','warehouses'):
@@ -437,7 +439,7 @@ def apply(bundle, engine):
         connection.execute(text('ALTER TABLE stock DISABLE TRIGGER stock_clock'))
         connection.execute(text('ALTER TABLE locations DISABLE TRIGGER catalogue_clock'))
         for table in TABLES:
-            if table.name in ('valmet_owners','nkt_owners','alcobre_owners','alcobre_zones'):continue  # Verified immutable seed, never disable its guards.
+            if table.name in ('valmet_owners','nkt_owners','alcobre_owners','alcobre_zones','physical_staging_areas'):continue  # Verified immutable seed, never disable its guards.
             if data[table.name]:
                 rows = data[table.name]
                 if table.name == 'receipts':

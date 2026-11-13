@@ -1561,7 +1561,7 @@ class PhysicalStagingArea(Base):
     """Shared logical area of the existing physical engine; no capacity counter."""
     __tablename__='physical_staging_areas'
     id: Mapped[int]=mapped_column(primary_key=True)
-    warehouse_id: Mapped[int]=mapped_column(ForeignKey('warehouses.id'),unique=True,nullable=False)
+    warehouse_id: Mapped[int]=mapped_column(ForeignKey('warehouses.id',deferrable=True,initially='DEFERRED'),unique=True,nullable=False)
     label: Mapped[str]=mapped_column(String(120),nullable=False)
 
 class PhysicalStagingPosition(Scoped,Base):

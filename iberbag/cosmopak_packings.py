@@ -97,6 +97,7 @@ def validate_snapshot(data):
         return row
     for src in data.get('cosmo_packings',[]):
         if hashlib.sha256(src['source_excel']).hexdigest()!=src['source_sha256'] or excel.analyze(src['source_excel'])!=json.loads(src['report']):raise ValueError('Origem PACKING divergente.')
+    if data.get('physical_staging_areas')!=[dict(id=1,warehouse_id=1,label='Zona de preparação')]:raise ValueError('Catálogo da zona física lógica divergente.')
     actions={r['id']:r for r in data.get('cosmo_packing_actions',[])}
     states={r['packing_id']:r for r in data.get('cosmo_packing_states',[])}
     ledger={r['action_id']:r for r in data.get('cosmo_packing_ledger',[])}

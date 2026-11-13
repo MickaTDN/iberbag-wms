@@ -58,7 +58,7 @@ def pytest_runtest_makereport(item, call):
         # Never publish parameter values, exception text, payloads or credentials.
         name = item.nodeid.split('[')[0]
         if re.fullmatch(r'[A-Za-z0-9_./:]+', name):
-            print(f'::error title=DDN failed test::{name}', flush=True)
+            print(f'\n::error title=DDN failed test::{name}', flush=True)
     if call.when == 'teardown':
         item.config._ddn_finished.add(identity(item.nodeid))
 

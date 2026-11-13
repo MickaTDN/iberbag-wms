@@ -162,7 +162,7 @@ def test_mobile_offline_chain_blocks_successors_and_retries_exactly():
          const kinds=['prepare','finish_prepare','start_load','load','unload','return_stage','finish_load'];
          for(let i=0;i<kinds.length;i++)await v.enqueueMobile({key:String(i+1).padStart(32,'0'),user:10,context:3,kind:'pack.'+kinds[i],target:12,version:0,payload:{physical:true},depends:[]},'PACK-FICT');
          let rows=(await v.get()).queue,original=JSON.stringify(rows.map(q=>q.command));
-         if(rows[6].depends.length!==6||rows[6].command.depends.length!==6)return false;
+         if(rows[6].depends.length!==1||rows[6].command.depends.length!==1||rows[6].depends[0]!==rows[5].id)return false;
          const calls=[];await v.sync(auth,{mobile:async q=>{calls.push(q.command.kind);return {confirmed:calls.length===1};}});
          rows=(await v.get()).queue;if(calls.length!==2||rows[1].state!=='conflict'||rows.slice(2).some(q=>q.state!=='pending'))return false;
          // Legacy records from PR39 with empty local links must also be blocked.
@@ -183,6 +183,7 @@ def test_mobile_offline_chain_blocks_successors_and_retries_exactly():
             tab.evaluate("""i=>{window.saved=tabVault.enqueueMobile({key:String(20+i).padStart(32,'0'),user:10,context:3,kind:'pack.prepare',target:20+i,version:0,payload:{physical:true},depends:[]},'PACK-TABS');}""",i)
         for tab in (page,other):tab.evaluate('async()=>await saved')
         assert page.evaluate("""async()=>{const rows=(await tabVault.get()).queue.filter(q=>q.reference==='PACK-TABS');return rows.length===2&&rows[1].depends.includes(rows[0].id)&&rows[1].command.depends.includes(rows[0].idempotency);}""")
+        assert page.evaluate("""async()=>{for(let i=0;i<105;i++)await tabVault.enqueueMobile({key:String(100+i).padStart(32,'0'),user:10,context:3,kind:'pack.prepare',target:100+i,version:0,payload:{physical:true},depends:[]},'PACK-LONG');const rows=(await tabVault.get()).queue.filter(q=>q.reference==='PACK-LONG');return rows.length===105&&rows.every((q,i)=>q.command.depends.length===(i?1:0)&&(!i||q.depends[0]===rows[i-1].id));}""")
         browser.close()
 
 

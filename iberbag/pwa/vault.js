@@ -41,8 +41,9 @@ export class Vault{
    if(!Array.isArray(payload.depends)||new Set(payload.depends).size!==payload.depends.length||d.queue.some(q=>q.idempotency===payload.key))throw Error('Dependências/chave inválidas.');
    // Establish the physical order under the SAME cross-tab lock as persistence.
    // Serialize outstanding actions of this task, including corrections and closures.
-   const preceding=d.queue.filter(q=>q.command&&q.reference===reference&&q.command.kind.split('.')[0]===payload.kind.split('.')[0]&&q.state!=='confirmed');
+   const preceding=d.queue.filter(q=>q.command&&q.reference===reference&&q.command.kind.split('.')[0]===payload.kind.split('.')[0]&&q.state!=='confirmed').slice(-1);
    payload.depends=[...new Set([...payload.depends,...preceding.map(q=>q.idempotency)])];
+   if(payload.depends.length>100)throw Error('Demasiadas dependências explícitas; rever sem alterar ações existentes.');
    const depends=payload.depends.map(key=>{const q=d.queue.find(q=>q.idempotency===key&&q.user===this.user&&q.context===this.context);if(!q)throw Error('Dependência local inexistente; preservar para revisão.');return q.id;});
    const id=crypto.randomUUID();d.queue.push({id,user:this.user,context:this.context,operation:'mobile',reference,version:payload.version,depends,idempotency:payload.key,command:payload,state:'pending'});return id;
   });

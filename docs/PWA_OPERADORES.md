@@ -72,8 +72,8 @@ até validação explícita. Chromium emulado não constitui homologação físi
 ### Dependências físicas da fila (correção PR #39)
 
 A gravação móvel associa chaves de idempotência a IDs locais, sob Web Lock, antes
- de confirmar a persistência. Ações ainda não confirmadas da mesma tarefa/referência
- e família física são predecessoras das seguintes: inclui preparação, conclusão,
+ de confirmar a persistência. O último predecessor ainda não confirmado da mesma tarefa/referência
+ e família física liga transitivamente as seguintes ações: inclui preparação, conclusão,
  início de carregamento, carregar/desmarcar/regressar e conclusão, além de correções
  e conclusão de descarga. Esta ordenação é conservadora dentro de cada tarefa;
  tarefas independentes conservam filas distintas. As chaves e payloads persistidos

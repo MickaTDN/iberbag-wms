@@ -62,3 +62,18 @@ def pytest_sessionfinish(session, exitstatus):
     target = Path(config.getoption('--ddn-shard-report'))
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(evidence, sort_keys=True), encoding='utf-8')
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_load_initial_conftests(early_config, parser, args):
+    """Make bootstrap failures visible even when no JUnit report can be created."""
+    outcome=yield
+    if outcome.excinfo:
+        import os,traceback
+        if os.environ.get('GITHUB_ACTIONS')=='true':
+            error=outcome.excinfo[1]
+            cause=getattr(error,'cause',error)
+            frames=traceback.extract_tb(cause.__traceback__)
+            origin=next((f for f in reversed(frames) if '/iberbag/' in f.filename or '/migrations/' in f.filename),None)
+            location=(Path(origin.filename).name+':'+str(origin.lineno)) if origin else 'bootstrap'
+            print(f'::error title=DDN PostgreSQL bootstrap::{type(cause).__name__} at {location}',flush=True)

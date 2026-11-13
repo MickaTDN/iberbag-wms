@@ -519,6 +519,18 @@ REQUIRED_POSTGRES.add('test_cosmopak_packings.test_packing_two_operators_complet
 
 REQUIRED_POSTGRES.add('test_cosmopak_packings.test_packing_stage_label_uses_latest_immutable_completion_not_print_date')
 
+REQUIRED_POSTGRES |= {'test_pwa.test_pwa_secure_context_session_isolation_and_no_stock_commands','test_pwa.test_pwa_browser_encryption_queue_recovery_dependencies_and_isolation'}
+REQUIRED_WINDOWS.add('test_pwa.test_pwa_browser_encryption_queue_recovery_dependencies_and_isolation')
+
+REQUIRED_POSTGRES.add('test_pwa.test_pwa_real_https_service_worker_offline_shell_and_update_keep_queue')
+REQUIRED_WINDOWS.add('test_pwa.test_pwa_real_https_service_worker_offline_shell_and_update_keep_queue')
+
+REQUIRED_POSTGRES.add('test_pwa.test_pwa_browser_vault_tampering_concurrent_tabs_and_expired_auth')
+REQUIRED_WINDOWS.add('test_pwa.test_pwa_browser_vault_tampering_concurrent_tabs_and_expired_auth')
+
+REQUIRED_POSTGRES.add('test_pwa.test_pwa_erase_requires_online_identity_even_when_locked_or_phrase_forgotten')
+REQUIRED_WINDOWS.add('test_pwa.test_pwa_erase_requires_online_identity_even_when_locked_or_phrase_forgotten')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

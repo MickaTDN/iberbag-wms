@@ -1,0 +1,125 @@
+"""Auditable, per-folder Windows rehearsal bootstrap. No privileged operations."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import socket
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parent.parent
+PORTS = {'postgres': 55432, 'http': 8100, 'https': 8443}
+
+
+def isolated_environment():
+    return {k: v for k, v in os.environ.items()
+            if not k.upper().startswith(('WMS_', 'PG', 'PYTHON', 'PIP_', 'DDN_'))}
+
+
+def validate(settings):
+    if set(settings) != {'database', 'user', 'postgres', 'http', 'https'}:
+        raise ValueError('Configuração inesperada.')
+    if settings['database'] != 'ddn_wms_ensaio_test' or settings['user'] != 'ddn_wms_runtime':
+        raise ValueError('Só a base e conta dedicadas de ENSAIO são permitidas.')
+    ports = [settings[k] for k in PORTS]
+    if any(type(p) is not int or not 1024 <= p <= 65535 for p in ports) or len(set(ports)) != 3:
+        raise ValueError('Escolher três portas distintas entre 1024 e 65535.')
+    # Do not silently adopt standard PostgreSQL/HTTPS endpoints used by other apps.
+    if any(p in (5432, 8000) for p in ports):
+        raise ValueError('Portas históricas reservadas; escolher portas DDN próprias.')
+    return settings
+
+
+def verify_bundle(root=ROOT):
+    manifest = json.loads((root / 'MANIFEST.json').read_text(encoding='utf-8'))
+    if manifest.get('mode') != 'homologacao' or not re.fullmatch('[a-f0-9]{40}', manifest.get('commit', '')):
+        raise ValueError('Manifesto inválido.')
+    for name, digest in manifest['files'].items():
+        path = root / name
+        if Path(name).is_absolute() or '\\' in name or '..' in Path(name).parts or path.is_symlink():
+            raise ValueError('Caminho inseguro no pacote.')
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            raise ValueError('Integridade do pacote inválida; descarregar novamente.')
+    return manifest
+
+
+def probe(port):
+    with socket.socket() as s:
+        try:
+            s.bind(('127.0.0.1', port))
+            return 'livre'
+        except OSError:
+            return 'ocupada'
+
+
+def windows_inventory():
+    # Only names/states, never service command lines (may contain credentials).
+    script = "Get-CimInstance Win32_Service | Select-Object Name,State | ConvertTo-Json -Compress"
+    result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script],
+                            capture_output=True, timeout=30, check=True)
+    return json.loads(result.stdout.decode('utf-8-sig'))
+
+
+def install(root=ROOT):
+    verify_bundle(root)
+    if (platform.system() != 'Windows' or sys.getwindowsversion().build < 22000
+            or sys.getwindowsversion().product_type != 1
+            or platform.machine().lower() not in ('amd64', 'x86_64')):
+        raise ValueError('Este pacote exige Windows 11 x64.')
+    if sys.version_info[:2] != (3, 12):
+        raise ValueError('É necessário Python 3.12 x64 aprovado pela equipa técnica.')
+    # Refuse arbitrary directories/previous environments; never repair by deleting.
+    target = root / '.ddn-venv'
+    if target.exists():
+        raise ValueError('Instalação existente preservada. Usar Verificar; atualização/reparação exige revisão técnica.')
+    for port in PORTS.values():
+        if probe(port) != 'livre':
+            raise ValueError('Conflito de portas. Nada foi instalado; rever recursos DDN/GVA.')
+    if input('Instalar dependências APENAS nesta pasta? Escreva INSTALAR ENSAIO: ') != 'INSTALAR ENSAIO':
+        return
+    env = isolated_environment()
+    subprocess.run([sys.executable, '-I', '-m', 'venv', str(target)], env=env, check=True)
+    python = target / 'Scripts' / 'python.exe'
+    subprocess.run([str(python), '-I', '-m', 'pip', '--isolated', 'install', '--no-index',
+                    '--no-cache-dir', '--find-links', str(root / 'wheels'), '-r', str(root / 'requirements-prod.lock')],
+                   env=env, check=True)
+    subprocess.run([str(python), '-I', '-m', 'pip', '--isolated', 'check'], env=env, check=True)
+    print('Dependências instaladas. PostgreSQL/HTTPS ainda NÃO configurados; seguir LEIA-ME.')
+
+
+def run_menu(root=ROOT):
+    verify_bundle(root)
+    python = root / '.ddn-venv' / 'Scripts' / 'python.exe'
+    if not python.is_file():
+        raise ValueError('Escolha primeiro Instalar dependências.')
+    local = root / 'DDN_LOCAL.json'
+    settings = validate(json.loads((local if local.exists() else root / 'DDN_ENSAIO.json').read_text(encoding='utf-8')))
+    env = isolated_environment()
+    env.update(DDN_TEST_PG_PORT=str(settings['postgres']), DDN_TEST_HTTP_PORT=str(settings['http']))
+    # Existing assistant asks credentials via getpass; none stored or passed in argv.
+    subprocess.run([str(python), '-m', 'iberbag.windows_menu', '--isolated-ensemble'], cwd=root, env=env, check=True)
+
+
+def main():
+    print('DDN WMS — ENSAIO. Produção indisponível. Não altera serviços GVA.')
+    print('1 Instalar dependências locais\n2 Verificar pacote/portas/serviços (leitura)\n3 Assistente WMS existente\n0 Sair')
+    choice = input('Opção: ').strip()
+    try:
+        if choice == '1': install()
+        elif choice == '2':
+            manifest = verify_bundle()
+            print('Commit:', manifest['commit'])
+            print('Portas DDN:', {k: probe(v) for k, v in PORTS.items()})
+            print('Serviços existentes (só leitura):', windows_inventory())
+        elif choice == '3': run_menu()
+    except Exception:
+        # Avoid exception repr/tracebacks: DB URLs/subprocess errors can hold secrets.
+        print('Operação recusada ou falhou. Dados preservados. Consulte LEIA-ME; não repetir sem rever a causa.')
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

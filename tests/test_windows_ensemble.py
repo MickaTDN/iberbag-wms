@@ -143,6 +143,8 @@ def test_ensemble_custom_ports_are_checked_instead_of_defaults(tmp_path,monkeypa
 def test_repair_preserves_partial_venv_and_previous_selection(tmp_path,monkeypatch,fail_at):
     monkeypatch.setattr(a,'verify_bundle',lambda root:None)
     monkeypatch.setattr(a.platform,'system',lambda:'Windows')
+    monkeypatch.setattr(a.platform,'machine',lambda:'AMD64')
+    monkeypatch.setattr(a.sys,'getwindowsversion',lambda:SimpleNamespace(build=22631,product_type=1),raising=False)
     monkeypatch.setattr('builtins.input',lambda prompt:'REPARAR ENSAIO')
     legacy=tmp_path/'.ddn-venv';legacy.mkdir();(legacy/'partial').write_text('KEEP')
     (tmp_path/'requirements-prod.lock').write_text('FICTITIOUS LOCK')
@@ -171,6 +173,8 @@ def test_repair_preserves_partial_venv_and_previous_selection(tmp_path,monkeypat
 def test_repair_cancellation_and_forged_pointer_never_start_process(tmp_path,monkeypatch):
     monkeypatch.setattr(a,'verify_bundle',lambda root:None)
     monkeypatch.setattr(a.platform,'system',lambda:'Windows')
+    monkeypatch.setattr(a.platform,'machine',lambda:'AMD64')
+    monkeypatch.setattr(a.sys,'getwindowsversion',lambda:SimpleNamespace(build=22631,product_type=1),raising=False)
     monkeypatch.setattr('builtins.input',lambda prompt:'CANCELAR')
     monkeypatch.setattr(a.subprocess,'run',lambda *x,**k:pytest.fail('No process expected'))
     a.repair(tmp_path)

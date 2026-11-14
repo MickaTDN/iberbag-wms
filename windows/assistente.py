@@ -72,14 +72,18 @@ def windows_inventory():
     return json.loads(result.stdout.decode('utf-8-sig'))
 
 
-def install(root=ROOT):
-    verify_bundle(root)
+def check_windows11():
     if (platform.system() != 'Windows' or sys.getwindowsversion().build < 22000
             or sys.getwindowsversion().product_type != 1
             or platform.machine().lower() not in ('amd64', 'x86_64')):
         raise ValueError('Este pacote exige Windows 11 x64.')
     if sys.version_info[:2] != (3, 12):
         raise ValueError('É necessário Python 3.12 x64 aprovado pela equipa técnica.')
+
+
+def install(root=ROOT):
+    verify_bundle(root)
+    check_windows11()
     # Refuse arbitrary directories/previous environments; never repair by deleting.
     target = root / '.ddn-venv'
     if target.exists():
@@ -123,8 +127,7 @@ def repair(root=ROOT):
     """Build in its final unique path; never relocate a venv or delete failed work."""
     import uuid
     verify_bundle(root)
-    if platform.system() != 'Windows' or sys.version_info[:2] != (3, 12):
-        raise ValueError('Reparação exige Python 3.12 no Windows.')
+    check_windows11()
     parent = root / '.ddn-envs'
     if parent.is_symlink() or parent.is_junction():
         raise ValueError('Pasta de ambientes insegura.')

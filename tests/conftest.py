@@ -66,5 +66,5 @@ def pytest_runtest_makereport(item, call):
         if not detail.startswith(('ACL Windows privada', 'Pasta privada', 'Ficheiro de backup')):
             detail = kind
         message = (item.name.split('[')[0] + ': ' + detail).replace('%', '%25').replace('\n', '%0A').replace('\r', '%0D')
-        print(f'::error file={item.location[0]},line={item.location[1]+1}::{message}',
+        print(f'\n::error file={item.location[0]},line={item.location[1]+1}::{message}',
               file=sys.__stdout__ or sys.stdout,flush=True)

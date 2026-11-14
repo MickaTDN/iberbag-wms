@@ -44,19 +44,20 @@ def test_management_native_acl_refuses_user_writable_control_files(tmp_path,unsa
     assert result.returncode==(1 if unsafe else 0)
 
 
-@pytest.mark.parametrize('case',['status','start','forged_gva','gva_dependency','path_mismatch'])
+@pytest.mark.parametrize('case',['status','start','forged_gva','gva_dependency','path_mismatch','firewall','existing_rule','health_wrong','certificate_failure'])
 def test_management_simulated_scm_only_starts_verified_ddn_services(tmp_path,case):
     import hashlib,json
     deployment=tmp_path/'DDN';deployment.mkdir()
     binary=deployment/'host.exe';binary.write_bytes(b'FICTITIOUS-NOT-EXECUTABLE')
     names=['DDNWMS-Test-Postgres','DDNWMS-Test-WMS','DDNWMS-Test-HTTPS']
     config=deployment/'DDN_SERVICES.json'
-    config.write_text(json.dumps(dict(mode='homologacao',services=[dict(name=n,binary=str(binary),sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),imagePath=('"C:\\GVA\\host.exe"' if case=='path_mismatch' else '"'+str(binary)+'" '+n),account='NT SERVICE\\'+n) for n in names])))
+    config.write_text(json.dumps(dict(mode='homologacao',httpsUrl='https://ddn.invalid:8447',services=[dict(name=n,binary=str(binary),sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),imagePath=('"C:\\GVA\\host.exe"' if case=='path_mismatch' else '"'+str(binary)+'" '+n),account='NT SERVICE\\'+n) for n in names])))
     for path in (deployment,binary,config):
         for args in [('/inheritance:r',),('/grant:r','*S-1-5-32-544:(F)','*S-1-5-18:(F)'),('/setowner','*S-1-5-32-544')]:
             assert subprocess.run(['icacls',str(path),*args],capture_output=True).returncode==0
     log=tmp_path/'called.txt'
     prefix='$fixture=Get-Content -Raw '+quote(config)+'|ConvertFrom-Json;$log='+quote(log)+';$forged='+('$true' if case=='forged_gva' else '$false')+';$external='+('$true' if case=='gva_dependency' else '$false')+';'
+    prefix+='$mode='+quote(case)+';'
     mocks=r'''
 function Get-CimInstance($ClassName,$Filter) {
     $name=[regex]::Match($Filter,"Name='([^']+)'").Groups[1].Value
@@ -68,11 +69,25 @@ function Read-Host($Prompt){return 'DDN ENSAIO'}
 function Start-Service($Name){Add-Content -LiteralPath $log -Value $Name}
 function Stop-Service($Name){throw 'Unexpected stop'}
 function Get-Service($Name){$dependencies=@();if($external){$dependencies=@([pscustomobject]@{Name='GVA-SERVICE'})};$s=[pscustomobject]@{RequiredServices=$dependencies};$s|Add-Member ScriptMethod WaitForStatus {param($state,$timeout)};return $s}
+function Invoke-RestMethod($Uri,$TimeoutSec) {
+    if($Uri -ne 'https://ddn.invalid:8447/health' -or $TimeoutSec -ne 10){throw 'Unexpected request'}
+    if($mode -eq 'certificate_failure'){throw 'Fictitious certificate failure'}
+    $app='DDN WMS';if($mode -eq 'health_wrong'){$app='GVA'}
+    return [pscustomobject]@{status='ok';application=$app}
+}
+function Get-NetFirewallRule($Name) {if($mode -eq 'existing_rule'){return [pscustomobject]@{Name=$Name}}}
+function New-NetFirewallRule($Name,$DisplayName,$Direction,$Action,$Protocol,$LocalPort,$RemoteAddress,$Profile,$Program) {
+    @{name=$Name;direction=$Direction;action=$Action;protocol=$Protocol;port=$LocalPort;remote=$RemoteAddress;profile=$Profile;program=$Program}|ConvertTo-Json -Compress|Set-Content -Encoding UTF8 -LiteralPath $log
+}
+
 '''
-    action='Status' if case=='status' else 'Start'
+    action='Firewall' if case in ('firewall','existing_rule','health_wrong','certificate_failure') else ('Status' if case=='status' else 'Start')
     result=run_ps(prefix+mocks+';$env:PSModulePath='+quote(tmp_path/'untrusted-modules')+';& '+quote(ROOT/'windows/gestao.ps1')+' -Action '+action+' -Configuration '+quote(config))
-    assert result.returncode==(1 if case in ('forged_gva','gva_dependency','path_mismatch') else 0),result.stderr.decode(errors='replace')
-    assert (log.read_text().splitlines() if log.exists() else [])==(names if case=='start' else [])
+    assert result.returncode==(1 if case in ('forged_gva','gva_dependency','path_mismatch','existing_rule','health_wrong','certificate_failure') else 0),result.stderr.decode(errors='replace')
+    if case=='firewall':
+        assert json.loads(log.read_text(encoding='utf-8-sig'))==dict(name='DDNWMS-Test-HTTPS',direction='Inbound',action='Allow',protocol='TCP',port=8447,remote='LocalSubnet',profile='Private',program=str(binary))
+    else:
+        assert (log.read_text().splitlines() if log.exists() else [])==(names if case=='start' else [])
 
 
 def test_assistant_shortcut_native_creation_and_repeat_preserves_file(tmp_path):

@@ -1,6 +1,6 @@
 # Read-only by default. Elevation is requested visibly by GESTAO_DDN.bat.
 param([ValidateSet('Status','Start','Stop','Restart','Firewall','Shortcuts')][string]$Action='Status',
-      [string]$Configuration='C:\Program Files\DDN WMS Ensaio\DDN_SERVICES.json')
+      [string]$Configuration=(Join-Path $env:ProgramFiles 'DDN WMS Ensaio\DDN_SERVICES.json'))
 $ErrorActionPreference='Stop'
 function Assert-Protected([string]$Path) {
     $item=Get-Item -LiteralPath $Path

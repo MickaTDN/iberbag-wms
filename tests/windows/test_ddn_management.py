@@ -69,3 +69,15 @@ function Get-Service($Name){$s=[pscustomobject]@{};$s|Add-Member ScriptMethod Wa
     result=run_ps(prefix+mocks+';& '+quote(ROOT/'windows/gestao.ps1')+' -Action '+action+' -Configuration '+quote(config))
     assert result.returncode==(1 if case=='forged_gva' else 0),result.stderr.decode(errors='replace')
     assert (log.read_text().splitlines() if log.exists() else [])==(names if case=='start' else [])
+
+
+def test_assistant_shortcut_native_creation_and_repeat_preserves_file(tmp_path):
+    deployment=tmp_path/'DDN espaço á';(deployment/'windows').mkdir(parents=True)
+    (deployment/'INSTALAR_DDN_ENSAIO.bat').write_text('@echo off\nexit /b 0\n')
+    script=deployment/'windows/atalho_assistente.ps1'
+    shutil.copyfile(ROOT/'windows/atalho_assistente.ps1',script)
+    desktop=tmp_path/'desktop';desktop.mkdir()
+    code="function Read-Host($p){return 'CRIAR ATALHO'};& "+quote(script)+' -Destination '+quote(desktop)
+    assert run_ps(code).returncode==0
+    link=desktop/'DDN WMS - Assistente de ensaio.lnk';original=link.read_bytes()
+    assert run_ps(code).returncode==1 and link.read_bytes()==original

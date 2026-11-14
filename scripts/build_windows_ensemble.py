@@ -18,7 +18,7 @@ def build(wheels, output):
     for name in names:
         p = Path(name)
         if ((p.parts[0] in ('iberbag', 'migrations') and p.suffix in ('.py','.html','.css','.js','.svg','.txt','.png','.webmanifest'))
-            or name in ('requirements-prod.lock', 'windows/assistente.py', 'windows/INSTALAR_DDN_ENSAIO.bat', 'windows/GESTAO_DDN.bat', 'windows/gestao.ps1', 'windows/gestao_launcher.ps1',
+            or name in ('requirements-prod.lock', 'windows/assistente.py', 'windows/INSTALAR_DDN_ENSAIO.bat', 'windows/GESTAO_DDN.bat', 'windows/gestao.ps1', 'windows/gestao_launcher.ps1', 'windows/atalho_assistente.ps1',
                         'docs/DDN_PROVISIONAMENTO_ASSISTIDO.md',
                         'docs/INSTALADOR_DDN_ENSAIO.md', 'docs/INSTALACAO_WINDOWS.md', 'docs/PWA_OPERADORES.md',
                         'docs/HOMOLOGACAO_IBERBAG_COSMOPAK.md')):

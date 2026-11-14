@@ -112,6 +112,10 @@ A regra nova só abre a porta HTTPS dedicada, perfil Private, origem LocalSubnet
 HTTPS DDN. Regra existente não é alterada. Não abre 55433/8100. Nome de regra exclusivo
 DDN; alterações de firewall só por técnico autorizado, nunca numa execução normal.
 
+A opção 6 do assistente cria um atalho pessoal sem elevação. Exige confirmação e
+recusa sobrescrever atalho existente. O atalho de navegador só é criado após validar
+HTTPS/health pelo gestor técnico; não divulga um endereço ainda inválido.
+
 ## 5. Reparação de dependências e atualização sem apagar
 
 A opção **4 — Reparar** cria ambiente novo em `.ddn-envs/env-<id>` e instala wheels

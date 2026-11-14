@@ -166,7 +166,7 @@ def run_menu(root=ROOT):
 
 def main():
     print('DDN WMS — ENSAIO. Produção indisponível. Não altera serviços GVA.')
-    print('1 Instalar dependências locais\n2 Verificar pacote/portas/serviços (leitura)\n3 Assistente WMS existente\n4 Reparar dependências sem apagar\n5 Procedimento técnico PostgreSQL/serviços/HTTPS\n0 Sair')
+    print('1 Instalar dependências locais\n2 Verificar pacote/portas/serviços (leitura)\n3 Assistente WMS existente\n4 Reparar dependências sem apagar\n5 Procedimento técnico PostgreSQL/serviços/HTTPS\n6 Criar atalho pessoal do assistente\n0 Sair')
     choice = input('Opção: ').strip()
     try:
         if choice == '1': install()
@@ -179,6 +179,9 @@ def main():
         elif choice == '3': run_menu()
         elif choice == '4': repair()
         elif choice == '5': os.startfile(ROOT / 'docs' / 'DDN_PROVISIONAMENTO_ASSISTIDO.md')
+        elif choice == '6':
+            verify_bundle()
+            subprocess.run(['powershell.exe', '-NoProfile', '-File', str(ROOT / 'windows' / 'atalho_assistente.ps1')], check=True)
     except Exception:
         # Avoid exception repr/tracebacks: DB URLs/subprocess errors can hold secrets.
         print('Operação recusada ou falhou. Dados preservados. Consulte LEIA-ME; não repetir sem rever a causa.')

@@ -537,6 +537,12 @@ REQUIRED_WINDOWS.add('test_pwa_commands.test_mobile_encrypted_payload_lost_reply
 REQUIRED_POSTGRES.update({'test_pwa_commands.test_mobile_offline_chain_blocks_successors_and_retries_exactly','test_pwa_commands.test_mobile_server_dependencies_revalidate_without_consuming_successors'})
 REQUIRED_WINDOWS.add('test_pwa_commands.test_mobile_offline_chain_blocks_successors_and_retries_exactly')
 
+REQUIRED_POSTGRES.update({
+    'test_mobile_integrated.test_real_mobile_offline_commit_lost_reply_office_close_and_restore',
+    'test_mobile_integrated.test_shared_rack_mobile_receiving_two_operators_partial_dispatch_inventory',
+})
+REQUIRED_WINDOWS.add('test_workstation_diagnostic.test_windows_diagnostic_matches_health_and_rejects_unsafe_post')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

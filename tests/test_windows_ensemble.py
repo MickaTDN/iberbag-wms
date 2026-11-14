@@ -11,10 +11,10 @@ a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
 
 
 def settings(**changes):
-    return dict(database='ddn_wms_ensaio_test',user='ddn_wms_runtime',postgres=55432,http=8100,https=8443,**changes)
+    return dict(database='ddn_wms_ensaio_test',user='ddn_wms_runtime',postgres=55433,http=8100,https=8447,**changes)
 
 
-@pytest.mark.parametrize('field,value', [('database','gva'),('database','production_test'),('user','postgres'),('postgres',5432),('http',55432),('https',443),('http',True)])
+@pytest.mark.parametrize('field,value', [('database','gva'),('database','production_test'),('user','postgres'),('postgres',5432),('http',55433),('https',443),('http',True)])
 def test_ensemble_rejects_unsafe_targets(field,value):
     conf=settings();conf[field]=value
     with pytest.raises(ValueError):a.validate(conf)
@@ -25,7 +25,7 @@ def test_ensemble_environment_never_inherits_database_or_bootstrap_injection(mon
         monkeypatch.setenv(name,'FICTITIOUS-UNTRUSTED')
     env=a.isolated_environment()
     assert not any(k.upper().startswith(('PG','WMS_','PIP_','PYTHON','DDN_')) for k in env)
-    assert a.validate(settings())['postgres']==55432
+    assert a.validate(settings())['postgres']==55433
 
 
 @pytest.mark.parametrize('case', ['existing','occupied','unsupported','cancelled','failure'])
@@ -104,7 +104,7 @@ def test_ensemble_menu_reserved_port_never_starts_process(monkeypatch):
 def test_ensemble_restore_stays_in_ddn_namespace(monkeypatch,target,allowed):
     from iberbag import windows_menu
     monkeypatch.setattr('sys.argv',['assistant','--isolated-ensemble'])
-    monkeypatch.setenv('DDN_TEST_PG_PORT','55432');monkeypatch.setenv('DDN_TEST_HTTP_PORT','8100')
+    monkeypatch.setenv('DDN_TEST_PG_PORT','55433');monkeypatch.setenv('DDN_TEST_HTTP_PORT','8100')
     answers=iter(['7','DDN ISOLADO','FICTITIOUS-BACKUP',target,'0'])
     monkeypatch.setattr('builtins.input',lambda prompt:next(answers))
     calls=[];monkeypatch.setattr(windows_menu.subprocess,'call',lambda args,env:calls.append((args,env)) or 0)
@@ -112,3 +112,27 @@ def test_ensemble_restore_stays_in_ddn_namespace(monkeypatch,target,allowed):
     assert len(calls)==int(allowed)
     if allowed:
         assert calls[0][1]['WMS_DB_NAME']==target and calls[0][1]['WMS_DB_USER']=='ddn_wms_owner'
+
+
+@pytest.mark.parametrize('field,port',[('postgres',55432),('http',8765),('https',8443)])
+def test_ensemble_known_gva_ports_are_never_adopted(field,port):
+    config=settings();config[field]=port
+    with pytest.raises(ValueError):a.validate(config)
+
+
+def test_ensemble_custom_ports_are_checked_instead_of_defaults(tmp_path,monkeypatch):
+    custom=settings();custom.update(postgres=55439,http=8119,https=8459)
+    (tmp_path/'DDN_LOCAL.json').write_text(json.dumps(custom))
+    assert a.load_settings(tmp_path)==custom
+    monkeypatch.setattr(a,'verify_bundle',lambda root:None)
+    monkeypatch.setattr(a.platform,'system',lambda:'Windows')
+    monkeypatch.setattr(a.platform,'machine',lambda:'AMD64')
+    monkeypatch.setattr(a.sys,'getwindowsversion',lambda:SimpleNamespace(build=22631,product_type=1),raising=False)
+    checked=[]
+    def probe(port):
+        checked.append(port)
+        return 'ocupada' if port==8459 else 'livre'
+    monkeypatch.setattr(a,'probe',probe)
+    monkeypatch.setattr(a.subprocess,'run',lambda *x,**k:pytest.fail('Occupied custom port must block installation'))
+    with pytest.raises(ValueError):a.install(tmp_path)
+    assert checked==[55439,8119,8459]

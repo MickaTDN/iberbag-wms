@@ -22,17 +22,23 @@ pedido: as pendências abaixo impedem homologação e uso oficial.
    nem se afirma que qualquer build externo foi validado. Não desativar Trend Micro,
    UAC ou políticas para o instalar. Esta etapa ainda requer intervenção técnica.
 5. Duplo clique em **INSTALAR_DDN_ENSAIO.bat**, escolher **2** para diagnóstico apenas
-   de leitura. Verificar portas DDN propostas: PostgreSQL **55432**, HTTP interno
-   **8100**, HTTPS **8443**. Qualquer conflito bloqueia instalação; não parar aplicações
+   de leitura. Verificar portas DDN propostas: PostgreSQL **55433**, HTTP interno
+   **8100**, HTTPS **8447**. Qualquer conflito bloqueia instalação; não parar aplicações
    nem adotar o serviço que já usa a porta.
 6. Escolher **1**, confirmar `INSTALAR ENSAIO`. Instala `.ddn-venv` apenas nessa pasta,
    offline, a partir dos wheels fixados. Repetição preserva a instalação e recusa
    reparação automática. Não remover a pasta para tentar corrigir uma falha sem revisão.
 
+A auditoria GVA confirmou PostgreSQL **55432**, HTTP **8765** e possível HTTPS
+**8443**. Estas portas ficam reservadas no perfil de ensaio DDN: uma configuração
+que as utilize é recusada mesmo que a sonda momentaneamente as encontre livres.
+A verificação de disponibilidade também se aplica às portas alternativas configuradas
+em `DDN_LOCAL.json`, não apenas aos defaults. Nunca reconfigurar a GVA para abrir espaço.
+
 ## Preparação técnica ainda obrigatória
 
 Antes da opção **3**, a equipa técnica deve preparar uma instância PostgreSQL 17
-**dedicada**, em loopback, porta 55432 (ou outra porta DDN comprovadamente livre),
+**dedicada**, em loopback, porta 55433 (ou outra porta DDN comprovadamente livre),
 sem alterar cluster, serviços, contas, configurações ou dados da GVA. Não se suporta
 adoção automática de PostgreSQL partilhado. Base `ddn_wms_ensaio_test`, manutenção
 `ddn_wms_owner` e runtime `ddn_wms_runtime`, separadas. Usar o procedimento existente
@@ -54,7 +60,7 @@ manutenção exigem confirmação explícita da instância DDN isolada e conta p
 Não executar simultaneamente operações de manutenção e o servidor.
 
 O HTTPS dedicado exige preparação técnica própria (por exemplo Caddy oficial aprovado),
-certificado DDN confiável, DNS e porta 8443 sem conflito. Reutilizar o guia HTTPS/PWA;
+certificado DDN confiável, DNS e porta 8447 sem conflito. Reutilizar o guia HTTPS/PWA;
 não executar `INICIAR_HTTPS.bat` antigo com os defaults na máquina GVA. Não modificar
 certificados, gateway, mTLS ou firewall GVA; qualquer regra DDN exige autorização
 explícita. Porta interna HTTP e PostgreSQL nunca acessíveis na rede. O endereço só deve

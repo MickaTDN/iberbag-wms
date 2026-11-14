@@ -10,7 +10,8 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
-PORTS = {'postgres': 55432, 'http': 8100, 'https': 8443}
+PORTS = {'postgres': 55433, 'http': 8100, 'https': 8447}
+RESERVED_PORTS = {5432, 8000, 55432, 8765, 8443}
 
 
 def isolated_environment():
@@ -27,9 +28,18 @@ def validate(settings):
     if any(type(p) is not int or not 1024 <= p <= 65535 for p in ports) or len(set(ports)) != 3:
         raise ValueError('Escolher três portas distintas entre 1024 e 65535.')
     # Do not silently adopt standard PostgreSQL/HTTPS endpoints used by other apps.
-    if any(p in (5432, 8000) for p in ports):
+    if any(p in RESERVED_PORTS for p in ports):
         raise ValueError('Portas históricas reservadas; escolher portas DDN próprias.')
     return settings
+
+
+def load_settings(root):
+    local = root / 'DDN_LOCAL.json'
+    default = root / 'DDN_ENSAIO.json'
+    path = local if local.exists() else default
+    if path.exists():
+        return validate(json.loads(path.read_text(encoding='utf-8')))
+    return validate(dict(database='ddn_wms_ensaio_test', user='ddn_wms_runtime', **PORTS))
 
 
 def verify_bundle(root=ROOT):
@@ -74,7 +84,8 @@ def install(root=ROOT):
     target = root / '.ddn-venv'
     if target.exists():
         raise ValueError('Instalação existente preservada. Usar Verificar; atualização/reparação exige revisão técnica.')
-    for port in PORTS.values():
+    settings = load_settings(root)
+    for port in (settings[k] for k in PORTS):
         if probe(port) != 'livre':
             raise ValueError('Conflito de portas. Nada foi instalado; rever recursos DDN/GVA.')
     if input('Instalar dependências APENAS nesta pasta? Escreva INSTALAR ENSAIO: ') != 'INSTALAR ENSAIO':
@@ -94,8 +105,7 @@ def run_menu(root=ROOT):
     python = root / '.ddn-venv' / 'Scripts' / 'python.exe'
     if not python.is_file():
         raise ValueError('Escolha primeiro Instalar dependências.')
-    local = root / 'DDN_LOCAL.json'
-    settings = validate(json.loads((local if local.exists() else root / 'DDN_ENSAIO.json').read_text(encoding='utf-8')))
+    settings = load_settings(root)
     env = isolated_environment()
     env.update(DDN_TEST_PG_PORT=str(settings['postgres']), DDN_TEST_HTTP_PORT=str(settings['http']))
     # Existing assistant asks credentials via getpass; none stored or passed in argv.
@@ -111,7 +121,8 @@ def main():
         elif choice == '2':
             manifest = verify_bundle()
             print('Commit:', manifest['commit'])
-            print('Portas DDN:', {k: probe(v) for k, v in PORTS.items()})
+            settings = load_settings(ROOT)
+            print('Portas DDN:', {k: probe(settings[k]) for k in PORTS})
             print('Serviços existentes (só leitura):', windows_inventory())
         elif choice == '3': run_menu()
     except Exception:

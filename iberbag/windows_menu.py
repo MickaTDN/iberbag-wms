@@ -18,11 +18,11 @@ def main():
     # The assisted test menu must not accidentally inherit a production URL.
     env.pop('WMS_DATABASE_URL', None)
     env['WMS_DB_HOST'] = '127.0.0.1'
-    port = int(os.environ.get('DDN_TEST_PG_PORT', '55432')) if isolated else int(input('Porta PostgreSQL [5432]: ').strip() or '5432')
+    port = int(os.environ.get('DDN_TEST_PG_PORT', '55433')) if isolated else int(input('Porta PostgreSQL [55433]: ').strip() or '55433')
     http_port = int(os.environ.get('DDN_TEST_HTTP_PORT', '8100')) if isolated else 8000
     if not 1024 <= port <= 65535 or not 1024 <= http_port <= 65535 or port == http_port:
         raise SystemExit('Portas inválidas.')
-    if isolated and (port in (5432,8000) or http_port in (5432,8000)):
+    if isolated and (port in (5432,8000,55432,8765,8443) or http_port in (5432,8000,55432,8765,8443)):
         raise SystemExit('Portas reservadas; configurar recursos DDN próprios.')
     env['WMS_DB_PORT'] = str(port)
     env['WMS_HTTP_PORT'] = str(http_port)

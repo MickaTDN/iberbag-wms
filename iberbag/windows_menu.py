@@ -5,8 +5,12 @@ import sys
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--isolated-ensemble', action='store_true')
+    isolated = parser.parse_args().isolated_ensemble
     print('DDN WMS — ensaio de instalação Windows; usar apenas dados fictícios.')
-    name = input('Nome da base de TESTE [iberbag_ensaio_test]: ').strip() or 'iberbag_ensaio_test'
+    name = 'ddn_wms_ensaio_test' if isolated else (input('Nome da base de TESTE [iberbag_ensaio_test]: ').strip() or 'iberbag_ensaio_test')
     if not name.endswith('_test') or not name.replace('_', '').isalnum():
         raise SystemExit('Usar letras, números, _ e nome terminado em _test.')
     env = {k:v for k,v in os.environ.items() if not k.startswith(('WMS_', 'PG'))}
@@ -14,8 +18,15 @@ def main():
     # The assisted test menu must not accidentally inherit a production URL.
     env.pop('WMS_DATABASE_URL', None)
     env['WMS_DB_HOST'] = '127.0.0.1'
-    env['WMS_DB_PORT'] = '5432'
-    env['WMS_DB_USER'] = input('Utilizador PostgreSQL [iberbag_app]: ').strip() or 'iberbag_app'
+    port = int(os.environ.get('DDN_TEST_PG_PORT', '55433')) if isolated else int(input('Porta PostgreSQL [55433]: ').strip() or '55433')
+    http_port = int(os.environ.get('DDN_TEST_HTTP_PORT', '8100')) if isolated else 8000
+    if not 1024 <= port <= 65535 or not 1024 <= http_port <= 65535 or port == http_port:
+        raise SystemExit('Portas inválidas.')
+    if isolated and (port in (5432,8000,55432,8765,8443) or http_port in (5432,8000,55432,8765,8443)):
+        raise SystemExit('Portas reservadas; configurar recursos DDN próprios.')
+    env['WMS_DB_PORT'] = str(port)
+    env['WMS_HTTP_PORT'] = str(http_port)
+    env['WMS_DB_USER'] = 'ddn_wms_runtime' if isolated else (input('Utilizador PostgreSQL [iberbag_app]: ').strip() or 'iberbag_app')
     options = {
         '1': ['-m', 'iberbag.demo'],
         '2': ['-m', 'iberbag.transfer', 'preview'],
@@ -51,6 +62,11 @@ def main():
             continue
         args = list(options[choice])
         current = dict(env)
+        if isolated and choice in ('3','7','8','9','10','11'):
+            print('Requer conta de manutenção DDN; não usar conta ou cluster GVA.')
+            if input('Instância DDN dedicada comprovada? Escreva DDN ISOLADO: ') != 'DDN ISOLADO':
+                continue
+            current['WMS_DB_USER'] = 'ddn_wms_owner'
         if choice in ('2', '3', '4'):
             if choice == '2':
                 args += ['--source', input('Ficheiro SQLite FICTÍCIO: ').strip().strip('"')]
@@ -63,7 +79,8 @@ def main():
             args += ['--folder', input('Pasta do backup (nova ao criar): ').strip().strip('"')]
         if choice == '7':
             target = input('OUTRA base vazia para restauro, terminada em _test: ').strip()
-            if target == name or not target.endswith('_test') or not target.replace('_', '').isalnum():
+            if (target == name or not target.endswith('_test') or not target.replace('_', '').isalnum()
+                    or (isolated and not target.startswith('ddn_wms_restore_'))):
                 print('Destino inválido; não foi executado restauro.')
                 continue
             current['WMS_DB_NAME'] = target

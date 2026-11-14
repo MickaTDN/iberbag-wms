@@ -70,6 +70,7 @@ def test_ensemble_build_allowlist_excludes_untracked_secrets(tmp_path):
     with zipfile.ZipFile(archive) as z:
         names=z.namelist()
         assert 'MANIFEST.json' in names and 'INSTALAR_DDN_ENSAIO.bat' in names
+        assert 'iberbag/pwa/manifest.webmanifest' in names and 'iberbag/pwa/icon-192.png' in names
         assert not any(n.endswith(('.db','.xlsm','.xlsx','.pem','.key','.env')) or n.startswith(('tests/','.git/')) for n in names)
         z.extractall(tmp_path/'extracted')
     a.verify_bundle(tmp_path/'extracted')

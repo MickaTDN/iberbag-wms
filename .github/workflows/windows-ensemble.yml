@@ -16,7 +16,8 @@ jobs:
         with:
           python-version: '3.12'
       - name: Download only hash-pinned Windows wheels
-        run: python -m pip download --only-binary=:all: -r requirements-prod.lock --dest wheels
+        run: |
+          python -m pip download --only-binary=:all: -r requirements-prod.lock --dest wheels
       - name: Build allowlisted source package
         run: python scripts/build_windows_ensemble.py --wheels wheels --output dist
       - name: Verify extracted package and install its wheels on Windows Server runner

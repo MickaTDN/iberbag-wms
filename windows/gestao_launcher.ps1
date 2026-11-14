@@ -1,4 +1,6 @@
 $ErrorActionPreference='Stop'
+# Use OS modules only; do not inherit a PowerShell 7/GVA/user module search path.
+$env:PSModulePath=[IO.Path]::Combine($PSHOME,'Modules')
 try {
     # Never elevate a script from Downloads or another user-writable extraction.
     $root=Join-Path $env:ProgramFiles 'DDN WMS Ensaio'

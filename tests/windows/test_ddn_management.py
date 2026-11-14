@@ -9,7 +9,7 @@ ROOT=Path(__file__).resolve().parents[2]
 
 
 def run_ps(code):
-    result=subprocess.run([shutil.which('powershell'),'-NoProfile','-NonInteractive','-Command',code],capture_output=True,timeout=30)
+    result=subprocess.run([shutil.which('powershell'),'-NoProfile','-NonInteractive','-Command',"$env:PSModulePath=[IO.Path]::Combine($PSHOME,'Modules');"+code],capture_output=True,timeout=30)
     if result.returncode:
         import re,sys
         for label in re.findall(r'DDN_DIAGNOSTIC:([A-Za-z ]+)',result.stdout.decode(errors='replace')):

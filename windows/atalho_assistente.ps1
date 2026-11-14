@@ -1,5 +1,7 @@
 param([string]$Destination=[Environment]::GetFolderPath('DesktopDirectory'))
 $ErrorActionPreference='Stop'
+# Use OS modules only; do not inherit a PowerShell 7/GVA/user module search path.
+$env:PSModulePath=[IO.Path]::Combine($PSHOME,'Modules')
 try {
     $root=Split-Path $PSScriptRoot
     $batch=Join-Path $root 'INSTALAR_DDN_ENSAIO.bat'

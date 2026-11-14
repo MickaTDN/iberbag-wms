@@ -2,6 +2,8 @@
 param([ValidateSet('Status','Start','Stop','Restart','Firewall','Shortcuts')][string]$Action='Status',
       [string]$Configuration=(Join-Path $env:ProgramFiles 'DDN WMS Ensaio\DDN_SERVICES.json'))
 $ErrorActionPreference='Stop'
+# Use OS modules only; do not inherit a PowerShell 7/GVA/user module search path.
+$env:PSModulePath=[IO.Path]::Combine($PSHOME,'Modules')
 function Assert-Protected([string]$Path) {
     $item=Get-Item -LiteralPath $Path
     if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Reparse point' }
@@ -74,6 +76,7 @@ try {
     $reason=$_.Exception.Message
     $known=@('Reparse point','Inherited ACL','Untrusted owner','Writable by another identity','Only rehearsal','Three dedicated services required','Unknown/duplicate service','Binary outside DDN deployment','Binary changed','Service identity differs','Privileged service account refused','External service dependency','Unsafe URL','Unhealthy endpoint','Existing firewall rule preserved','Existing shortcut preserved')
     if ($reason -notin $known) { $reason=$_.Exception.GetType().Name }
+    if ($_.TargetObject -in @('Get-Acl','Get-Item','Assert-Protected','Get-CimInstance','ConvertFrom-Json')) { $reason+=' '+$_.TargetObject }
     Write-Host ('DDN_DIAGNOSTIC:'+ $reason)
     Write-Host 'Operacao DDN recusada/falhou; sem rollback automatico. Ver procedimento tecnico e estado real. Nao alterar a GVA.'
     exit 1

@@ -11,7 +11,7 @@ try {
     if ((Read-Host 'Criar atalho pessoal sem elevacao? Escreva CRIAR ATALHO') -cne 'CRIAR ATALHO') { exit 0 }
     $shell=New-Object -ComObject WScript.Shell
     $shortcut=$shell.CreateShortcut($link)
-    $shortcut.TargetPath=Join-Path $env:SystemRoot 'System32\cmd.exe'
+    $shortcut.TargetPath=[IO.Path]::Combine([Environment]::SystemDirectory,'cmd.exe')
     $shortcut.Arguments='/d /s /c ""'+$batch+'""'
     $shortcut.WorkingDirectory=$root
     $shortcut.Description='DDN WMS - ensaio; nao inicia servicos administrativos automaticamente'

@@ -22,7 +22,8 @@ try {
     $action=$choices[(Read-Host 'Opcao')]
     if (-not $action) { exit 0 }
     $arguments='-NoProfile -File "'+$manager+'" -Action '+$action
-    $process=Start-Process powershell.exe -Verb RunAs -ArgumentList $arguments -Wait -PassThru
+    $engine=[IO.Path]::Combine([Environment]::SystemDirectory,'WindowsPowerShell\v1.0\powershell.exe')
+    $process=Start-Process $engine -Verb RunAs -ArgumentList $arguments -Wait -PassThru
     exit $process.ExitCode
 } catch {
     Write-Host 'Gestao indisponivel. Requer implantacao DDN protegida em Program Files e aprovacao UAC. Nao executar como administrador a copia em Downloads.'

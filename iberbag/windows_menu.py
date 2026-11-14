@@ -62,7 +62,7 @@ def main():
             continue
         args = list(options[choice])
         current = dict(env)
-        if isolated and choice in ('3','8','9','10','11'):
+        if isolated and choice in ('3','7','8','9','10','11'):
             print('Requer conta de manutenção DDN; não usar conta ou cluster GVA.')
             if input('Instância DDN dedicada comprovada? Escreva DDN ISOLADO: ') != 'DDN ISOLADO':
                 continue
@@ -79,7 +79,8 @@ def main():
             args += ['--folder', input('Pasta do backup (nova ao criar): ').strip().strip('"')]
         if choice == '7':
             target = input('OUTRA base vazia para restauro, terminada em _test: ').strip()
-            if target == name or not target.endswith('_test') or not target.replace('_', '').isalnum():
+            if (target == name or not target.endswith('_test') or not target.replace('_', '').isalnum()
+                    or (isolated and not target.startswith('ddn_wms_restore_'))):
                 print('Destino inválido; não foi executado restauro.')
                 continue
             current['WMS_DB_NAME'] = target

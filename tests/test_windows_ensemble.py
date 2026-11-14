@@ -98,3 +98,17 @@ def test_ensemble_menu_reserved_port_never_starts_process(monkeypatch):
     monkeypatch.setenv('DDN_TEST_PG_PORT','5432')
     monkeypatch.setattr(windows_menu.subprocess,'call',lambda *a,**k:pytest.fail('Must not start'))
     with pytest.raises(SystemExit):windows_menu.main()
+
+
+@pytest.mark.parametrize('target,allowed',[('gva_restore_test',False),('ddn_wms_restore_probe_test',True)])
+def test_ensemble_restore_stays_in_ddn_namespace(monkeypatch,target,allowed):
+    from iberbag import windows_menu
+    monkeypatch.setattr('sys.argv',['assistant','--isolated-ensemble'])
+    monkeypatch.setenv('DDN_TEST_PG_PORT','55432');monkeypatch.setenv('DDN_TEST_HTTP_PORT','8100')
+    answers=iter(['7','DDN ISOLADO','FICTITIOUS-BACKUP',target,'0'])
+    monkeypatch.setattr('builtins.input',lambda prompt:next(answers))
+    calls=[];monkeypatch.setattr(windows_menu.subprocess,'call',lambda args,env:calls.append((args,env)) or 0)
+    windows_menu.main()
+    assert len(calls)==int(allowed)
+    if allowed:
+        assert calls[0][1]['WMS_DB_NAME']==target and calls[0][1]['WMS_DB_USER']=='ddn_wms_owner'

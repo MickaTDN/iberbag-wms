@@ -26,7 +26,12 @@ não criar tarefas privilegiadas nem afirmar que o arranque automático está co
 
 ## 2. PostgreSQL dedicado — preparação com revisão humana
 
-Abrir terminal administrativo por UAC para esta preparação. Usar caminhos completos
+Abrir terminal administrativo por UAC para esta preparação. Antes de usar ferramentas
+PostgreSQL, remover variáveis `PG*` **apenas dessa sessão** (`Get-ChildItem Env:PG* |
+Remove-Item`), sem alterar variáveis globais, serviços ou configuração da GVA. Confirmar
+que não restam PGHOSTADDR/PGSERVICE/PGOPTIONS herdadas; valores explícitos de host não
+neutralizam por si só todas as opções libpq. Fornecer host/hostaddr loopback, porta,
+base e utilizador DDN explicitamente em cada ligação. Usar caminhos completos
 para os binários DDN aprovados, nunca `pg_ctl`/`psql` encontrados por PATH. Rever cada
 comando antes de o executar; este documento não é um script de execução automática.
 

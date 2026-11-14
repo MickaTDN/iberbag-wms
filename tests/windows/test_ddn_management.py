@@ -10,6 +10,10 @@ ROOT=Path(__file__).resolve().parents[2]
 
 def run_ps(code):
     result=subprocess.run([shutil.which('powershell'),'-NoProfile','-NonInteractive','-Command',code],capture_output=True,timeout=30)
+    if result.returncode:
+        import re,sys
+        for label in re.findall(r'DDN_DIAGNOSTIC:([A-Za-z ]+)',result.stdout.decode(errors='replace')):
+            print('\n::notice title=DDN native guard::'+label, file=sys.__stdout__,flush=True)
     return result
 
 
@@ -35,7 +39,7 @@ def test_management_native_acl_refuses_user_writable_control_files(tmp_path,unsa
     if not unsafe:assert subprocess.run(['icacls',str(file),'/grant','*S-1-1-0:(R)'],capture_output=True).returncode==0
     if unsafe:assert subprocess.run(['icacls',str(file),'/grant','*S-1-1-0:(M)'],capture_output=True).returncode==0
     # Extract and run the real guard, not a copy. No service operation is executed.
-    code='$t=$null;$e=$null;$ast=[Management.Automation.Language.Parser]::ParseFile('+quote(ROOT/'windows/gestao.ps1')+',[ref]$t,[ref]$e);$f=$ast.Find({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq "Assert-Protected"},$true);Invoke-Expression $f.Extent.Text;try{Assert-Protected '+quote(file)+';exit 0}catch{exit 1}'
+    code='$t=$null;$e=$null;$ast=[Management.Automation.Language.Parser]::ParseFile('+quote(ROOT/'windows/gestao.ps1')+',[ref]$t,[ref]$e);$f=$ast.Find({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq "Assert-Protected"},$true);Invoke-Expression $f.Extent.Text;try{Assert-Protected '+quote(file)+';exit 0}catch{Write-Output ("DDN_DIAGNOSTIC:"+$_.Exception.Message);exit 1}'
     result=run_ps(code)
     assert result.returncode==(1 if unsafe else 0)
 

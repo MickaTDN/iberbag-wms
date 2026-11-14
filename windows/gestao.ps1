@@ -71,6 +71,10 @@ try {
         }
     }
 } catch {
+    $reason=$_.Exception.Message
+    $known=@('Reparse point','Inherited ACL','Untrusted owner','Writable by another identity','Only rehearsal','Three dedicated services required','Unknown/duplicate service','Binary outside DDN deployment','Binary changed','Service identity differs','Privileged service account refused','External service dependency','Unsafe URL','Unhealthy endpoint','Existing firewall rule preserved','Existing shortcut preserved')
+    if ($reason -notin $known) { $reason=$_.Exception.GetType().Name }
+    Write-Host ('DDN_DIAGNOSTIC:'+ $reason)
     Write-Host 'Operacao DDN recusada/falhou; sem rollback automatico. Ver procedimento tecnico e estado real. Nao alterar a GVA.'
     exit 1
 }

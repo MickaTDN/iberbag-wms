@@ -44,7 +44,7 @@ def test_management_native_acl_refuses_user_writable_control_files(tmp_path,unsa
     assert result.returncode==(1 if unsafe else 0)
 
 
-@pytest.mark.parametrize('case',['status','start','forged_gva'])
+@pytest.mark.parametrize('case',['status','start','forged_gva','gva_dependency'])
 def test_management_simulated_scm_only_starts_verified_ddn_services(tmp_path,case):
     import hashlib,json
     deployment=tmp_path/'DDN';deployment.mkdir()
@@ -56,7 +56,7 @@ def test_management_simulated_scm_only_starts_verified_ddn_services(tmp_path,cas
         for args in [('/inheritance:r',),('/grant:r','*S-1-5-32-544:(F)','*S-1-5-18:(F)'),('/setowner','*S-1-5-32-544')]:
             assert subprocess.run(['icacls',str(path),*args],capture_output=True).returncode==0
     log=tmp_path/'called.txt'
-    prefix='$fixture=Get-Content -Raw '+quote(config)+'|ConvertFrom-Json;$log='+quote(log)+';$forged='+('$true' if case=='forged_gva' else '$false')+';'
+    prefix='$fixture=Get-Content -Raw '+quote(config)+'|ConvertFrom-Json;$log='+quote(log)+';$forged='+('$true' if case=='forged_gva' else '$false')+';$external='+('$true' if case=='gva_dependency' else '$false')+';'
     mocks=r'''
 function Get-CimInstance($ClassName,$Filter) {
     $name=[regex]::Match($Filter,"Name='([^']+)'").Groups[1].Value
@@ -67,11 +67,11 @@ function Get-CimInstance($ClassName,$Filter) {
 function Read-Host($Prompt){return 'DDN ENSAIO'}
 function Start-Service($Name){Add-Content -LiteralPath $log -Value $Name}
 function Stop-Service($Name){throw 'Unexpected stop'}
-function Get-Service($Name){$s=[pscustomobject]@{};$s|Add-Member ScriptMethod WaitForStatus {param($state,$timeout)};return $s}
+function Get-Service($Name){$dependencies=@();if($external){$dependencies=@([pscustomobject]@{Name='GVA-SERVICE'})};$s=[pscustomobject]@{RequiredServices=$dependencies};$s|Add-Member ScriptMethod WaitForStatus {param($state,$timeout)};return $s}
 '''
     action='Status' if case=='status' else 'Start'
-    result=run_ps(prefix+mocks+';& '+quote(ROOT/'windows/gestao.ps1')+' -Action '+action+' -Configuration '+quote(config))
-    assert result.returncode==(1 if case=='forged_gva' else 0),result.stderr.decode(errors='replace')
+    result=run_ps(prefix+mocks+';$env:PSModulePath='+quote(tmp_path/'untrusted-modules')+';& '+quote(ROOT/'windows/gestao.ps1')+' -Action '+action+' -Configuration '+quote(config))
+    assert result.returncode==(1 if case in ('forged_gva','gva_dependency') else 0),result.stderr.decode(errors='replace')
     assert (log.read_text().splitlines() if log.exists() else [])==(names if case=='start' else [])
 
 

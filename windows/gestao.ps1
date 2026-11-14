@@ -31,6 +31,8 @@ try {
         $seen+=$entry.name
         $binary=[IO.Path]::GetFullPath($entry.binary)
         if (-not $binary.StartsWith($deployment+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) { throw 'Binary outside DDN deployment' }
+        $prefix='"'+$binary+'"'
+        if (-not $entry.imagePath.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase) -or ($entry.imagePath.Length -gt $prefix.Length -and $entry.imagePath[$prefix.Length] -ne ' ')) { throw 'Unquoted or different executable' }
         $parent=Split-Path $binary
         while($parent -ne $deployment) { Assert-Protected $parent; $parent=Split-Path $parent }
         Assert-Protected $entry.binary
@@ -74,7 +76,7 @@ try {
     }
 } catch {
     $reason=$_.Exception.Message
-    $known=@('Reparse point','Inherited ACL','Untrusted owner','Writable by another identity','Only rehearsal','Three dedicated services required','Unknown/duplicate service','Binary outside DDN deployment','Binary changed','Service identity differs','Privileged service account refused','External service dependency','Unsafe URL','Unhealthy endpoint','Existing firewall rule preserved','Existing shortcut preserved')
+    $known=@('Reparse point','Inherited ACL','Untrusted owner','Writable by another identity','Only rehearsal','Three dedicated services required','Unknown/duplicate service','Binary outside DDN deployment','Binary changed','Unquoted or different executable','Service identity differs','Privileged service account refused','External service dependency','Unsafe URL','Unhealthy endpoint','Existing firewall rule preserved','Existing shortcut preserved')
     if ($reason -notin $known) { $reason=$_.Exception.GetType().Name }
     if ($_.TargetObject -in @('Get-Acl','Get-Item','Assert-Protected','Get-CimInstance','ConvertFrom-Json')) { $reason+=' '+$_.TargetObject }
     Write-Host ('DDN_DIAGNOSTIC:'+ $reason)

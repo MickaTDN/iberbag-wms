@@ -44,14 +44,14 @@ def test_management_native_acl_refuses_user_writable_control_files(tmp_path,unsa
     assert result.returncode==(1 if unsafe else 0)
 
 
-@pytest.mark.parametrize('case',['status','start','forged_gva','gva_dependency'])
+@pytest.mark.parametrize('case',['status','start','forged_gva','gva_dependency','path_mismatch'])
 def test_management_simulated_scm_only_starts_verified_ddn_services(tmp_path,case):
     import hashlib,json
     deployment=tmp_path/'DDN';deployment.mkdir()
     binary=deployment/'host.exe';binary.write_bytes(b'FICTITIOUS-NOT-EXECUTABLE')
     names=['DDNWMS-Test-Postgres','DDNWMS-Test-WMS','DDNWMS-Test-HTTPS']
     config=deployment/'DDN_SERVICES.json'
-    config.write_text(json.dumps(dict(mode='homologacao',services=[dict(name=n,binary=str(binary),sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),imagePath='FICTITIOUS '+n,account='NT SERVICE\\'+n) for n in names])))
+    config.write_text(json.dumps(dict(mode='homologacao',services=[dict(name=n,binary=str(binary),sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),imagePath=('"C:\\GVA\\host.exe"' if case=='path_mismatch' else '"'+str(binary)+'" '+n),account='NT SERVICE\\'+n) for n in names])))
     for path in (deployment,binary,config):
         for args in [('/inheritance:r',),('/grant:r','*S-1-5-32-544:(F)','*S-1-5-18:(F)'),('/setowner','*S-1-5-32-544')]:
             assert subprocess.run(['icacls',str(path),*args],capture_output=True).returncode==0
@@ -71,7 +71,7 @@ function Get-Service($Name){$dependencies=@();if($external){$dependencies=@([psc
 '''
     action='Status' if case=='status' else 'Start'
     result=run_ps(prefix+mocks+';$env:PSModulePath='+quote(tmp_path/'untrusted-modules')+';& '+quote(ROOT/'windows/gestao.ps1')+' -Action '+action+' -Configuration '+quote(config))
-    assert result.returncode==(1 if case in ('forged_gva','gva_dependency') else 0),result.stderr.decode(errors='replace')
+    assert result.returncode==(1 if case in ('forged_gva','gva_dependency','path_mismatch') else 0),result.stderr.decode(errors='replace')
     assert (log.read_text().splitlines() if log.exists() else [])==(names if case=='start' else [])
 
 

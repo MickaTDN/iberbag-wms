@@ -545,6 +545,9 @@ REQUIRED_WINDOWS.add('test_workstation_diagnostic.test_windows_diagnostic_matche
 REQUIRED_POSTGRES.add('test_windows_ensemble.test_ensemble_install_never_repairs_deletes_or_touches_other_services')
 REQUIRED_WINDOWS.add('test_windows_ensemble.test_ensemble_install_never_repairs_deletes_or_touches_other_services')
 
+REQUIRED_POSTGRES.add('test_windows_ensemble.test_repair_preserves_partial_venv_and_previous_selection')
+REQUIRED_WINDOWS.update({'test_windows_ensemble.test_repair_preserves_partial_venv_and_previous_selection', 'test_ddn_management.test_management_simulated_scm_only_starts_verified_ddn_services', 'test_ddn_management.test_management_native_acl_refuses_user_writable_control_files'})
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

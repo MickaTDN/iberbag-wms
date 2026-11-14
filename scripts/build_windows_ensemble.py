@@ -18,11 +18,12 @@ def build(wheels, output):
     for name in names:
         p = Path(name)
         if ((p.parts[0] in ('iberbag', 'migrations') and p.suffix in ('.py','.html','.css','.js','.svg','.txt','.png','.webmanifest'))
-            or name in ('requirements-prod.lock', 'windows/assistente.py', 'windows/INSTALAR_DDN_ENSAIO.bat',
+            or name in ('requirements-prod.lock', 'windows/assistente.py', 'windows/INSTALAR_DDN_ENSAIO.bat', 'windows/GESTAO_DDN.bat', 'windows/gestao.ps1', 'windows/gestao_launcher.ps1',
+                        'docs/DDN_PROVISIONAMENTO_ASSISTIDO.md',
                         'docs/INSTALADOR_DDN_ENSAIO.md', 'docs/INSTALACAO_WINDOWS.md', 'docs/PWA_OPERADORES.md',
                         'docs/HOMOLOGACAO_IBERBAG_COSMOPAK.md')):
             if (ROOT / p).is_symlink(): raise ValueError('Symlink in package')
-            target = 'INSTALAR_DDN_ENSAIO.bat' if name.endswith('.bat') else name
+            target = p.name if name.endswith('.bat') else name
             files[target] = (ROOT / p).read_bytes()
     for p in Path(wheels).iterdir():
         if p.is_symlink() or not p.is_file() or p.suffix != '.whl': raise ValueError('Only wheels accepted')

@@ -137,3 +137,43 @@ def test_ensemble_custom_ports_are_checked_instead_of_defaults(tmp_path,monkeypa
     monkeypatch.setattr(a.subprocess,'run',lambda *x,**k:pytest.fail('Occupied custom port must block installation'))
     with pytest.raises(ValueError):a.install(tmp_path)
     assert checked==[55439,8119,8459]
+
+
+@pytest.mark.parametrize('fail_at',[1,2,3,4,None])
+def test_repair_preserves_partial_venv_and_previous_selection(tmp_path,monkeypatch,fail_at):
+    monkeypatch.setattr(a,'verify_bundle',lambda root:None)
+    monkeypatch.setattr(a.platform,'system',lambda:'Windows')
+    monkeypatch.setattr('builtins.input',lambda prompt:'REPARAR ENSAIO')
+    legacy=tmp_path/'.ddn-venv';legacy.mkdir();(legacy/'partial').write_text('KEEP')
+    (tmp_path/'requirements-prod.lock').write_text('FICTITIOUS LOCK')
+    pointer=tmp_path/'DDN_ACTIVE_ENV.json';previous=b'{"previous":"preserve"}';pointer.write_bytes(previous)
+    calls=[]
+    def run(args,**kwargs):
+        calls.append(args)
+        if len(calls)==fail_at:raise RuntimeError('Fictitious installation interruption')
+        if len(calls)==1:
+            path=Path(args[-1]);(path/'Scripts').mkdir();(path/'Scripts/python.exe').write_bytes(b'FICTIONAL')
+    monkeypatch.setattr(a.subprocess,'run',run)
+    if fail_at:
+        with pytest.raises(RuntimeError):a.repair(tmp_path)
+        assert pointer.read_bytes()==previous
+    else:
+        a.repair(tmp_path)
+        selected=a.active_python(tmp_path)
+        assert selected.is_file() and selected.parent.parent.parent.name=='.ddn-envs'
+        # Dependencies changing after selection cannot silently run an old environment.
+        (tmp_path/'requirements-prod.lock').write_text('CHANGED')
+        with pytest.raises(ValueError):a.active_python(tmp_path)
+    assert (legacy/'partial').read_text()=='KEEP'
+    assert len(list((tmp_path/'.ddn-envs').iterdir()))==1
+
+
+def test_repair_cancellation_and_forged_pointer_never_start_process(tmp_path,monkeypatch):
+    monkeypatch.setattr(a,'verify_bundle',lambda root:None)
+    monkeypatch.setattr(a.platform,'system',lambda:'Windows')
+    monkeypatch.setattr('builtins.input',lambda prompt:'CANCELAR')
+    monkeypatch.setattr(a.subprocess,'run',lambda *x,**k:pytest.fail('No process expected'))
+    a.repair(tmp_path)
+    assert not (tmp_path/'.ddn-envs').exists()
+    (tmp_path/'DDN_ACTIVE_ENV.json').write_text(json.dumps({'environment':'../GVA'}))
+    with pytest.raises(ValueError):a.active_python(tmp_path)

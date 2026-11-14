@@ -26,8 +26,8 @@ pedido: as pendências abaixo impedem homologação e uso oficial.
    **8100**, HTTPS **8447**. Qualquer conflito bloqueia instalação; não parar aplicações
    nem adotar o serviço que já usa a porta.
 6. Escolher **1**, confirmar `INSTALAR ENSAIO`. Instala `.ddn-venv` apenas nessa pasta,
-   offline, a partir dos wheels fixados. Repetição preserva a instalação e recusa
-   reparação automática. Não remover a pasta para tentar corrigir uma falha sem revisão.
+   offline, a partir dos wheels fixados. Repetição preserva a instalação. Para dependências parciais, usar opção 4 Reparar,
+   que constrói ambiente novo sem apagar o anterior. Não remover pastas para recuperar.
 
 A auditoria GVA confirmou PostgreSQL **55432**, HTTP **8765** e possível HTTPS
 **8443**. Estas portas ficam reservadas no perfil de ensaio DDN: uma configuração
@@ -69,8 +69,9 @@ navegador, sem outra instalação de servidor; nunca distribuir chaves privadas.
 
 ## Atualização, reparação e recuperação
 
-O bootstrap **recusa sobrescrever uma instalação existente**. Atualizador/reparador
-integrado ainda pendente. Para ensaio técnico, usar uma pasta nova; parar apenas DDN,
+O bootstrap **recusa sobrescrever uma instalação existente**. A reparação de dependências
+está disponível na opção 4, com seleção atómica só após validação. Atualização de
+serviços/código exige revisão técnica; não é automática. Para ensaio técnico, usar uma pasta nova; parar apenas DDN,
 backup cifrado, restauro reconciliado noutra base vazia, prévia e confirmação explícita
 pelo procedimento existente. Preservar pasta anterior, dados, configurações e documentos.
 Não há rollback, desinstalação, migração silenciosa nem apagamento automático.
@@ -104,3 +105,15 @@ APROVADO/FALHOU/NÃO TESTADO. Todos estes ensaios físicos permanecem **NÃO TES
 Os testes simulados comprovam recusa de conflitos e ausência de comandos que alterem
 serviços, não o funcionamento conjunto real. A PR deve permanecer em rascunho enquanto
 estas lacunas de aceitação não forem resolvidas. Não usar este pacote em produção.
+
+## Continuação da PR #41
+
+Ver [procedimento técnico assistido](DDN_PROVISIONAMENTO_ASSISTIDO.md): PostgreSQL 17
+dedicado, roles, ACL, registo de serviços, TLS/DNS, firewall autorizada e atualização
+com backup/restauro. A opção 5 abre esse procedimento. `GESTAO_DDN.bat` permite gestão
+apenas depois de implantação protegida em Program Files e registo de propriedade
+aprovado. UAC é visível; nenhuma política de execução é desativada.
+
+Reparação local concluída; serviços/PG/TLS têm procedimento assistido, mas o host SCM
+e o armazenamento de credenciais por SID continuam por aprovar/implementar. Não
+confundir controlos de gestão com instalação completa dos serviços. Draft mantido.

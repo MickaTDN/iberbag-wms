@@ -1,0 +1,71 @@
+"""Native PowerShell parsing/ACL checks and a fail-closed management invocation."""
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import pytest
+
+ROOT=Path(__file__).resolve().parents[2]
+
+
+def run_ps(code):
+    result=subprocess.run([shutil.which('powershell'),'-NoProfile','-NonInteractive','-Command',code],capture_output=True,timeout=30)
+    return result
+
+
+def quote(path):return "'"+str(path).replace("'","''")+"'"
+
+
+def test_management_scripts_parse_and_missing_ownership_proof_refuses_actions(tmp_path):
+    for name in ('gestao.ps1','gestao_launcher.ps1'):
+        script=ROOT/'windows'/name
+        result=run_ps('$tokens=$null;$errors=$null;[Management.Automation.Language.Parser]::ParseFile('+quote(script)+',[ref]$tokens,[ref]$errors)|Out-Null;if($errors.Count){exit 1}')
+        assert result.returncode==0,result.stderr.decode(errors='replace')
+    # A fictitious GVA resource is never written or removed, including an attempted Stop.
+    gva=tmp_path/'GVA';gva.mkdir();sentinel=gva/'unchanged';sentinel.write_bytes(b'FICTITIOUS')
+    result=run_ps('& '+quote(ROOT/'windows/gestao.ps1')+' -Action Stop -Configuration '+quote(tmp_path/'absent.json'))
+    assert result.returncode==1 and sentinel.read_bytes()==b'FICTITIOUS'
+
+
+@pytest.mark.parametrize('unsafe',[False,True])
+def test_management_native_acl_refuses_user_writable_control_files(tmp_path,unsafe):
+    file=tmp_path/'control.json';file.write_text('{}')
+    for args in [('/inheritance:r',),('/grant:r','*S-1-5-32-544:(F)','*S-1-5-18:(F)'),('/setowner','*S-1-5-32-544')]:
+        assert subprocess.run(['icacls',str(file),*args],capture_output=True).returncode==0
+    if not unsafe:assert subprocess.run(['icacls',str(file),'/grant','*S-1-1-0:(R)'],capture_output=True).returncode==0
+    if unsafe:assert subprocess.run(['icacls',str(file),'/grant','*S-1-1-0:(M)'],capture_output=True).returncode==0
+    # Extract and run the real guard, not a copy. No service operation is executed.
+    code='$t=$null;$e=$null;$ast=[Management.Automation.Language.Parser]::ParseFile('+quote(ROOT/'windows/gestao.ps1')+',[ref]$t,[ref]$e);$f=$ast.Find({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq "Assert-Protected"},$true);Invoke-Expression $f.Extent.Text;try{Assert-Protected '+quote(file)+';exit 0}catch{exit 1}'
+    result=run_ps(code)
+    assert result.returncode==(1 if unsafe else 0)
+
+
+@pytest.mark.parametrize('case',['status','start','forged_gva'])
+def test_management_simulated_scm_only_starts_verified_ddn_services(tmp_path,case):
+    import hashlib,json
+    deployment=tmp_path/'DDN';deployment.mkdir()
+    binary=deployment/'host.exe';binary.write_bytes(b'FICTITIOUS-NOT-EXECUTABLE')
+    names=['DDNWMS-Test-Postgres','DDNWMS-Test-WMS','DDNWMS-Test-HTTPS']
+    config=deployment/'DDN_SERVICES.json'
+    config.write_text(json.dumps(dict(mode='homologacao',services=[dict(name=n,binary=str(binary),sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),imagePath='FICTITIOUS '+n,account='NT SERVICE\\'+n) for n in names])))
+    for path in (deployment,binary,config):
+        for args in [('/inheritance:r',),('/grant:r','*S-1-5-32-544:(F)','*S-1-5-18:(F)'),('/setowner','*S-1-5-32-544')]:
+            assert subprocess.run(['icacls',str(path),*args],capture_output=True).returncode==0
+    log=tmp_path/'called.txt'
+    prefix='$fixture=Get-Content -Raw '+quote(config)+'|ConvertFrom-Json;$log='+quote(log)+';$forged='+('$true' if case=='forged_gva' else '$false')+';'
+    mocks=r'''
+function Get-CimInstance($ClassName,$Filter) {
+    $name=[regex]::Match($Filter,"Name='([^']+)'").Groups[1].Value
+    $entry=@($fixture.services | Where-Object name -eq $name)[0]
+    $image=$entry.imagePath;if($forged){$image='GVA - NEVER TOUCH'}
+    return [pscustomobject]@{State='Running';StartMode='Auto';PathName=$image;StartName=$entry.account}
+}
+function Read-Host($Prompt){return 'DDN ENSAIO'}
+function Start-Service($Name){Add-Content -LiteralPath $log -Value $Name}
+function Stop-Service($Name){throw 'Unexpected stop'}
+function Get-Service($Name){$s=[pscustomobject]@{};$s|Add-Member ScriptMethod WaitForStatus {param($state,$timeout)};return $s}
+'''
+    action='Status' if case=='status' else 'Start'
+    result=run_ps(prefix+mocks+';& '+quote(ROOT/'windows/gestao.ps1')+' -Action '+action+' -Configuration '+quote(config))
+    assert result.returncode==(1 if case=='forged_gva' else 0),result.stderr.decode(errors='replace')
+    assert (log.read_text().splitlines() if log.exists() else [])==(names if case=='start' else [])

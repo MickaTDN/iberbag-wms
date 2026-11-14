@@ -83,7 +83,7 @@ def install(root=ROOT):
     # Refuse arbitrary directories/previous environments; never repair by deleting.
     target = root / '.ddn-venv'
     if target.exists():
-        raise ValueError('Instalação existente preservada. Usar Verificar; atualização/reparação exige revisão técnica.')
+        raise ValueError('Instalação existente preservada. Usar opção 4 Reparar; atualização de serviços exige revisão técnica.')
     settings = load_settings(root)
     for port in (settings[k] for k in PORTS):
         if probe(port) != 'livre':
@@ -100,9 +100,61 @@ def install(root=ROOT):
     print('Dependências instaladas. PostgreSQL/HTTPS ainda NÃO configurados; seguir LEIA-ME.')
 
 
+def active_python(root):
+    pointer = root / 'DDN_ACTIVE_ENV.json'
+    if not pointer.exists():
+        return root / '.ddn-venv' / 'Scripts' / 'python.exe'
+    value = json.loads(pointer.read_text(encoding='utf-8'))
+    relative = value.get('environment', '')
+    if not re.fullmatch(r'\.ddn-envs/env-[a-f0-9]{32}', relative):
+        raise ValueError('Referência de ambiente inválida.')
+    environment = root / relative
+    for path in (root / '.ddn-envs', environment, environment / 'Scripts'):
+        if path.is_symlink() or path.is_junction():
+            raise ValueError('Ligação inesperada no ambiente.')
+    if json.loads((environment / 'DDN_COMPLETE.json').read_text()) != value:
+        raise ValueError('Ambiente incompleto; reparar sem apagar o anterior.')
+    if value.get('lock_sha256') != hashlib.sha256((root / 'requirements-prod.lock').read_bytes()).hexdigest():
+        raise ValueError('Dependências mudaram; rever atualização antes de iniciar.')
+    return environment / 'Scripts' / 'python.exe'
+
+
+def repair(root=ROOT):
+    """Build in its final unique path; never relocate a venv or delete failed work."""
+    import uuid
+    verify_bundle(root)
+    if platform.system() != 'Windows' or sys.version_info[:2] != (3, 12):
+        raise ValueError('Reparação exige Python 3.12 no Windows.')
+    parent = root / '.ddn-envs'
+    if parent.is_symlink() or parent.is_junction():
+        raise ValueError('Pasta de ambientes insegura.')
+    if input('Criar NOVO ambiente sem apagar o anterior? Escreva REPARAR ENSAIO: ') != 'REPARAR ENSAIO':
+        return
+    parent.mkdir(exist_ok=True)
+    relative = '.ddn-envs/env-' + uuid.uuid4().hex
+    target = root / relative
+    target.mkdir()  # exclusive name, final path: venv entrypoints remain valid
+    env = isolated_environment()
+    subprocess.run([sys.executable, '-I', '-m', 'venv', str(target)], env=env, check=True)
+    python = target / 'Scripts' / 'python.exe'
+    subprocess.run([str(python), '-I', '-m', 'pip', '--isolated', 'install', '--no-index',
+                    '--no-cache-dir', '--find-links', str(root / 'wheels'), '-r', str(root / 'requirements-prod.lock')],
+                   env=env, check=True)
+    subprocess.run([str(python), '-I', '-m', 'pip', '--isolated', 'check'], env=env, check=True)
+    subprocess.run([str(python), '-I', '-c', 'import psycopg,uvicorn,sqlalchemy,cryptography'], env=env, check=True)
+    state = dict(environment=relative, lock_sha256=hashlib.sha256((root / 'requirements-prod.lock').read_bytes()).hexdigest())
+    (target / 'DDN_COMPLETE.json').write_text(json.dumps(state), encoding='utf-8')
+    temporary = root / ('DDN_ACTIVE_ENV-' + uuid.uuid4().hex + '.tmp')
+    with temporary.open('x', encoding='utf-8') as stream:
+        json.dump(state, stream); stream.flush(); os.fsync(stream.fileno())
+    os.replace(temporary, root / 'DDN_ACTIVE_ENV.json')
+    print('Novo ambiente validado e selecionado. Ambientes anteriores preservados.')
+
+
+
 def run_menu(root=ROOT):
     verify_bundle(root)
-    python = root / '.ddn-venv' / 'Scripts' / 'python.exe'
+    python = active_python(root)
     if not python.is_file():
         raise ValueError('Escolha primeiro Instalar dependências.')
     settings = load_settings(root)
@@ -114,7 +166,7 @@ def run_menu(root=ROOT):
 
 def main():
     print('DDN WMS — ENSAIO. Produção indisponível. Não altera serviços GVA.')
-    print('1 Instalar dependências locais\n2 Verificar pacote/portas/serviços (leitura)\n3 Assistente WMS existente\n0 Sair')
+    print('1 Instalar dependências locais\n2 Verificar pacote/portas/serviços (leitura)\n3 Assistente WMS existente\n4 Reparar dependências sem apagar\n5 Procedimento técnico PostgreSQL/serviços/HTTPS\n0 Sair')
     choice = input('Opção: ').strip()
     try:
         if choice == '1': install()
@@ -125,6 +177,8 @@ def main():
             print('Portas DDN:', {k: probe(settings[k]) for k in PORTS})
             print('Serviços existentes (só leitura):', windows_inventory())
         elif choice == '3': run_menu()
+        elif choice == '4': repair()
+        elif choice == '5': os.startfile(ROOT / 'docs' / 'DDN_PROVISIONAMENTO_ASSISTIDO.md')
     except Exception:
         # Avoid exception repr/tracebacks: DB URLs/subprocess errors can hold secrets.
         print('Operação recusada ou falhou. Dados preservados. Consulte LEIA-ME; não repetir sem rever a causa.')

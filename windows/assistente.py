@@ -181,7 +181,7 @@ def main():
             print('Serviços existentes (só leitura):', windows_inventory())
         elif choice == '3': run_menu()
         elif choice == '4': repair()
-        elif choice == '5': os.startfile(ROOT / 'docs' / 'DDN_PROVISIONAMENTO_ASSISTIDO.md')
+        elif choice == '5': os.startfile(ROOT / 'PROCEDIMENTO_TECNICO_DDN.txt')
         elif choice == '6':
             verify_bundle()
             subprocess.run(['powershell.exe', '-NoProfile', '-File', str(ROOT / 'windows' / 'atalho_assistente.ps1')], check=True)

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 ROOT=Path(__file__).resolve().parents[2]
 NAMES=['DDNWMS-Test-Postgres','DDNWMS-Test-WMS','DDNWMS-Test-HTTPS']
-HASH='b5066b7bbdfba1293e5d15cda3caaea88fbeab35bd5b38c41c913d492aadfc4f'
+HASH='e139f9c1dec5c87a0f51a01668b6cc819286c26b8d26c21c6a2ac128993496c6'
 
 
 def quote(path):return "'"+str(path).replace("'","''")+"'"
@@ -42,7 +42,7 @@ def scm(tmp_path_factory):
     root=tmp_path_factory.mktemp('DDN-SCM-'+uuid.uuid4().hex)
     # Refuse to touch ANY resource already present, even if its name looks DDN.
     expect("foreach($n in @("+','.join(quote(n) for n in NAMES)+")){if(Get-Service -Name $n -ErrorAction SilentlyContinue){exit 9}}")
-    url='https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW.NET461.exe'
+    url='https://github.com/winsw/winsw/releases/download/v2.13.0/WinSW.NET462.exe_Release'
     with urllib.request.urlopen(url,timeout=45) as response:binary=response.read(2*1024*1024)
     assert hashlib.sha256(binary).hexdigest()==HASH
     module=root/'segredo_servico.ps1';shutil.copyfile(ROOT/'windows/segredo_servico.ps1',module)
@@ -60,7 +60,7 @@ def scm(tmp_path_factory):
             import xml.etree.ElementTree as ET
             tree=ET.Element('service')
             import os
-            values={'id':name,'name':name,'executable':__import__('sys').executable,'arguments':'"'+str(child)+'"','startmode':'Automatic','stoptimeout':'10 sec','logpath':str(root/(name+'-logs'))}
+            values={'id':name,'name':name,'description':'Fictitious DDN virtual service credential test','executable':__import__('sys').executable,'arguments':'"'+str(child)+'"','startmode':'Automatic','stoptimeout':'10 sec','logpath':str(root/(name+'-logs'))}
             for key,value in values.items():ET.SubElement(tree,key).text=value
             account=ET.SubElement(tree,'serviceaccount')
             for key,value in {'domain':'NT SERVICE','user':name,'allowservicelogon':'false'}.items():ET.SubElement(account,key).text=value

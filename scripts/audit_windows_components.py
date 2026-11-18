@@ -1,8 +1,8 @@
 """Fail on new upstream NuGet advisories; reviewed exception is feature-specific."""
 import json,os,urllib.request,urllib.parse
-DEPENDENCIES={'log4net':'2.0.12','YamlDotNet':'8.1.2'}
-# Upstream source at eef5... Program.cs:668 uses PatternLayout, never XmlLayout.
-REVIEWED={'GHSA-4f7c-pmjv-c25w'}
+DEPENDENCIES={'log4net':'3.6.0','YamlDotNet':'8.1.2'}
+# No advisory exceptions: any new applicable issue blocks the component gate.
+REVIEWED=frozenset()
 
 def audit(fetch=None):
     def request(url):
@@ -18,7 +18,7 @@ def audit(fetch=None):
         for row in rows:
             ident=row['ghsa_id'];found.add(ident)
             if ident not in REVIEWED:raise ValueError('Unreviewed Windows component advisory')
-    print('Windows component advisory review passed; reviewed XmlLayout-only exception:',len(found))
+    print('Windows component advisory review passed; applicable advisories:',len(found))
     return found
 
 if __name__=='__main__':audit()

@@ -45,9 +45,9 @@ try {
     $framework=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full')
     if(-not $framework -or [int]$framework.GetValue('Release') -lt 528040){Stop-DDNInstall 'DDN_FRAMEWORK_48_REQUIRED'}
     $framework.Dispose()
-    $winsw=Join-Path $Root 'components\WinSW.NET461.exe'
+    $winsw=Join-Path $Root 'components\WinSW.NET462.exe'
     Assert-Protected $winsw
-    if((Get-FileHash -Algorithm SHA256 -LiteralPath $winsw).Hash -ne 'b5066b7bbdfba1293e5d15cda3caaea88fbeab35bd5b38c41c913d492aadfc4f'){Stop-DDNInstall 'DDN_HOST_HASH'}
+    if((Get-FileHash -Algorithm SHA256 -LiteralPath $winsw).Hash -ne 'e139f9c1dec5c87a0f51a01668b6cc819286c26b8d26c21c6a2ac128993496c6'){Stop-DDNInstall 'DDN_HOST_HASH'}
     $bundled=Read-DDNJson (Join-Path $Root 'components\BUNDLED.json')
     $caddy=Join-Path $Root 'components\caddy.exe';Assert-Protected $caddy
     if((Get-FileHash -Algorithm SHA256 -LiteralPath $caddy).Hash -ne $bundled.caddy_sha256){Stop-DDNInstall 'DDN_CADDY_HASH'}
@@ -132,7 +132,7 @@ try {
         if($LASTEXITCODE -ne 0){Stop-DDNInstall 'DDN_SCM_INSTALL_FAILED'}
         $sid=(New-Object Security.Principal.NTAccount('NT SERVICE',$name)).Translate([Security.Principal.SecurityIdentifier]).Value
         Set-DDNPrivateAcl $logPath $sid 'Modify'
-        $entries+=@{name=$name;binary=$exe;sha256='b5066b7bbdfba1293e5d15cda3caaea88fbeab35bd5b38c41c913d492aadfc4f';imagePath=('"'+$exe+'"');account=('NT SERVICE\'+$name);sid=$sid}
+        $entries+=@{name=$name;binary=$exe;sha256='e139f9c1dec5c87a0f51a01668b6cc819286c26b8d26c21c6a2ac128993496c6';imagePath=('"'+$exe+'"');account=('NT SERVICE\'+$name);sid=$sid}
     }
     # Grant only code read/execute to the three virtual identities; no code writes.
     foreach($path in @((Get-Item -LiteralPath $Root)) + @(Get-ChildItem -LiteralPath $Root -Recurse -Force)){

@@ -34,7 +34,7 @@ def build(wheels, output, components=None):
         for entry in lock.values():
             if hashlib.sha256((Path(components)/entry['file']).read_bytes()).hexdigest()!=entry['sha256']:
                 raise ValueError('Component hash differs')
-        files['components/WinSW.NET461.exe']=(Path(components)/lock['winsw']['file']).read_bytes()
+        files['components/WinSW.NET462.exe']=(Path(components)/lock['winsw']['file']).read_bytes()
         with zipfile.ZipFile(Path(components)/lock['caddy']['file']) as z:
             files['components/caddy.exe']=z.read('caddy.exe')
             for name in z.namelist():

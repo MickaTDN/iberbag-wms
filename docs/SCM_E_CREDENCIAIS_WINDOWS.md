@@ -6,9 +6,9 @@ pelo desenvolvimento/CI. Os testes SCM usam exclusivamente runners descartáveis
 
 ## Componentes selecionados e integridade
 
-- **WinSW 2.12.0**, upstream `winsw/winsw`, commit
-  `eef5bade59fca0254e387ac73ed7625ba6aa7147`, variante oficial **WinSW.NET461.exe**.
-  SHA-256 `b5066b7bbdfba1293e5d15cda3caaea88fbeab35bd5b38c41c913d492aadfc4f`.
+- **WinSW 2.13.0**, upstream `winsw/winsw`, commit
+  `7ebe3dedcc28aba58eb68d1be57882a7ad3f89f8`, variante oficial **WinSW.NET462.exe**.
+  SHA-256 `e139f9c1dec5c87a0f51a01668b6cc819286c26b8d26c21c6a2ac128993496c6`.
   Escolhido por implementar SCM, contas virtuais, dependências e recuperação. Usa .NET
   Framework 4.8 mantido pelo Windows 11; não distribui o runtime .NET 6 fora de suporte
   das variantes self-contained antigas. Não é EXE próprio nem PyInstaller. O hash é
@@ -18,13 +18,12 @@ pelo desenvolvimento/CI. Os testes SCM usam exclusivamente runners descartáveis
   O build verifica o ZIP e regista o hash do EXE extraído em `BUNDLED.json`.
 - Licenças e origem acompanham o pacote. Downloads com hashes diferentes são recusados;
   não há fallback para latest, mirror desconhecido ou alteração de antivírus.
-- WinSW NET461 incorpora **log4net 2.0.12 / YamlDotNet 8.1.2**. A revisão identificou
-  **CVE-2026-40021 / GHSA-4f7c-pmjv-c25w** (perda silenciosa de eventos com XmlLayout).
-  A exceção é específica: o upstream fixado usa `PatternLayout` em `Program.cs:668`,
-  e este pacote não usa XmlLayout/XmlLayoutSchemaLog4J nem configuração de logging
-  externa. XML de configuração de serviço não é XmlLayout de eventos. Não se declara
-  a biblioteca corrigida; manter este risco documentado e reavaliar o host em atualização.
-  `audit_windows_components.py` bloqueia advisories novos/não revistos e falhas de consulta.
+- WinSW **2.13.0**, publicado a 15/11/2026, incorpora **log4net 3.6.0 / YamlDotNet
+  8.1.2**. Substitui a versão 2.12.0 inicialmente avaliada: aquela tinha uma falha em
+  `SignalStopped()` com contas sem administrador (upstream #1470) e log4net antigo.
+  Não se alteram privilégios para contornar a falha. O gate consulta advisories NuGet
+  para as versões fixadas e **não tem exceções**: qualquer issue aplicável ou falha de
+  consulta bloqueia o build/revisão. Não se declara invulnerabilidade futura.
 - Se Trend Micro/WDAC/AppLocker bloquear o host, **parar** e entregar versão/hash à
   equipa de segurança. Não restaurar quarentena, criar exclusões ou contornar políticas.
 

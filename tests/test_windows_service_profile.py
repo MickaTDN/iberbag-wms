@@ -32,6 +32,7 @@ def test_service_profile_refuses_missing_malformed_or_oversized_credential(encod
     with pytest.raises((ValueError,UnicodeError)):configure(profile(),encoded)
 
 
-def test_windows_component_advisory_gate_accepts_only_the_reviewed_xml_layout_case():
-    assert audit(lambda url:[{'ghsa_id':'GHSA-4f7c-pmjv-c25w'}] if 'log4net' in url else [])=={'GHSA-4f7c-pmjv-c25w'}
+def test_windows_component_advisory_gate_refuses_every_applicable_issue():
+    assert audit(lambda url:[])==set()
+    with pytest.raises(ValueError):audit(lambda url:[{'ghsa_id':'GHSA-4f7c-pmjv-c25w'}])
     with pytest.raises(ValueError):audit(lambda url:[{'ghsa_id':'GHSA-UNREVIEWED'}])

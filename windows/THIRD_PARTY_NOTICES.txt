@@ -1,5 +1,5 @@
-WinSW 2.12.0 NET461: upstream dependencies and licenses.
-log4net 2.0.12 / YamlDotNet 8.1.2
+WinSW 2.13.0 NET462: upstream dependencies and licenses.
+log4net 3.6.0 / YamlDotNet 8.1.2
 
                                  Apache License
                            Version 2.0, January 2004

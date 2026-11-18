@@ -18,7 +18,7 @@ def build(wheels, output, components=None):
     for name in names:
         p = Path(name)
         if ((p.parts[0] in ('iberbag', 'migrations') and p.suffix in ('.py','.html','.css','.js','.svg','.txt','.png','.webmanifest'))
-            or name in ('requirements-prod.lock', 'windows/assistente.py', 'windows/components.lock.json', 'windows/WinSW-LICENSE.txt', 'windows/THIRD_PARTY_NOTICES.txt', 'windows/segredo_servico.ps1', 'windows/provisionar_servicos.ps1', 'windows/INSTALAR_DDN_ENSAIO.bat', 'windows/GESTAO_DDN.bat', 'windows/gestao.ps1', 'windows/gestao_launcher.ps1', 'windows/atalho_assistente.ps1',
+            or name in ('requirements-prod.lock', 'windows/assistente.py', 'windows/service_bootstrap.py', 'windows/components.lock.json', 'windows/WinSW-LICENSE.txt', 'windows/THIRD_PARTY_NOTICES.txt', 'windows/segredo_servico.ps1', 'windows/provisionar_servicos.ps1', 'windows/INSTALAR_DDN_ENSAIO.bat', 'windows/GESTAO_DDN.bat', 'windows/gestao.ps1', 'windows/gestao_launcher.ps1', 'windows/atalho_assistente.ps1',
                         'docs/DDN_PROVISIONAMENTO_ASSISTIDO.md', 'docs/SCM_E_CREDENCIAIS_WINDOWS.md',
                         'docs/INSTALADOR_DDN_ENSAIO.md', 'docs/INSTALACAO_WINDOWS.md', 'docs/PWA_OPERADORES.md',
                         'docs/HOMOLOGACAO_IBERBAG_COSMOPAK.md')):

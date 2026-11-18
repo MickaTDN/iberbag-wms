@@ -41,6 +41,7 @@ function Save-DDNSecret([string]$Path,[Security.SecureString]$Password,[string]$
     $clear=$null
     try {
         $clear=[Text.Encoding]::UTF8.GetBytes([Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr))
+        if($clear.Length -lt 1 -or $clear.Length -gt 4096){throw 'DDN_SECRET_SIZE'}
         $cipher=[Security.Cryptography.ProtectedData]::Protect($clear,$null,[Security.Cryptography.DataProtectionScope]::LocalMachine)
         $file=[IO.File]::Open($Path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
         try{$file.Write($cipher,0,$cipher.Length);$file.Flush($true)}finally{$file.Dispose()}

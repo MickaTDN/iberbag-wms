@@ -55,12 +55,12 @@ def scm(tmp_path_factory):
         for name in NAMES:
             exe=root/(name+'.exe');exe.write_bytes(binary)
             child=root/(name+'.py');output=root/(name+'.result');output.write_text('')
-            child.write_text("import hashlib,time\nfrom pathlib import Path\nfrom credentials_native import read_secret\ntry:\n b=read_secret("+repr(str(secret))+");r='OK' if hashlib.sha256(b).hexdigest()=="+repr(digest)+" else 'BADHASH'\nexcept Exception:r='DENIED'\nPath("+repr(str(output))+").write_text(r)\ntime.sleep(120)\n",encoding='utf-8')
+            child.write_text("import hashlib,time,sys\nfrom pathlib import Path\nsys.path.insert(0,str(Path(__file__).parent))\nfrom credentials_native import read_secret\ntry:\n b=read_secret("+repr(str(secret))+");r='OK' if hashlib.sha256(b).hexdigest()=="+repr(digest)+" else 'BADHASH'\nexcept Exception:r='DENIED'\nPath("+repr(str(output))+").write_text(r)\ntime.sleep(120)\n",encoding='utf-8')
             xml=root/(name+'.xml')
             import xml.etree.ElementTree as ET
             tree=ET.Element('service')
             import os
-            values={'id':name,'name':name,'description':'Fictitious DDN virtual service credential test','executable':__import__('sys').executable,'arguments':'"'+str(child)+'"','startmode':'Automatic','stoptimeout':'10 sec','logpath':str(root/(name+'-logs'))}
+            values={'id':name,'name':name,'description':'Fictitious DDN virtual service credential test','executable':__import__('sys').executable,'arguments':'-I -B "'+str(child)+'"','startmode':'Automatic','stoptimeout':'10 sec','logpath':str(root/(name+'-logs'))}
             for key,value in values.items():ET.SubElement(tree,key).text=value
             account=ET.SubElement(tree,'serviceaccount')
             for key,value in {'domain':'NT SERVICE','user':name,'allowservicelogon':'false'}.items():ET.SubElement(account,key).text=value
@@ -122,6 +122,15 @@ def test_real_service_refuses_cipher_tampering_and_permissive_acl_without_new_se
     (root/(NAMES[1]+'.result')).write_text('')
     expect('& '+quote(exe)+' restart;exit $LASTEXITCODE');read_result(root,NAMES[1],'DENIED')
     secret.write_bytes(original)
+    # A hardlink cannot be used to move a credential outside its private path.
+    link=root/'credential-link.dpapi';__import__('os').link(secret,link)
+    (root/(NAMES[1]+'.result')).write_text('')
+    expect('& '+quote(exe)+' restart;exit $LASTEXITCODE');read_result(root,NAMES[1],'DENIED')
+    link.unlink()
+    # Even the correct service is forbidden from starting with credential write rights.
+    expect('. '+quote(root/'segredo_servico.ps1')+";$s=(New-Object Security.Principal.NTAccount('NT SERVICE','DDNWMS-Test-WMS')).Translate([Security.Principal.SecurityIdentifier]).Value;Set-DDNPrivateAcl "+quote(secret)+' $s Modify')
+    (root/(NAMES[1]+'.result')).write_text('')
+    expect('& '+quote(exe)+' restart;exit $LASTEXITCODE');read_result(root,NAMES[1],'DENIED')
     expect("icacls "+quote(secret)+" /grant '*S-1-1-0:(R)'|Out-Null;if($LASTEXITCODE){exit 1}")
     (root/(NAMES[1]+'.result')).write_text('')
     expect('& '+quote(exe)+' restart;exit $LASTEXITCODE');read_result(root,NAMES[1],'DENIED')

@@ -116,7 +116,7 @@ try {
         $xml.AppendChild($xml.CreateElement('service'))|Out-Null
         $values=@{id=$name;name=$name;description='DDN WMS ENSAIO - independente da GVA';workingdirectory=$Root;startmode='Manual';stoptimeout='90 sec';resetfailure='1 day'}
         if($name -eq $names[0]){$values.executable=$postgres;$values.arguments='-D "'+$pgdata+'" -h 127.0.0.1 -p '+$settings.postgres;$values.stopexecutable=$pgctl;$values.stoparguments='stop -D "'+$pgdata+'" -m fast -w'}
-        elseif($name -eq $names[1]){$values.executable=$python;$values.arguments='-m iberbag.windows_service --config "'+(Join-Path $Root 'DDN_WMS_SERVICE.json')+'"';$values.depend=$names[0]}
+        elseif($name -eq $names[1]){$values.executable=$python;$values.arguments='-I -B "'+(Join-Path $Root 'windows\service_bootstrap.py')+'" --config "'+(Join-Path $Root 'DDN_WMS_SERVICE.json')+'"';$values.depend=$names[0]}
         else{$values.executable=$caddy;$values.arguments='run --config "'+(Join-Path $Root 'DDN_Caddyfile')+'" --adapter caddyfile';$values.depend=$names[1]}
         foreach($key in $values.Keys){$e=$xml.CreateElement($key);$e.InnerText=$values[$key];$xml.DocumentElement.AppendChild($e)|Out-Null}
         $account=$xml.CreateElement('serviceaccount')
@@ -174,7 +174,7 @@ try {
     foreach($path in @('DDN_WMS_SERVICE.json','DDN_Caddyfile')){Set-DDNPrivateAcl (Join-Path $Root $path) $entries[1].sid 'Read'}
     # Caddy configuration needs only HTTPS identity read, not WMS secret access.
     Set-DDNPrivateAcl (Join-Path $Root 'DDN_Caddyfile') $entries[2].sid 'Read'
-    $tracked=@($secret,$winsw,$caddy,$postgres,$pgctl,$control,$approvalPath,(Join-Path $Root 'DDN_Caddyfile'),(Join-Path $Root 'DDN_WMS_SERVICE.json'),(Join-Path $Root 'iberbag\windows_service.py'),(Join-Path $Root 'iberbag\windows_credentials.py'),(Join-Path $Root 'windows\segredo_servico.ps1'))+@((Get-ChildItem -LiteralPath $serviceDir -File).FullName)
+    $tracked=@($secret,$winsw,$caddy,$postgres,$pgctl,$control,$approvalPath,(Join-Path $Root 'DDN_Caddyfile'),(Join-Path $Root 'DDN_WMS_SERVICE.json'),(Join-Path $Root 'windows\service_bootstrap.py'),(Join-Path $Root 'iberbag\windows_service.py'),(Join-Path $Root 'iberbag\windows_credentials.py'),(Join-Path $Root 'windows\segredo_servico.ps1'))+@((Get-ChildItem -LiteralPath $serviceDir -File).FullName)
     $hashes=@{};foreach($path in $tracked){$hashes[$path]=(Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash}
     # Enable automatic start only after identities, credentials and profiles exist.
     foreach($entry in $entries){

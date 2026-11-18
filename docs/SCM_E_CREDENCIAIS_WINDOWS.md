@@ -95,7 +95,7 @@ Rever a confirmação `INSTALAR SERVICOS DDN` antes de prosseguir.
   manutenção Administradores/SYSTEM. O payload não fica em XML, ImagePath, BAT ou logs.
 - `windows_credentials.py` exige o token virtual WMS, verifica proprietário/DACL no
   handle aberto, recusa herança permissiva, escrita do serviço, reparse points e hardlinks,
-  e valida DPAPI sem UI. O WMS arranca em Python diretamente, sem depender de PowerShell
+  e valida DPAPI sem UI. O WMS arranca em Python diretamente (`-I -B`, sem PYTHONPATH/PYTHONHOME/user-site herdados), sem depender de PowerShell
   interativo/perfil de utilizador no reboot. A senha existe apenas em memória do processo
   e no ambiente dos workers do mesmo SID; não há ficheiro de password em claro.
   DPAPI LocalMachine **não protege contra administrador/SYSTEM comprometidos**: estes

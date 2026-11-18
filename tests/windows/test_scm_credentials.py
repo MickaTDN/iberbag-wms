@@ -106,6 +106,11 @@ def test_real_virtual_services_can_decrypt_only_as_wms_and_collisions_do_not_rei
     rows=json.loads(status)
     assert {r['Name'] for r in rows}==set(NAMES)
     assert all(r['StartName']=='NT SERVICE\\'+r['Name'] and r['StartMode']=='Auto' and r['State']=='Running' for r in rows)
+    # Kill only the Python child proven to belong to this WMS wrapper. SCM recovery
+    # must restart without any interactive credential entry; never kill by image name.
+    (root/(NAMES[1]+'.result')).write_text('')
+    code="$s=Get-CimInstance Win32_Service -Filter \"Name='DDNWMS-Test-WMS'\";$p=@(Get-CimInstance Win32_Process -Filter (\"ParentProcessId=\"+$s.ProcessId));if($p.Count -ne 1 -or $p[0].ExecutablePath -cne "+quote(__import__('sys').executable)+"){exit 3};Stop-Process -Id $p[0].ProcessId -Force"
+    expect(code);read_result(root,NAMES[1],'OK')
     # The official host also refuses a repeated install; no account or image changes.
     assert ps('& '+quote(root/(NAMES[1]+'.exe'))+' install;exit $LASTEXITCODE').returncode!=0
     assert json.loads(expect('Get-CimInstance Win32_Service|Where-Object Name -like "DDNWMS-Test-*"|Select-Object Name,StartName,StartMode,State|ConvertTo-Json -Compress'))==rows

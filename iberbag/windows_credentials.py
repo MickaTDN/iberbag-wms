@@ -61,8 +61,11 @@ def read_secret(path):
             for i in range(info.count):
                 ace=ptr();require(a.GetAce(acl,i,c.byref(ace)))
                 header=c.cast(ace,c.POINTER(c.c_ubyte));mask=c.cast(ace.value+4,c.POINTER(w.DWORD))[0]
+                require(header[0]==0 and not(header[1] & 16))
+                ace_size=int(header[2]) | (int(header[3]) << 8)
+                require(ace_size>=16 and 16+4*int(header[9])<=ace_size)
                 identity=sid_text(ptr(ace.value+8))
-                require(header[0]==0 and not(header[1] & 16) and identity in ('S-1-5-18','S-1-5-32-544',expected_text))
+                require(identity in ('S-1-5-18','S-1-5-32-544',expected_text))
                 if identity==expected_text:
                     require(mask & ~(0x1200a9 if directory else 0x120089)==0);found=True
             require(found)

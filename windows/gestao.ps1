@@ -43,7 +43,26 @@ try {
         foreach($dependency in (Get-Service -Name $entry.name).RequiredServices) { if ($dependency.Name -notin $required) { throw 'External service dependency' } }
         Write-Host ($entry.name+': '+$service.State+' (estado SCM; nao prova saude da aplicacao)')
     }
-    if ($Action -eq 'Status') { exit 0 }
+    if ($Action -eq 'Status') {
+        if($config.ports){
+            try {
+                foreach($entry in $config.services){if((Get-Service -Name $entry.name).Status -ne 'Running'){throw 'Not running'}}
+                foreach($port in @($config.ports.postgres,$config.ports.http)){
+                    $listeners=@(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Stop)
+                    if(-not $listeners.Count -or @($listeners|Where-Object LocalAddress -notin @('127.0.0.1','::1')).Count){throw 'Nonlocal listener'}
+                }
+                $local=Invoke-RestMethod -Uri ('http://127.0.0.1:'+$config.ports.http+'/health') -TimeoutSec 10
+                $uri=[Uri]$config.httpsUrl
+                if($uri.Scheme -ne 'https' -or $uri.UserInfo -or $uri.Port -ne $config.ports.https){throw 'Wrong endpoint'}
+                $addresses=@('127.0.0.1','::1')+@((Get-NetIPAddress -ErrorAction Stop).IPAddress)
+                foreach($ip in [Net.Dns]::GetHostAddresses($uri.Host)){if($ip.ToString() -notin $addresses){throw 'DNS differs'}}
+                $remote=Invoke-RestMethod -Uri ($uri.GetLeftPart([UriPartial]::Authority)+'/health') -TimeoutSec 10
+                if($local.status -ne 'ok' -or $remote.status -ne 'ok' -or $local.application -cne 'DDN WMS' -or $remote.application -cne 'DDN WMS'){throw 'Unhealthy'}
+                Write-Host 'DDN_READY_LOCAL_HTTPS_VALIDATED (ensaio remoto e reboot ainda exigem prova)'
+            } catch {Write-Host 'DDN_NOT_READY: verificar servicos, bind local, DNS, TLS e base.'}
+        } else {Write-Host 'DDN_HEALTH_NOT_CONFIGURED: estado SCM nao e prova de saude.'}
+        exit 0
+    }
     if ((Read-Host "Confirme $Action apenas DDN: escreva DDN ENSAIO") -cne 'DDN ENSAIO') { exit 0 }
     $order=@('DDNWMS-Test-Postgres','DDNWMS-Test-WMS','DDNWMS-Test-HTTPS')
     if ($Action -in @('Stop','Restart')) {

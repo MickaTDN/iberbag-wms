@@ -17,11 +17,22 @@ try {
             if ($rule.AccessControlType -eq 'Allow' -and ($rule.FileSystemRights -band $write) -and $sid -notin @('S-1-5-18','S-1-5-32-544')) { throw 'Writable code' }
         }
     }
-    Write-Host '1 Estado / 2 Iniciar / 3 Parar / 4 Reiniciar / 5 Firewall / 6 Atalho navegador'
-    $choices=@{'1'='Status';'2'='Start';'3'='Stop';'4'='Restart';'5'='Firewall';'6'='Shortcuts'}
+    Write-Host '1 Estado / 2 Iniciar / 3 Parar / 4 Reiniciar / 5 Firewall / 6 Atalho navegador / 7 Instalar servicos DDN'
+    $choices=@{'1'='Status';'2'='Start';'3'='Stop';'4'='Restart';'5'='Firewall';'6'='Shortcuts';'7'='Install'}
     $action=$choices[(Read-Host 'Opcao')]
     if (-not $action) { exit 0 }
-    $arguments='-NoProfile -File "'+$manager+'" -Action '+$action
+    if($action -eq 'Install'){
+        $manager=Join-Path $root 'windows\provisionar_servicos.ps1'
+        if((Get-Item -LiteralPath $manager).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Reparse provisioner'}
+        $acl=Get-Acl -LiteralPath $manager
+        if(-not $acl.AreAccessRulesProtected -or $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin @('S-1-5-18','S-1-5-32-544')){throw 'Unprotected provisioner'}
+        foreach($rule in $acl.Access){
+            $sid=$rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+            if($rule.AccessControlType -eq 'Allow' -and ($rule.FileSystemRights -band $write) -and $sid -notin @('S-1-5-18','S-1-5-32-544')){throw 'Writable provisioner'}
+        }
+    }
+    $arguments='-NoProfile -File "'+$manager+'"'
+    if($action -ne 'Install'){$arguments+=' -Action '+$action}
     $engine=[IO.Path]::Combine([Environment]::SystemDirectory,'WindowsPowerShell\v1.0\powershell.exe')
     $process=Start-Process $engine -Verb RunAs -ArgumentList $arguments -Wait -PassThru
     exit $process.ExitCode

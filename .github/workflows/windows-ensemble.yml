@@ -18,8 +18,14 @@ jobs:
       - name: Download only hash-pinned Windows wheels
         run: |
           python -m pip download --only-binary=:all: -r requirements-prod.lock --dest wheels
+      - name: Review official Windows component advisories
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/audit_windows_components.py
+      - name: Download official checksum-pinned components
+        run: python scripts/download_windows_components.py --destination official-components
       - name: Build allowlisted source package
-        run: python scripts/build_windows_ensemble.py --wheels wheels --output dist
+        run: python scripts/build_windows_ensemble.py --wheels wheels --output dist --components official-components
       - name: Verify extracted package and install its wheels on Windows Server runner
         shell: pwsh
         run: |

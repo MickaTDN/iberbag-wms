@@ -21,7 +21,7 @@ def quote(path):return "'"+str(path).replace("'","''")+"'"
 
 
 def test_management_scripts_parse_and_missing_ownership_proof_refuses_actions(tmp_path):
-    for name in ('gestao.ps1','gestao_launcher.ps1'):
+    for name in (p.name for p in (ROOT/'windows').glob('*.ps1')):
         script=ROOT/'windows'/name
         result=run_ps('$tokens=$null;$errors=$null;[Management.Automation.Language.Parser]::ParseFile('+quote(script)+',[ref]$tokens,[ref]$errors)|Out-Null;if($errors.Count){exit 1}')
         assert result.returncode==0,result.stderr.decode(errors='replace')

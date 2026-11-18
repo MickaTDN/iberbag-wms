@@ -15,13 +15,18 @@ def quote(path):return "'"+str(path).replace("'","''")+"'"
 
 
 def ps(code,stdin=None):
-    result=subprocess.run([shutil.which('powershell'),'-NoProfile','-NonInteractive','-Command',"$ErrorActionPreference='Stop';$env:PSModulePath=[IO.Path]::Combine($PSHOME,'Modules');"+code],input=stdin,capture_output=True,text=True,timeout=90)
+    result=subprocess.run([shutil.which('powershell'),'-NoProfile','-NonInteractive','-Command',"$ErrorActionPreference='Stop';$env:PSModulePath=[IO.Path]::Combine($PSHOME,'Modules');"+'try{'+code+'}catch{Write-Output ("DDN_FIXTURE_EXCEPTION:"+$_.Exception.GetType().Name+":"+$_.InvocationInfo.ScriptLineNumber);if($_.Exception.Message -match "^DDN_[A-Z_]+$"){Write-Output $_.Exception.Message};exit 1}'],input=stdin,capture_output=True,text=True,timeout=90)
     return result
 
 
 def expect(code,stdin=None):
     result=ps(code,stdin)
-    if result.returncode:print('\n::error title=DDN real SCM fixture::Native operation refused; no fallback or raw credential output.',flush=True)
+    if result.returncode:
+        import re
+        stage='install' if ' install;' in code else ('setup' if 'Save-DDNSecret' in code else 'native')
+        hints=[label for word,label in [('account name is invalid','invalid-account'),('Access is denied','access-denied'),('already exists','name-collision')] if word.lower() in (result.stdout+result.stderr).lower()]
+        hints+=re.findall(r'DDN_FIXTURE_EXCEPTION:([A-Za-z0-9:]+)|\b(DDN_SECRET_[A-Z_]+)\b',result.stdout)
+        print('\n::error title=DDN real SCM fixture::'+stage+' failed; exit='+str(result.returncode)+'; safe hints='+str(hints),flush=True)
     assert result.returncode==0,'Native SCM/credential fixture failed; no fallback or privilege weakening permitted.'
     return result.stdout
 

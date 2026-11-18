@@ -42,6 +42,9 @@ try {
     $names=@('DDNWMS-Test-Postgres','DDNWMS-Test-WMS','DDNWMS-Test-HTTPS')
     foreach($name in $names){if(Get-Service -Name $name -ErrorAction SilentlyContinue){Stop-DDNInstall 'DDN_NAME_COLLISION'}}
     foreach($port in $ports){if(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue){Stop-DDNInstall 'DDN_PORT_OCCUPIED'}}
+    $framework=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full')
+    if(-not $framework -or [int]$framework.GetValue('Release') -lt 528040){Stop-DDNInstall 'DDN_FRAMEWORK_48_REQUIRED'}
+    $framework.Dispose()
     $winsw=Join-Path $Root 'components\WinSW.NET461.exe'
     Assert-Protected $winsw
     if((Get-FileHash -Algorithm SHA256 -LiteralPath $winsw).Hash -ne 'b5066b7bbdfba1293e5d15cda3caaea88fbeab35bd5b38c41c913d492aadfc4f'){Stop-DDNInstall 'DDN_HOST_HASH'}

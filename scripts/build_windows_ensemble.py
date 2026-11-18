@@ -19,7 +19,7 @@ def build(wheels, output, components=None):
         p = Path(name)
         if ((p.parts[0] in ('iberbag', 'migrations') and p.suffix in ('.py','.html','.css','.js','.svg','.txt','.png','.webmanifest'))
             or name in ('requirements-prod.lock', 'windows/assistente.py', 'windows/components.lock.json', 'windows/WinSW-LICENSE.txt', 'windows/segredo_servico.ps1', 'windows/provisionar_servicos.ps1', 'windows/INSTALAR_DDN_ENSAIO.bat', 'windows/GESTAO_DDN.bat', 'windows/gestao.ps1', 'windows/gestao_launcher.ps1', 'windows/atalho_assistente.ps1',
-                        'docs/DDN_PROVISIONAMENTO_ASSISTIDO.md',
+                        'docs/DDN_PROVISIONAMENTO_ASSISTIDO.md', 'docs/SCM_E_CREDENCIAIS_WINDOWS.md',
                         'docs/INSTALADOR_DDN_ENSAIO.md', 'docs/INSTALACAO_WINDOWS.md', 'docs/PWA_OPERADORES.md',
                         'docs/HOMOLOGACAO_IBERBAG_COSMOPAK.md')):
             if (ROOT / p).is_symlink(): raise ValueError('Symlink in package')
@@ -42,7 +42,7 @@ def build(wheels, output, components=None):
         files['components/BUNDLED.json']=json.dumps({'caddy_sha256':hashlib.sha256(files['components/caddy.exe']).hexdigest(),'caddy_version':lock['caddy']['version'],'winsw_sha256':lock['winsw']['sha256']}).encode()
     files['DDN_ENSAIO.json'] = json.dumps(dict(database='ddn_wms_ensaio_test',user='ddn_wms_runtime',postgres=55433,http=8100,https=8447)).encode()
     files['LEIA-ME_DDN_ENSAIO.txt'] = (ROOT / 'docs/INSTALADOR_DDN_ENSAIO.md').read_bytes()
-    files['PROCEDIMENTO_TECNICO_DDN.txt'] = (ROOT / 'docs/DDN_PROVISIONAMENTO_ASSISTIDO.md').read_bytes()
+    files['PROCEDIMENTO_TECNICO_DDN.txt'] = (ROOT / 'docs/SCM_E_CREDENCIAIS_WINDOWS.md').read_bytes()
     manifest = dict(mode='homologacao', commit=commit, files={k:hashlib.sha256(v).hexdigest() for k,v in files.items()})
     files['MANIFEST.json'] = json.dumps(manifest,sort_keys=True,indent=2).encode()
     output = Path(output);output.mkdir(parents=True,exist_ok=True)

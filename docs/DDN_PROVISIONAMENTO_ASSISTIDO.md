@@ -1,3 +1,8 @@
+> Continuação: consultar **SCM_E_CREDENCIAIS_WINDOWS.md**, que atualiza a seleção de
+> host, credenciais e registo automático condicionado a pré-requisitos. As pendências
+> históricas de host/cofre abaixo são substituídas por esse guia; emissão de certificado,
+> fornecimento aprovado de PostgreSQL e homologação física continuam explícitos.
+
 # DDN — procedimento técnico assistido (PR #41)
 
 **Só homologação, dados fictícios, Windows 11; não executar em produção.** O assistente

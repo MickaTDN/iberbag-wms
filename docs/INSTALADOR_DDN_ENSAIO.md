@@ -117,3 +117,13 @@ aprovado. UAC é visível; nenhuma política de execução é desativada.
 Reparação local concluída; serviços/PG/TLS têm procedimento assistido, mas o host SCM
 e o armazenamento de credenciais por SID continuam por aprovar/implementar. Não
 confundir controlos de gestão com instalação completa dos serviços. Draft mantido.
+
+## Serviços e credenciais — continuação mais recente
+
+O [guia SCM/credenciais](SCM_E_CREDENCIAIS_WINDOWS.md) substitui a pendência anterior
+de seleção de host e acesso não interativo. WinSW oficial e Caddy são incluídos e
+verificados no build. GESTAO_DDN → 7 regista/configura/inicia os três serviços após
+pré-requisitos comprovados. Credencial cifrada por DPAPI e isolada por SID; sem
+password em XML/argumentos/BAT. Cluster PostgreSQL, aprovação de binários e certificado
+DDN continuam a exigir preparação técnica explícita. Não afirmar instalação completa
+num Windows vazio ou homologação após reboot apenas pelo sucesso da CI.

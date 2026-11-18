@@ -26,6 +26,12 @@ def expect(code,stdin=None):
         stage='install' if ' install;' in code else ('setup' if 'Save-DDNSecret' in code else 'native')
         hints=[label for word,label in [('account name is invalid','invalid-account'),('Access is denied','access-denied'),('already exists','name-collision')] if word.lower() in (result.stdout+result.stderr).lower()]
         hints+=re.findall(r'DDN_FIXTURE_EXCEPTION:([A-Za-z0-9:]+)|\b(DDN_SECRET_[A-Z_]+)\b',result.stdout)
+        if stage=='install':
+            # This invocation has no password/config credential; redact fixture paths.
+            detail=re.sub(r'[A-Za-z]:[\\/][^\r\n]+', '[fixture-path]',result.stdout+' '+result.stderr)
+            for line in detail.splitlines():
+                if any(word in line.lower() for word in ('error','exception','fail','account')):
+                    print('\n::notice title=DDN host install diagnostic::'+line[:400].replace('%','%25'),flush=True)
         print('\n::error title=DDN real SCM fixture::'+stage+' failed; exit='+str(result.returncode)+'; safe hints='+str(hints),flush=True)
     assert result.returncode==0,'Native SCM/credential fixture failed; no fallback or privilege weakening permitted.'
     return result.stdout

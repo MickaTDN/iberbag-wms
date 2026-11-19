@@ -24,6 +24,10 @@ jobs:
       - run: bandit -r iberbag -ll
       - name: Verify pinned Actions and distribution policy
         run: python scripts/check_security_policy.py
+      - name: Review Windows host transitive advisories
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/audit_windows_components.py
       - name: Scan history with checksum-verified Gitleaks
         shell: bash
         run: |

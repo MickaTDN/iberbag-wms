@@ -49,6 +49,9 @@ def main():
         import subprocess, sys
         raise SystemExit(subprocess.call([sys.executable, '-m', 'iberbag.cli', 'create-admin']))
     else:
+        port = int(os.environ.get('WMS_HTTP_PORT', '8000'))
+        if not 1024 <= port <= 65535:
+            raise SystemExit('Porta HTTP interna inválida.')
         from .migrations import check_database
         check_database()
         from .database import engine
@@ -59,7 +62,7 @@ def main():
         except ValueError as error:
             raise SystemExit('Arranque recusado: configurar conta web restrita. '+str(error)) from None
         import uvicorn
-        uvicorn.run('iberbag.app:app', host='127.0.0.1', port=8000, workers=2,
+        uvicorn.run('iberbag.app:app', host='127.0.0.1', port=port, workers=2,
                     proxy_headers=True, forwarded_allow_ips='127.0.0.1')
 
 

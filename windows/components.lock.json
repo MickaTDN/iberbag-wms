@@ -1,0 +1,15 @@
+{
+  "winsw": {
+    "version": "2.13.0",
+    "source_commit": "7ebe3dedcc28aba58eb68d1be57882a7ad3f89f8",
+    "url": "https://github.com/winsw/winsw/releases/download/v2.13.0/WinSW.NET462.exe_Release",
+    "sha256": "e139f9c1dec5c87a0f51a01668b6cc819286c26b8d26c21c6a2ac128993496c6",
+    "file": "WinSW.NET462.exe"
+  },
+  "caddy": {
+    "version": "2.11.9",
+    "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.9/caddy_2.11.9_windows_amd64.zip",
+    "sha256": "ad93112d335ee687100c4c9f11bced16ca590377976b7fe7883882b9e797e472",
+    "file": "caddy.zip"
+  }
+}

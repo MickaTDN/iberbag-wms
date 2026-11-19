@@ -39,3 +39,14 @@ def test_official_timezone_and_locale_names_are_preserved(tmp_path,name):
     p,h=archive(tmp_path,(name,b'FICTITIOUS'));out=tmp_path/'new'
     report=m.process(p,URL,'17.11',h,out,True)
     assert 'components/postgres/'+name.removeprefix('pgsql/') in report['files']
+
+
+@pytest.mark.parametrize('kind',['oversized_directory','zip64_override'])
+def test_distribution_bounds_metadata_before_zipfile_allocation(tmp_path,kind):
+    import struct
+    p,_=archive(tmp_path);data=bytearray(p.read_bytes());end=data.rfind(b'PK\x05\x06')
+    if kind=='oversized_directory':struct.pack_into('<I',data,end+12,17*1024**2)
+    else:data=data[:end]+b'PK\x06\x07'+b'\0'*16+data[end:]
+    p.write_bytes(data);digest=hashlib.sha256(data).hexdigest()
+    with pytest.raises(ValueError):m.process(p,URL,'17.11',digest)
+    assert p.read_bytes()==data

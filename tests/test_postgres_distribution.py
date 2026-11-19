@@ -23,7 +23,7 @@ def test_offline_preview_import_reconciliation_and_no_overwrite(tmp_path):
     with pytest.raises(FileExistsError):m.process(p,URL,'17.11',h,out,True)
     assert p.read_bytes()==before
 
-@pytest.mark.parametrize('extra',[('../escape',b'x'),('pgsql/bin/POSTGRES.EXE',b'x'),('pgsql/data/PG_VERSION',b'17'),('pgsql/CON.txt',b'x'),('pgsql/evil:stream',b'x')])
+@pytest.mark.parametrize('extra',[('../escape',b'x'),('pgsql/bin/POSTGRES.EXE',b'x'),('pgsql/data/PG_VERSION',b'17'),('pgsql/CON.txt',b'x'),('pgsql/evil:stream',b'x'),('pgsql/CONIN$',b'x'),('pgsql/COM¹.txt',b'x')])
 def test_distribution_refuses_ambiguous_or_unsafe_paths(tmp_path,extra):
     p,h=archive(tmp_path,extra)
     with pytest.raises(ValueError):m.process(p,URL,'17.11',h)

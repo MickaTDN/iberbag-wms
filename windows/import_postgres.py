@@ -21,18 +21,24 @@ def analyse(snapshot,origin,version,expected):
         if size>MAX_ARCHIVE:raise ValueError('Arquivo excessivo')
         digest.update(chunk)
     if digest.hexdigest()!=expected.lower():raise ValueError('SHA-256 divergente')
+    # Bound central-directory allocation before zipfile parses untrusted metadata.
+    snapshot.seek(max(0,size-65557));tail=snapshot.read(65557);end=tail.rfind(b'PK\x05\x06')
+    if end<0 or len(tail)-end<22:raise ValueError('Diretório ZIP ausente')
+    disk,central_disk,disk_entries,total_entries,central_size=struct.unpack_from('<HHHHI',tail,end+4)
+    if disk or central_disk or disk_entries!=total_entries or total_entries>30000 or central_size>16*1024**2:raise ValueError('Metadados ZIP excessivos ou multidisco')
     snapshot.seek(0);rows=[];seen=set();expanded=0
     with zipfile.ZipFile(snapshot) as archive:
         if len(archive.infolist())>30000:raise ValueError('Demasiadas entradas')
         for item in archive.infolist():
             raw=item.filename
+            if raw!=item.orig_filename:raise ValueError('Nome ZIP truncado')
             if '\\' in raw or ':' in raw or raw.startswith('/') or '..' in PurePosixPath(raw).parts or stat.S_ISLNK(item.external_attr>>16):raise ValueError('Caminho ou link inseguro')
             parts=PurePosixPath(raw).parts
             if not parts or parts[0]!='pgsql':raise ValueError('Layout oficial pgsql/ esperado; não renomear ficheiros para contornar')
             if item.is_dir():continue
             relative='/'.join(parts[1:])
             if not relative or any(p in ('.','..') or p.endswith((' ','.')) or re.search(r'[<>:"|?*\x00-\x1f]',p) for p in parts):raise ValueError('Nome incompatível com o catálogo aprovado')
-            if any(p.upper().split('.')[0] in {'CON','PRN','AUX','NUL',*(f'COM{i}' for i in range(10)),*(f'LPT{i}' for i in range(10))} for p in parts):raise ValueError('Nome reservado Windows')
+            if any(p.upper().split('.')[0] in {'CON','PRN','AUX','NUL','CONIN$','CONOUT$',*(f'{prefix}{i}' for prefix in ('COM','LPT') for i in '¹²³'),*(f'COM{i}' for i in range(10)),*(f'LPT{i}' for i in range(10))} for p in parts):raise ValueError('Nome reservado Windows')
             if relative.casefold() in seen:raise ValueError('Identidades de ficheiro duplicadas')
             seen.add(relative.casefold());expanded+=item.file_size
             if item.flag_bits&1 or item.file_size>512*1024**2 or expanded>MAX_EXPANDED or item.file_size>1000*max(item.compress_size,1):raise ValueError('ZIP cifrado ou expansão excessiva')

@@ -127,3 +127,10 @@ insegura. Serviços/testes SQL/PostgreSQL existentes continuam na regressão com
 Estes testes não são prova de PostgreSQL Windows/HTTPS real instalado no cliente, reboot,
 VirtualBox, Trend Micro, rede empresarial ou coexistência real com a GVA. Manter Draft
 até às evidências físicas e aos pré-requisitos técnicos completos.
+
+## Fornecimento manual verificado e roteiro curto
+
+Ver `HOMOLOGACAO_VM_CURTA.md` e `windows/import_postgres.py`: prévia offline, aprovação
+explícita, SHA independente, inventário integral e reconciliação, sem executar binários
+ou usar instalação GVA. Cluster/roles/TLS continuam assistidos por técnico; sem claim
+de ensaio físico ou instalação automática num Windows vazio.

@@ -169,7 +169,7 @@ def run_menu(root=ROOT):
 
 def main():
     print('DDN WMS — ENSAIO. Produção indisponível. Não altera serviços GVA.')
-    print('1 Instalar dependências locais\n2 Verificar pacote/portas/serviços (leitura)\n3 Assistente WMS existente\n4 Reparar dependências sem apagar\n5 Procedimento técnico PostgreSQL/serviços/HTTPS\n6 Criar atalho pessoal do assistente\n0 Sair')
+    print('1 Instalar dependências locais\n2 Verificar pacote/portas/serviços (leitura)\n3 Assistente WMS existente\n4 Reparar dependências sem apagar\n5 Procedimento técnico PostgreSQL/serviços/HTTPS\n6 Criar atalho pessoal do assistente\n7 Importar distribuicao PostgreSQL oficial (previa/aprovacao)\n0 Sair')
     choice = input('Opção: ').strip()
     try:
         if choice == '1': install()
@@ -182,6 +182,16 @@ def main():
         elif choice == '3': run_menu()
         elif choice == '4': repair()
         elif choice == '5': os.startfile(ROOT / 'PROCEDIMENTO_TECNICO_DDN.txt')
+        elif choice == '7':
+            verify_bundle()
+            args = [sys.executable, '-I', str(ROOT / 'windows' / 'import_postgres.py'),
+                    '--archive', input('ZIP oficial PostgreSQL 17: ').strip().strip('"'),
+                    '--origin', input('URL oficial de origem: ').strip(),
+                    '--version', input('Versão exata 17.patch: ').strip(),
+                    '--sha256', input('SHA-256 aprovado por canal independente: ').strip()]
+            destination = input('Pasta NOVA de staging (vazio = apenas prévia): ').strip().strip('"')
+            if destination: args += ['--output', destination]
+            subprocess.run(args, env=isolated_environment(), check=True)
         elif choice == '6':
             verify_bundle()
             subprocess.run(['powershell.exe', '-NoProfile', '-File', str(ROOT / 'windows' / 'atalho_assistente.ps1')], check=True)

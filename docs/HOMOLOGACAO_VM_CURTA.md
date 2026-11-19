@@ -10,7 +10,9 @@ Os testes SCM do runner Windows não são este ensaio nem instalação completa 
    devolver 403. Obter SHA-256 por canal independente do ficheiro local e registar a
    versão exata/URL. Sem prova de origem/hash, parar; não calcular hash local e apresentá-lo
    como prova independente, não copiar a instalação GVA, não renomear conteúdo contraditório.
-2. No pacote, executar com Python 3.12 o importador **windows/import_postgres.py** com
+2. No pacote, duplo clique em INSTALAR_DDN_ENSAIO.bat → opção **7** e preencher
+   ZIP/URL/versão/hash aprovados; destino vazio faz só prévia. Alternativa técnica: executar
+   com Python 3.12 o importador **windows/import_postgres.py** com
    `--archive <ZIP oficial> --origin <URL oficial HTTPS> --version <17.patch real>
    --sha256 <hash independente>`. Sem `--output`, só analisa e apresenta totais.
 3. Repetir com `--output <pasta NOVA de staging>`. Escrever a confirmação completa

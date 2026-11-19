@@ -32,3 +32,10 @@ def test_distribution_refuses_ambiguous_or_unsafe_paths(tmp_path,extra):
 def test_distribution_refuses_untrusted_origin_version_or_digest(tmp_path,origin,version,digest):
     p,h=archive(tmp_path)
     with pytest.raises(ValueError):m.process(p,origin,version,digest or h)
+
+
+@pytest.mark.parametrize('name',['pgsql/share/timezone/Etc/GMT+1','pgsql/share/locale/sr@latin/LC_MESSAGES/postgres.mo'])
+def test_official_timezone_and_locale_names_are_preserved(tmp_path,name):
+    p,h=archive(tmp_path,(name,b'FICTITIOUS'));out=tmp_path/'new'
+    report=m.process(p,URL,'17.11',h,out,True)
+    assert 'components/postgres/'+name.removeprefix('pgsql/') in report['files']

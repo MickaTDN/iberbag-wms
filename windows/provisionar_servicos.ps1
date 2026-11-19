@@ -62,7 +62,8 @@ try {
         if(-not $approval.files.PSObject.Properties[$relative]){Stop-DDNInstall 'DDN_UNVERIFIED_PG_FILE'}
     }
     foreach($entry in $approval.files.PSObject.Properties){
-        if($entry.Name -notmatch '^components/postgres/[A-Za-z0-9_./-]+$' -or $entry.Name.Contains('..')){Stop-DDNInstall 'DDN_PG_PATH'}
+        if(-not $entry.Name.StartsWith('components/postgres/',[StringComparison]::Ordinal) -or $entry.Name -match '[<>:"\\|?*\x00-\x1f]'){Stop-DDNInstall 'DDN_PG_PATH'}
+        foreach($part in $entry.Name.Split('/')){if($part -in @('','.', '..') -or $part.EndsWith('.') -or $part.EndsWith(' ')){Stop-DDNInstall 'DDN_PG_PATH'}}
         $path=Join-Path $Root $entry.Name;Assert-Protected $path
         if((Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash -ne $entry.Value){Stop-DDNInstall 'DDN_PG_HASH'}
     }

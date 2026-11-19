@@ -31,7 +31,7 @@ def analyse(snapshot,origin,version,expected):
             if not parts or parts[0]!='pgsql':raise ValueError('Layout oficial pgsql/ esperado; não renomear ficheiros para contornar')
             if item.is_dir():continue
             relative='/'.join(parts[1:])
-            if not relative or not re.fullmatch(r'[A-Za-z0-9_./-]+',relative):raise ValueError('Nome incompatível com o catálogo aprovado')
+            if not relative or any(p in ('.','..') or p.endswith((' ','.')) or re.search(r'[<>:"|?*\x00-\x1f]',p) for p in parts):raise ValueError('Nome incompatível com o catálogo aprovado')
             if any(p.upper().split('.')[0] in {'CON','PRN','AUX','NUL',*(f'COM{i}' for i in range(10)),*(f'LPT{i}' for i in range(10))} for p in parts):raise ValueError('Nome reservado Windows')
             if relative.casefold() in seen:raise ValueError('Identidades de ficheiro duplicadas')
             seen.add(relative.casefold());expanded+=item.file_size

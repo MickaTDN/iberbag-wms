@@ -551,6 +551,9 @@ REQUIRED_WINDOWS.update({'test_windows_ensemble.test_repair_preserves_partial_ve
 REQUIRED_POSTGRES.add('test_windows_service_profile.test_service_profile_clears_inherited_targets_and_keeps_credentials_out_of_arguments')
 REQUIRED_WINDOWS.update({'test_windows_service_profile.test_service_profile_clears_inherited_targets_and_keeps_credentials_out_of_arguments','test_scm_credentials.test_real_virtual_services_can_decrypt_only_as_wms_and_collisions_do_not_reinstall','test_scm_credentials.test_real_service_refuses_cipher_tampering_and_permissive_acl_without_new_secret'})
 
+REQUIRED_POSTGRES.add('test_postgres_distribution.test_offline_preview_import_reconciliation_and_no_overwrite')
+REQUIRED_WINDOWS.add('test_postgres_distribution.test_offline_preview_import_reconciliation_and_no_overwrite')
+
 def verify(path, backend, required=None):
     raw = Path(path).read_bytes()
     # This XML is generated locally by pytest, never accepted from uploads/users.

@@ -22,8 +22,9 @@ def analyse(snapshot,origin,version,expected):
         digest.update(chunk)
     if digest.hexdigest()!=expected.lower():raise ValueError('SHA-256 divergente')
     # Bound central-directory allocation before zipfile parses untrusted metadata.
-    snapshot.seek(max(0,size-65557));tail=snapshot.read(65557);end=tail.rfind(b'PK\x05\x06')
+    snapshot.seek(max(0,size-65577));tail=snapshot.read(65577);end=tail.rfind(b'PK\x05\x06')
     if end<0 or len(tail)-end<22:raise ValueError('Diretório ZIP ausente')
+    if end>=20 and tail[end-20:end-16]==b'PK\x06\x07':raise ValueError('ZIP64 fora dos limites deste importador')
     disk,central_disk,disk_entries,total_entries,central_size=struct.unpack_from('<HHHHI',tail,end+4)
     if disk or central_disk or disk_entries!=total_entries or total_entries>30000 or central_size>16*1024**2:raise ValueError('Metadados ZIP excessivos ou multidisco')
     snapshot.seek(0);rows=[];seen=set();expanded=0
